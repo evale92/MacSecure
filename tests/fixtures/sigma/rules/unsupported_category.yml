@@ -1,0 +1,13 @@
+id: 44444444-4444-4444-4444-444444444444
+title: Secure test - unsupported category
+status: test
+level: high
+description: Deterministic fixture rule for capability tests — registry_event is not one of Secure's two supported logsource categories, so this must always be reported NOT_EVALUABLE.
+logsource:
+  category: registry_event
+detection:
+  sel:
+    TargetObject: 'HKLM\Software\Microsoft\Windows\CurrentVersion\Run'
+  condition: sel
+tags:
+  - secure.test

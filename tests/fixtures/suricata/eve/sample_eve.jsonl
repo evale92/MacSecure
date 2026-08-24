@@ -1,0 +1,5 @@
+{"timestamp":"2026-01-01T10:00:00.000000+0000","flow_id":111,"in_iface":"en0","event_type":"alert","src_ip":"192.0.2.10","src_port":51000,"dest_ip":"203.0.113.5","dest_port":4444,"proto":"TCP","alert":{"action":"allowed","gid":1,"signature_id":2100498,"rev":7,"signature":"SECURE-TEST GPL ATTACK_RESPONSE id check returned root","category":"Potentially Bad Traffic","severity":1}}
+{"timestamp":"2026-01-01T10:00:05.000000+0000","flow_id":112,"in_iface":"en0","event_type":"alert","src_ip":"192.0.2.11","src_port":52000,"dest_ip":"198.51.100.7","dest_port":80,"proto":"TCP","alert":{"action":"allowed","gid":1,"signature_id":2100999,"rev":2,"signature":"SECURE-TEST ET INFO TLS Handshake Failure","category":"Potentially Bad Traffic","severity":3}}
+this line is not valid JSON at all {{{
+{"timestamp":"2026-01-01T09:59:00.000000+0000","event_type":"flow","flow_id":999,"proto":"UDP","src_ip":"192.0.2.20","dest_ip":"198.51.100.20"}
+{"timestamp":"2026-01-01T10:00:10.000000+0000","event_type":"stats","stats":{"capture":{"kernel_packets":98765,"kernel_drops":12},"decoder":{"pkts":98765}}}

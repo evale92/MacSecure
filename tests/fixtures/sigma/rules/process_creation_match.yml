@@ -1,0 +1,15 @@
+id: 11111111-1111-1111-1111-111111111111
+title: Secure test - curl fetching from pastebin
+status: test
+level: high
+description: Deterministic fixture rule for tests/test_integrations_sigma.py — matches a synthetic curl+pastebin command line, never a real detection signature.
+logsource:
+  category: process_creation
+  product: macos
+detection:
+  sel:
+    Image|endswith: '/curl'
+    CommandLine|contains: 'secure-test-pastebin-marker'
+  condition: sel
+tags:
+  - secure.test

@@ -1,0 +1,6 @@
+# Sample local threat-intelligence hash feed fixture for tests. Not
+# real malware hashes — deliberately repetitive hex strings shaped like
+# a sha256 (64 hex chars) and an md5 (32 hex chars).
+
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa,test_malware,malicious
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb,test_pua,suspicious

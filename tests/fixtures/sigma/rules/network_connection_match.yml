@@ -1,0 +1,14 @@
+id: 22222222-2222-2222-2222-222222222222
+title: Secure test - outbound to fixture C2 port
+status: test
+level: medium
+description: Deterministic fixture rule for tests/test_integrations_sigma.py — matches a synthetic destination port, never a real detection signature.
+logsource:
+  category: network_connection
+detection:
+  sel:
+    DestinationPort: 44440
+    Protocol: tcp
+  condition: sel
+tags:
+  - secure.test

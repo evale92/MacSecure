@@ -1,0 +1,12 @@
+# Sample local threat-intelligence IOC feed fixture for tests.
+# IANA TEST-NET-2/3 documentation ranges (198.51.100.0/24,
+# 203.0.113.0/24) — guaranteed never to route anywhere real, never a
+# real-world IOC. See secure/threatintel/providers/local_feed.py for
+# the file format this mirrors.
+
+198.51.100.23,c2_server,malicious
+203.0.113.9,port_scanner,suspicious
+
+# malformed line (no value before the first comma) — must be skipped,
+# never raise
+,bad_entry,malicious

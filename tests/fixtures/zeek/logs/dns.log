@@ -1,0 +1,3 @@
+{"ts": 1755781010.5, "uid": "CZeekConn2", "id": {"orig_h": "192.0.2.11", "orig_p": 52000, "resp_h": "203.0.113.5", "resp_p": 53}, "proto": "udp", "query": "secure-test.example.com.", "qtype_name": "A", "rcode_name": "NOERROR", "answers": ["203.0.113.9"]}
+not valid json here {{{
+{"ts": 1755781015.0, "uid": "CZeekConn4", "id": {"orig_h": "192.0.2.13", "orig_p": 52500, "resp_h": "203.0.113.6", "resp_p": 53}, "proto": "udp", "query": "SECURE-TEST.example.org.", "qtype_name": "AAAA", "rcode_name": "NOERROR", "answers": []}

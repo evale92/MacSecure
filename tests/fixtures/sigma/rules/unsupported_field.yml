@@ -1,0 +1,13 @@
+id: 55555555-5555-5555-5555-555555555555
+title: Secure test - unsupported field
+status: test
+level: medium
+description: Deterministic fixture rule for capability tests — ParentImage is a real process_creation field but Secure's osquery telemetry doesn't carry parent-process linkage, so this must always be reported NOT_EVALUABLE.
+logsource:
+  category: process_creation
+detection:
+  sel:
+    ParentImage: '/bin/bash'
+  condition: sel
+tags:
+  - secure.test

@@ -1,0 +1,11 @@
+id: 77777777-7777-7777-7777-777777777777
+title: Secure test - missing detection.condition
+status: test
+description: Deterministic fixture rule for load_rules() error-handling tests — has a detection block but no condition key, which rules.py must reject as a RuleLoadError rather than a silently-broken SigmaRule.
+logsource:
+  category: process_creation
+detection:
+  sel:
+    Image: '/bin/ls'
+tags:
+  - secure.test

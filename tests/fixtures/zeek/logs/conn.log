@@ -1,0 +1,4 @@
+{"ts": 1755781000.123456, "uid": "CZeekConn1", "id": {"orig_h": "192.0.2.10", "orig_p": 51000, "resp_h": "198.51.100.7", "resp_p": 443}, "proto": "tcp", "service": "ssl", "duration": 1.2, "orig_bytes": 500, "resp_bytes": 1500, "conn_state": "SF", "history": "ShADadFf", "orig_pkts": 6, "resp_pkts": 5}
+{"ts": 1755781010.5, "uid": "CZeekConn2", "id": {"orig_h": "192.0.2.11", "orig_p": 52000, "resp_h": "203.0.113.5", "resp_p": 53}, "proto": "udp", "service": "dns", "duration": 0.05, "orig_bytes": 60, "resp_bytes": 120, "conn_state": "SF"}
+this line is not valid JSON at all {{{
+{"ts": 1755781020.0, "uid": "CZeekConn3", "id": {"orig_h": "192.0.2.12", "orig_p": 53000, "resp_h": "198.51.100.20", "resp_p": 80}, "proto": "tcp", "service": "http", "duration": 0.3, "orig_bytes": 200, "resp_bytes": 4096, "conn_state": "SF"}

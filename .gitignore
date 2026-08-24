@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# PyCharm
+.idea/
+
+# App runtime data — these are generated locally by `secure init`
+# and should never be committed (the database especially may end up
+# holding sensitive data once real features are added).
+data/*.db
+logs/*.log
+
+# macOS
+.DS_Store

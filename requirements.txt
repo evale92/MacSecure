@@ -1,0 +1,107 @@
+# Runtime dependencies: standard library only, EXCEPT for the two
+# packages below. Every other part of this app (config, logging,
+# SQLite storage, CLI, and every monitoring feature through Phase 9's
+# system_profiler-based Bluetooth visibility) uses only the Python
+# standard library on purpose, to keep the base as simple and
+# auditable as possible.
+#
+# secure/bluetooth/ble/ (live BLE peripheral discovery) is the
+# deliberate, explicitly-approved exception: system_profiler cannot see
+# a BLE peripheral simply advertising nearby that this Mac has never
+# paired with, and there is no standard-library way to do that on
+# macOS. bleak's macOS backend is itself a PyObjC/CoreBluetooth
+# wrapper; pyobjc-framework-CoreBluetooth is used directly for one
+# thing bleak doesn't cleanly expose (a synchronous powered-on/off +
+# authorization state read — see secure/bluetooth/ble/state.py).
+# Versions below are what was confirmed working via the step-zero
+# proof-of-concept on the actual target Mac (see
+# scripts/ble_stepzero_check.py and PROJECT_NOTES.md's change log).
+bleak>=3.0.2
+pyobjc-framework-CoreBluetooth>=12.2.2
+
+# secure/integrations/yarax/ (Phase 16 — YARA-X content-detection
+# integration) is the second deliberate, explicitly-approved exception:
+# there is no standard-library way to run YARA-style content-pattern
+# matching. Imported lazily, only inside secure/integrations/yarax/
+# _engine.py, so the rest of the app (and this project's own test
+# suite, which mocks that one seam module) never requires it to be
+# installed — see that file's module docstring. A missing/broken
+# install shows up as an honest "unavailable"/"error" integration
+# health status (secure/integrations/base.py), never a crash and never
+# a silently-clean pass. Note: this dependency could not be installed
+# or version-confirmed in the sandbox this phase was built in (no
+# network access) — the exact minimum version below is the package's
+# current stable release as of this phase, not independently verified
+# against a real install the way bleak's version above was; confirm
+# on the actual target Mac before relying on it, the same "step-zero
+# proof-of-concept first" discipline BLE's own rollout used.
+yara-x>=0.13.0
+
+# secure/integrations/sigma/ (Phase 17 — Sigma detection-rule
+# integration) is the third deliberate, explicitly-approved exception:
+# there is no standard-library YAML parser, and Sigma rules are YAML
+# documents. Imported lazily, only inside
+# secure/integrations/sigma/_yaml.py's one parse_yaml() function, using
+# yaml.safe_load (never yaml.load — Sigma rule files are untrusted
+# data, never a source of arbitrary Python objects). Unlike yara-x
+# above, PyYAML genuinely WAS installed and version-confirmed in the
+# sandbox this phase was built in (`python3 -c "import yaml;
+# print(yaml.__version__)"` -> 6.0.3), so this integration's real
+# parsing path — not just a mocked seam — is exercised end to end by
+# tests/test_integrations_sigma.py.
+PyYAML>=6.0.3
+
+# secure/integrations/suricata/ (Phase 18 — Suricata network IDS
+# integration) needs NO new dependency here — unlike the three
+# integrations above, it never imports a third-party library at all.
+# It only reads Suricata's own EVE JSON log file with the standard
+# library's `json` module, and optionally shells out to a `suricata`
+# binary (read-only, `-V` only, for version provenance — never
+# required). Suricata itself is not a Python dependency of Secure in
+# any sense: it's installed, configured, and run entirely by the user,
+# outside this app, the same way osquery's own binary is.
+
+# secure/integrations/zeek/ (Phase 19 — Zeek behavioral network
+# telemetry integration) also needs NO new dependency — same as
+# Suricata above, it only reads Zeek's own native JSON log output
+# (conn.log/dns.log/ssl.log/http.log) with the standard library's
+# `json` module, and optionally shells out to a `zeek` binary
+# (read-only, `--version` only, for version provenance — never
+# required). Zeek itself is not a Python dependency of Secure in any
+# sense: it's installed, configured, and run entirely by the user,
+# outside this app.
+
+# secure/threatintel/ (Phase 20 — provider-neutral threat-intelligence
+# enrichment) also needs NO new dependency — its one network-capable
+# provider (VirusTotal, secure/threatintel/providers/virustotal.py)
+# talks to a plain JSON REST API over the standard library's
+# `urllib.request`/`json` modules only, isolated behind
+# secure/threatintel/providers/_http.py's one http_get_json() seam so
+# tests never make a real network call. The offline local_feed
+# provider reads flat text files with the standard library alone.
+# Neither provider is a Python package dependency of Secure.
+
+# secure/evidence/ (Phase 21 — unified evidence, lineage and
+# deduplication model) also needs NO new dependency — it's pure Python
+# (dataclasses, hashlib for its one optional stable-hash helper) plus
+# one new sqlite table, reading and linking rows every other module
+# already writes with the standard library alone.
+
+# secure/agent/ (Phase 31 — Agent Foundation: supervised, human-
+# approved autonomous repair) also needs NO new Python dependency here.
+# mini-SWE-agent is an external tool, invoked as a fixed-argv
+# subprocess (secure/agent/runner.py) the same way suricata/zeek/
+# velociraptor binaries above are — installed, configured, and run
+# entirely outside this app, never imported as a Python library. The
+# mini-SWE-agent config YAML it's invoked with is generated using
+# PyYAML (already listed above for Sigma), reused unchanged — no
+# second YAML dependency. Ollama itself is likewise an external
+# service, reached through mini-SWE-agent's own litellm model backend
+# (also not a Secure dependency); Secure only ever supplies
+# AppConfig.ollama_host/ollama_model, unchanged from Phase 28. A
+# missing/unconfigured `mini` binary shows up as an honest
+# "unavailable" status (secure/agent/runner.py's tool_available()),
+# never a crash and never a silently-attempted repair.
+
+# Dev-only dependency, for running the test suite:
+pytest>=7.0

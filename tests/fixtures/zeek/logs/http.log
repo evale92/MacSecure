@@ -1,0 +1,1 @@
+{"ts": 1755781020.0, "uid": "CZeekConn3", "id": {"orig_h": "192.0.2.12", "orig_p": 53000, "resp_h": "198.51.100.20", "resp_p": 80}, "method": "GET", "host": "secure-test.example.org", "uri": "/", "status_code": 200, "user_agent": "SECURE-TEST-agent/1.0"}

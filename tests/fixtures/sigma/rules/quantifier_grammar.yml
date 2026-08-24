@@ -1,0 +1,15 @@
+id: 33333333-3333-3333-3333-333333333333
+title: Secure test - quantifier grammar coverage
+status: test
+level: low
+description: Deterministic fixture rule exercising "1 of them" over two selections — never a real detection signature.
+logsource:
+  category: process_creation
+detection:
+  sel_a:
+    Image|endswith: '/nonexistent-a'
+  sel_b:
+    Image|endswith: '/nonexistent-b'
+  condition: 1 of them
+tags:
+  - secure.test

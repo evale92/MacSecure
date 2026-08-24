@@ -1,0 +1,4 @@
+# Deliberately malformed YAML fixture for tests/test_integrations_sigma.py —
+# exercises load_rules()'s per-file error isolation (one bad file must not
+# prevent the other fixtures in this directory from loading).
+title: [this is not: valid: yaml

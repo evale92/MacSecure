@@ -1,0 +1,8 @@
+# Sample local threat-intelligence domain feed fixture for tests. Never
+# a real-world IOC — "secure-test" is a fixture-only marker, matching
+# this suite's "SECURE-TEST" prefix convention used elsewhere.
+
+bad-secure-test.example,phishing,malicious
+
+# no declared category/severity -> defaults to local_feed_match/suspicious
+suspicious-secure-test.example

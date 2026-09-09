@@ -16,3 +16,17 @@ logs/*.log
 
 # macOS
 .DS_Store
+
+# --- added for publishing ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.vscode/
+*.py[cod]
+*.egg-info/
+.ruff_cache/
+.mypy_cache/
+dist/
+build/

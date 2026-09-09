@@ -639,3 +639,57 @@ def cmd_agent_maintain(args: argparse.Namespace) -> int:
             if not outcome.promotion_eligible:
                 worst = 1
     return worst
+
+
+# ---------------------------------------------------------------------
+# Phase 47.5 — Close the Verified Safe-Code Loop (CLI half)
+# ---------------------------------------------------------------------
+
+
+def cmd_agent_promote(args: argparse.Namespace) -> int:
+    """Phase 47.5: `secure agent promote <run_id>` — evaluate the
+    promotion gate for one repair run, and (only with --apply) promote
+    it.
+
+    Without --apply this is read-only: it prints why the repair may or
+    may not be promoted and writes nothing. With --apply it may write
+    to the live working tree, but ONLY for a fully VERIFIED
+    SAFE_PROJECT_CODE repair that passes every gate condition. Nothing
+    is ever committed on your behalf.
+    """
+    from secure.agent.promote import describe, evaluate_promotion_gate, promote
+    from secure.agent.verified import evaluate_verified
+    from secure.agent.worktree import project_root
+
+    cfg = _bootstrap()
+    root = project_root()
+    with Database(cfg.database_path()) as db:
+        record = find_agent_repair_run(db.conn, args.run_id)
+        if record is None:
+            print(f"No repair run {args.run_id!r}.")
+            return 1
+
+        cr = find_ai_change_request(db.conn, record.change_request_id) if record.change_request_id else None
+
+        escalation = None
+        if args.run_tiers:
+            from secure.agent.maintenance import _run_authoritative_tiers
+
+            escalation = _run_authoritative_tiers(record, cfg)
+            if escalation is None:
+                print("Could not run the Phase 36 verification tiers "
+                      "(the worktree may be gone). Criteria will read UNKNOWN, which blocks.")
+
+        assessment = evaluate_verified(record, cfg, escalation=escalation, perf_warnings=None, root=root)
+
+        if not args.apply:
+            gate = evaluate_promotion_gate(record, assessment, cfg, root=root, change_request=cr)
+            print(gate.describe())
+            if gate.allowed:
+                print()
+                print("This repair WOULD be promoted. Re-run with --apply to actually do it.")
+            return 0 if gate.allowed else 1
+
+        result = promote(db.conn, record, assessment, cfg, root=root, change_request=cr)
+        print(describe(result))
+    return 0 if result.outcome == "promoted" else 1

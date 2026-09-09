@@ -238,6 +238,20 @@ def _c3_failure_gone(record, cfg: AppConfig, *, timeout: float) -> CriterionResu
 
 def _tier_criterion(key: str, tier_result, *, applicable: bool, why_not: str = "") -> CriterionResult:
     if not applicable:
+        # Phase 47.5 correction. "Not required" means its ABSENCE is
+        # acceptable — it must never mean its FAILURE is acceptable. A
+        # tier that was not required but ran anyway and definitively
+        # failed is real evidence of breakage, and treating it as
+        # satisfied would let a repair with a red full regression reach
+        # VERIFIED simply because policy did not demand that tier. Found
+        # by a Phase 47.5 promotion test that expected a failing
+        # unrequired FULL run to block and discovered it did not.
+        if tier_result is not None and getattr(tier_result, "passed", None) is False:
+            return CriterionResult(
+                key, False,
+                "this tier was not required for this change, but it ran and FAILED — a failing "
+                "result is evidence of breakage regardless of whether policy demanded the tier",
+            )
         return CriterionResult(key, True, why_not or "not required for this change", applicable=False)
     if tier_result is None:
         return CriterionResult(key, None, "this tier did not run — cannot confirm it passed")

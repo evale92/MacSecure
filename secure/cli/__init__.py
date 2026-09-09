@@ -694,6 +694,7 @@ from .agent import (
     cmd_agent_diagnose,
     cmd_agent_memory,
     cmd_agent_maintain,
+    cmd_agent_promote,
     cmd_agent_toolchain,
     cmd_agent_verified,
     cmd_agent_supervise,
@@ -2381,6 +2382,28 @@ def build_parser() -> argparse.ArgumentParser:
     )
     agent_maintain_parser.add_argument("--all", action="store_true", help="Process every eligible failure.")
     agent_maintain_parser.set_defaults(func=cmd_agent_maintain)
+
+    # Phase 47.5 — automatic promotion of a fully VERIFIED
+    # SAFE_PROJECT_CODE repair. Read-only without --apply. This is the
+    # only command besides `secure agent approve` that can write to the
+    # live working tree, and it refuses unless every gate condition is
+    # affirmatively satisfied.
+    agent_promote_parser = agent_subparsers.add_parser(
+        "promote",
+        help="Phase 47.5: evaluate the promotion gate for a repair run; with --apply, promote a fully "
+        "VERIFIED SAFE_PROJECT_CODE repair into the live working tree. Never commits.",
+    )
+    agent_promote_parser.add_argument("run_id")
+    agent_promote_parser.add_argument(
+        "--apply", action="store_true",
+        help="Actually promote. Without this the command is read-only and writes nothing.",
+    )
+    agent_promote_parser.add_argument(
+        "--run-tiers", action="store_true",
+        help="Run the Phase 36 verification tiers against the repair's worktree first. Without this, "
+        "the tier criteria read UNKNOWN and promotion is refused.",
+    )
+    agent_promote_parser.set_defaults(func=cmd_agent_promote)
 
     return parser
 

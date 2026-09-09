@@ -15,6 +15,8 @@ Run with:  pytest
 
 from __future__ import annotations
 
+import ast
+
 import sqlite3
 import stat
 import subprocess
@@ -176,10 +178,23 @@ def test_no_source_file_writes_outside_tempfile_or_app_dir():
             continue
         if "validate" in path.parts or path.name == "validate.py":
             continue  # secure/validate/'s own tempfile-sandboxed fixtures
-        text = path.read_text(encoding="utf-8", errors="ignore")
-        for needle in ("NamedTemporaryFile(", "tempfile.mkstemp(", "tempfile.mkdtemp("):
-            if needle in text:
-                offending.append(f"{path}: {needle}")
+        # Phase 47.5: parsed, not grepped. The previous version scanned
+        # raw text including docstrings and comments, so a module that
+        # merely EXPLAINED why it does not use these functions would
+        # have failed the check. Detecting a real Call node keeps the
+        # invariant while letting the code document itself.
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8", errors="ignore"), filename=str(path))
+        except SyntaxError:  # pragma: no cover — a syntax error is a different test's problem
+            continue
+        banned = {"NamedTemporaryFile", "mkstemp", "mkdtemp"}
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            name = getattr(func, "attr", None) or getattr(func, "id", None)
+            if name in banned:
+                offending.append(f"{path}:{node.lineno}: {name}()")
 
     assert offending == []
 

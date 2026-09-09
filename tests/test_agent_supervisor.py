@@ -109,7 +109,19 @@ def test_the_module_never_invokes_the_service_management_tool():
         n.value for n in ast.walk(tree)
         if isinstance(n, ast.Constant) and isinstance(n.value, str) and n.value not in docstrings
     ]
-    assert not any("launchctl" in lit for lit in literals)
+    # Phase 47.5: checks a COMMAND SHAPE, not the substring. This
+    # module legitimately names the service-management tool in
+    # non-docstring strings — the operator instructions it generates
+    # have to tell a human what to run. What must never appear is the
+    # tool as an argv token, or a `<tool> <verb>` command phrase.
+    binaries = {"launchctl", "launchd"}
+    argv_tokens = [lit for lit in literals if lit.strip() in binaries]
+    assert argv_tokens == [], f"service-management binary as an argv token: {argv_tokens}"
+
+    phrases = [f"{b} {v}" for b in sorted(binaries)
+               for v in ("load", "unload", "bootstrap", "bootout", "enable", "disable", "kickstart")]
+    offending = [(lit[:60], ph) for lit in literals for ph in phrases if ph in lit]
+    assert offending == [], f"service-management command phrase in a literal: {offending}"
 
 
 def test_installation_status_is_a_read_only_stat(tmp_path: Path):

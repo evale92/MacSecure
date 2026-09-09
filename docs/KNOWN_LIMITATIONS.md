@@ -88,7 +88,7 @@ config-file tooling on a single-user Mac operates within) — stated
 plainly in `docs/THREAT_MODEL.md`'s own compromise-blast-radius table,
 not a new gap introduced here.
 
-## Live checkout is not a git repository (found Phase 32/33 session, Part 2)
+## Live checkout is not a git repository — RESOLVED (Phase 47.5)
 
 `secure/agent/policy.py`'s `evaluate_policy()` refuses to start any
 repair attempt unless `is_git_repository(repo_root)` is true, and
@@ -132,12 +132,41 @@ This is a local-only, non-consequential, fully reversible action (no
 network call, no package install, no privilege change, nothing that
 meets this roadmap's own SYSTEM_CHANGE/PRIVILEGED_CHANGE/
 DEPENDENCY_CHANGE/SECURITY_SEMANTIC_CHANGE bar) — it does not require
-the approval workflow described in Phase 39/40. It can be done at any
-later time with zero code changes on Secure's side; nothing in Phases
-32-33 (or planned for 34+) assumes today's answer is permanent. Until
-that happens, the plain hourly `secure_backup/` mirror remains the
-only backup, and offers no rollback to a prior good state — only a
-copy of whatever is currently on disk, good or broken.
+the approval workflow described in Phase 39/40.
+
+### RESOLVED, 2026-08-22 (Phase 47.5)
+
+**The user ran that one-time init himself, manually.** No Secure code
+and no agent session performed it — Phase 47.5's own instructions
+explicitly forbade doing it mid-phase, precisely so the decision was
+made knowingly.
+
+Verified baseline at the time of resolution:
+
+    branch:       master
+    HEAD:         2f246efa1f2dfda68096ff66d33327badb85efab (2f246ef)
+    working tree: clean
+    log:          2f246ef  baseline for agent self-healing
+
+Confirmed independently from inside Secure: `is_git_repository()`
+returns True, `current_commit()` returns that same SHA, and
+`git status --porcelain` is empty.
+
+Everything this section previously said was blocked is now unblocked:
+`evaluate_policy()` no longer refuses on the git precondition,
+`git worktree` isolation works against the real checkout, and Phase
+47.5's promotion path can use standard Git mechanisms for base-revision
+verification, dirty-checkout protection, exact patch application, and
+deterministic rollback.
+
+Two prerequisites for actually RUNNING a repair against the live
+checkout remain, and are deliberately separate from this one:
+mini-SWE-agent is not on PATH, and Ollama is not configured. Both are
+DEPENDENCY_CHANGEs and neither has been performed.
+
+The hourly `secure_backup/` mirror still exists and is still only a
+mirror — it has no history and offers no rollback to a prior good
+state. Git now provides that, for the checkout itself.
 
 ## What this phase deliberately did not do
 

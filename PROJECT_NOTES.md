@@ -8686,3 +8686,134 @@ disagreement escalates; a non-reproducible failure stops honestly; and
 every scenario leaves complete action and provenance history. No
 consequential/host-changing action was taken at any point in Phases
 37-47, and nothing is pending approval as a result of this work.
+
+## Phase 47.5 — Close the Verified Safe-Code Loop (PRESENTED, not self-certified)
+
+Governing text saved verbatim at `docs/PHASE_47_5.md` before any work
+began. Per its own instruction, results are **presented for review
+rather than self-certified as VERIFIED.**
+
+### Prerequisite: git baseline, verified independently
+
+The user ran `git init && git add -A && git commit` himself, manually.
+No Secure code and no agent session performed it. Confirmed from inside
+Secure before relying on it: `is_git_repository()` True,
+`current_commit()` = `2f246efa1f2dfda68096ff66d33327badb85efab`, branch
+`master`, `git status --porcelain` empty. Matches his report exactly.
+`docs/KNOWN_LIMITATIONS.md`'s "not a git repository" section is now
+marked RESOLVED with that baseline recorded; `secure agent status`
+already reported it dynamically and self-corrected to "yes" with no
+code change.
+
+### The gap that was actually there
+
+`choose_and_run_verification()` — Phase 36's authoritative tier runner
+— **had no production caller at all.** It was invoked only from its own
+tests, because Phase 36 deliberately declined to rewire Phase 31's
+`_finish_repair_run()` (which still runs `verify_worktree()`). So Phase
+44's FAST/TARGETED/FULL/SECURITY criteria could never be satisfied by
+anything, and Phase 47 honestly reported UNKNOWN forever.
+
+Smallest fix: `_run_authoritative_tiers()` in
+`secure/agent/maintenance.py` runs the real tiers against the repair's
+own still-existing worktree and hands the real `EscalationOutcome` to
+Phase 44. Phase 31's flow is untouched. It runs only on the path where
+promotion is actually being considered — a consequential change goes to
+a human regardless, so paying for a full regression to tell it so would
+be waste. When the tiers cannot run it returns None, which makes Phase
+44 answer UNKNOWN, which blocks. **Nothing manufactures a PASS and
+nothing translates UNKNOWN into PASS.**
+
+### `secure/agent/promote.py` — the first module permitted to write to the live checkout
+
+- **The gate collects REFUSALS, not approvals.** `PromotionGate.allowed`
+  is `not self.refusals`. There is no branch that promotes because
+  nothing objected — something must affirmatively establish each
+  condition, and every unknown, missing value, or unrecognized state
+  adds a refusal. That polarity is the single most important line in
+  the module.
+- **Standard Git mechanisms only**, as instructed: `git rev-parse HEAD`
+  for base revision, `git status --porcelain` for dirty-checkout
+  protection, `git apply --check` then `git apply` for application,
+  `git apply -R` for rollback. No bespoke snapshot framework.
+- **Applied to the working tree only.** Nothing commits, amends, moves
+  HEAD, branches, or touches git config — the operator owns their
+  history. A promoted change sits as an uncommitted modification for
+  them to inspect and commit. A test asserts HEAD is unchanged and the
+  log still has one entry.
+- **Rollback only when provably safe.** After applying, the working
+  tree must contain changes to exactly the patch's files and nothing
+  else. If anything else changed — another process, the operator, a
+  concurrent tool — rollback is refused and the run escalates with
+  instructions, because **a rollback that might eat someone else's edit
+  is worse than a patch left in place with a loud message.**
+- **A promoted change request is never marked `approved`.** Phase 28
+  reserves that word for a human CLI action. A new terminal state,
+  `promoted_automatically`, records the fact — same spirit as Phase
+  31's `superseded`: set only by deterministic machinery, and
+  permanently un-approvable afterwards. **This is an interpretation
+  worth your review**: leaving the CR `pending` would have shown you a
+  request awaiting your decision for something already applied, which
+  seemed worse than either alternative.
+- **Promotion is opt-in.** `run_maintenance_cycle(allow_promotion=...)`
+  defaults to False, so every pre-47.5 caller behaves exactly as
+  before. All 21 existing Phase 47 tests still pass unchanged.
+
+### A real weakness in Phase 44 this phase exposed and fixed
+
+A promotion test expected a failing-but-not-required FULL regression to
+block, and found it did not: `_tier_criterion()` marked any
+not-applicable tier satisfied, ignoring its actual result. **"Not
+required" must mean its ABSENCE is acceptable, never that its FAILURE
+is acceptable.** A repair with a red full regression could have reached
+VERIFIED simply because policy did not demand that tier. Fixed in
+`secure/agent/verified.py`; a not-required tier that ran and definitely
+failed now blocks.
+
+### Brittle substring checks replaced (the sixth and seventh instances)
+
+- `test_agent_supervisor.py`: the `"launchctl" in lit` check became an
+  argv-token plus command-phrase check. That module legitimately names
+  the tool in operator instructions it generates.
+- `test_clean_install.py`: the raw-text scan for `mkdtemp(`/`mkstemp(`/
+  `NamedTemporaryFile(` became AST Call-node detection, so a module
+  that documents why it does not use them no longer fails.
+- Both were verified to still catch real violations and to ignore
+  prose, and those two properties are now permanent tests
+  (`test_an_actual_forbidden_command_is_detected` /
+  `test_prose_merely_mentioning_a_forbidden_command_is_not_detected`).
+- One self-inflicted instance too: my own
+  `test_no_test_in_this_file_targets_the_real_checkout` had a substring
+  belt-and-braces line that failed against the test's own source, since
+  it has to name the thing it forbids. AST-only now.
+
+### Tests
+
+`tests/test_agent_promote.py` — **38 tests**, all against disposable
+git repositories in `tmp_path`. A structural test asserts no test in
+the file targets the real checkout, because this is the first module
+that could write to it.
+
+All eleven required adversarial proofs are present: verified safe code
+promotes; UNKNOWN blocks (three ways, including the exact
+no-tiers-run gap); failed tests block; stale diff blocks (edited,
+deleted, and hash-missing); changed live base blocks; dirty checkout
+blocks; reviewer blocker blocks; no consequential classification ever
+promotes; forbidden commands are detected; prose mentioning them is
+not; failed post-promotion verification rolls back safely — plus
+refusing rollback when something else also changed, and escalating when
+rollback itself fails. Several go beyond gate-level assertions and
+verify the file on disk is untouched.
+
+### Results
+
+- **Full regression: 2076 passed, 0 failed, 0 errors, 3 skipped**
+  (2038 from Phase 47 plus 38 new), run as four file-scoped chunks.
+- **Phase 27 validation: 21 scenarios — 15 PASS, 0 PARTIAL, 0 MISS**,
+  2 NOT_EVALUABLE, 4 SENSOR_UNAVAILABLE (macOS-only sensors in a Linux
+  sandbox, unchanged from Phase 47).
+- **No promotion was performed against the live checkout.** HEAD is
+  still `2f246ef`. The working tree contains only this phase's own
+  source edits, uncommitted, for the user to review and commit.
+
+Phase 47.5 is **complete and presented for review, not self-certified.**

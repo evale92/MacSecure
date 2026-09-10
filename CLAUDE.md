@@ -50,13 +50,31 @@ harmless, not as a substitute for reading them in SECURITY_INVARIANTS.md:
 Agents work in an **isolated git worktree** and may not read or write any
 absolute path outside it — not `~/.secure`, not the operator's real home.
 
-The suite is large (104 test files) and genuinely slow: a run in this session
-was still going after ten minutes and was left running rather than killed.
-Budget for that rather than assuming it hung — and note that "the suite passes"
-is therefore a claim nobody makes casually here, because nobody has waited for
-it casually. There is no virtualenv in this
-repository; runs in this session used the interpreter from the Agent repository
-next door.
+The suite is large (104 test files) and slow: **778s — thirteen minutes** on
+2026-09-10. Budget for that rather than assuming it hung. There is no
+virtualenv in this repository; that run used the interpreter from the Agent
+repository next door.
+
+**The suite is not green.** That same run: `5 failed, 2074 passed, 1 error`.
+Two were reproduced individually in under five seconds, so they are cheap to
+look at and are not flakes:
+
+- `test_failure_modes.py::test_main_reports_permission_denied_app_dir_cleanly`
+  — expects `SystemExit(2)`, gets `SystemExit(0)`. **A permission-denied app
+  directory currently exits zero.** In a security tool that is the worst shape
+  of defect: a failure reporting success, which no caller can distinguish from
+  the work having been done.
+- `test_integrations_yarax.py::test_scan_paths_one_bad_ruleset_does_not_abort_others`
+  — one bad ruleset produces two `ruleset_load_error` entries, not one. The
+  count is what a caller would use to decide how degraded a scan was.
+- `test_agent_center.py::tests_report` errors during collection.
+
+Recorded rather than repaired: AGENTS.md requires one reported failure at a
+time in an isolated worktree, and that is a separate change from writing this
+file. Anyone starting here should know the baseline is red before attributing
+a failure to their own work — judging a candidate against a baseline nobody
+measured is how a pre-existing failure gets charged to whoever touched the
+code next.
 
 ## Known boundary, stated by the project itself
 

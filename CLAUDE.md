@@ -50,10 +50,27 @@ harmless, not as a substitute for reading them in SECURITY_INVARIANTS.md:
 Agents work in an **isolated git worktree** and may not read or write any
 absolute path outside it — not `~/.secure`, not the operator's real home.
 
-The suite is large (104 test files) and slow: **778s — thirteen minutes** on
-2026-09-10. Budget for that rather than assuming it hung. There is no
-virtualenv in this repository; that run used the interpreter from the Agent
-repository next door.
+The suite is large (104 test files) and slow. There is no virtualenv in this
+repository; the run below used the interpreter from the Agent repository next
+door.
+
+**One invocation, recorded as an invocation rather than as a general fact**,
+because a duration and an outcome only mean anything attached to what produced
+them:
+
+| | |
+|---|---|
+| revision | `2f8a18d` |
+| command | `python -m pytest tests -q` from the repository root |
+| interpreter | `~/Desktop/Agent/.venv/bin/python` (3.14.7) |
+| date | 2026-09-10 |
+| outcome | **5 failed, 2074 passed, 1 error** in 778.08s |
+
+A separate earlier invocation is on record at 796.12s with the same failure
+shape. Both stand; neither replaces the other. During this run I also read a
+`pytest` process as still going past twenty minutes and said so — that was a
+different process, and the number above is the one that came from this run's
+own output.
 
 **The suite is not green.** That same run: `5 failed, 2074 passed, 1 error`.
 Two were reproduced individually in under five seconds, so they are cheap to

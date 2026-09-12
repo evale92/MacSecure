@@ -310,6 +310,62 @@ def test_scan_listening_services_nothing_disappears_when_unchanged(tmp_path: Pat
     assert second.disappeared_services == []
 
 
+def test_scan_listening_services_reports_a_disappearance_once_not_forever(
+    tmp_path: Path, monkeypatch
+):
+    """Third scan: sshd is still gone, and that is no longer news.
+
+    The two-scan test above cannot see this. Its baseline — whatever
+    last_listening_run_id() returns — is the same row whether that
+    function asks for the oldest run or the newest one, because there
+    are only two. The third scan is where the two answers diverge: the
+    baseline must be scan 2 (sshd already absent, so nothing
+    disappeared), not scan 1 (sshd present, so sshd looks like it
+    disappeared again).
+
+    Measured 2026-09-12: with ORDER BY id DESC rewritten to ASC in
+    last_listening_run_id(), the whole listening/storage/correlate/
+    osquery set stayed at 3 failed / 207 passed. This test is what
+    fails on that mutation. See tests/test_storage_models_listening.py
+    for the measurement and for why a permanently non-zero exit code
+    from `secure listening scan` is the cost.
+    """
+    import secure.listening.scanner as scanner_module
+
+    # Scans 2 and 3 are identical: sshd stopped before scan 2 and has
+    # stayed stopped. Nothing else changes at any point.
+    without_sshd = "\n".join(
+        line for line in _FAKE_STDOUT.splitlines() if "sshd" not in line
+    ) + "\n"
+
+    calls = {"n": 0}
+
+    def fake_run(*a, **k):
+        calls["n"] += 1
+        stdout = _FAKE_STDOUT if calls["n"] == 1 else without_sshd
+        return ShellResult(ok=True, stdout=stdout, stderr="", returncode=0)
+
+    monkeypatch.setattr(scanner_module, "run", fake_run)
+
+    with Database(tmp_path / "test.db") as db:
+        first = scan_listening_services(db.conn)
+        second = scan_listening_services(db.conn)
+        third = scan_listening_services(db.conn)
+
+    assert calls["n"] == 3
+    assert first.has_previous_scan is False
+    # Positive control: the disappearance really is detected, once, on
+    # the scan it happened. Without this, the assertion below would
+    # also pass if disappeared-service detection were broken outright.
+    assert [r.process_name for r in second.disappeared_services] == ["sshd"]
+    # The point of the test. sshd is still absent, but it stopped
+    # listening before the previous scan, not since it.
+    assert third.has_previous_scan is True
+    assert third.disappeared_services == []
+    # And a stale baseline must not invent new services either.
+    assert third.new_services == []
+
+
 def test_scan_listening_services_lsof_unavailable(tmp_path: Path, monkeypatch):
     import secure.listening.scanner as scanner_module
 

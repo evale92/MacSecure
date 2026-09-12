@@ -48,7 +48,9 @@ def cmd_persistence_scan(args: argparse.Namespace) -> int:
                 f"(user: {record.run_as_user}, signing: {record.signing_status})"
             )
         print("Review these, then: secure persistence mark-process <id> known|unknown")
-    else:
+    elif result.processes_available:
+        # Only a scan that actually saw the processes may say none are new;
+        # when `ps` failed, the lines above already say there is no data.
         print("No new processes detected.")
 
     if result.new_persistence_entries:

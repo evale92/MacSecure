@@ -146,14 +146,11 @@ def test_scan_exits_one_when_ps_could_not_run(tmp_path: Path, monkeypatch):
     # The count line would be the "0 processes, all clean" report the
     # flag exists to prevent, so it must be suppressed entirely.
     assert "Processes with a resolvable executable path" not in stdout
-    # Deliberately NOT asserted either way: the handler still reaches
-    # its `else: print("No new processes detected.")` branch on a scan
-    # that could not see any processes, so the report states an
-    # affirmative negative two lines below announcing that no process
-    # data exists. The exit code and the first two lines are honest, so
-    # this is a wording defect rather than a false clean, and changing
-    # operator-facing report text is a decision for a human — it is
-    # registered as a job rather than fixed or blessed here.
+    # Nor may the report state the affirmative negative a few lines
+    # after announcing that no process data exists (J-0297). The clean
+    # scan test below is the positive control that the line still
+    # appears when `ps` really ran.
+    assert "No new processes detected." not in stdout
 
 
 def test_scan_exits_zero_on_a_clean_scan_that_really_ran(tmp_path: Path, monkeypatch):

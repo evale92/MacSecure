@@ -27,7 +27,12 @@ from secure.correlate.analysis import MEANINGFUL_MODULE_PAIRS
 from secure.correlate.signals import _classify_integration_signal_strength, _collect_integrations
 from secure.correlate.strength import MEDIUM, STRONG, WEAK, classify_sigma_finding_strength
 from secure.explain.dispatch import explain
-from secure.integrations.base import STATUS_ERROR, STATUS_OK, STATUS_UNAVAILABLE
+from secure.integrations.base import (
+    STATUS_DEGRADED,
+    STATUS_ERROR,
+    STATUS_OK,
+    STATUS_UNAVAILABLE,
+)
 from secure.integrations.sigma import analysis as analysis_module
 from secure.integrations.sigma import availability as availability_module
 from secure.integrations.sigma import capability as capability_module
@@ -649,6 +654,51 @@ def test_scan_sigma_empty_rules_dir_is_a_clean_no_op(tmp_path: Path):
         assert result.available is True
         assert result.rules_loaded == []
         assert list_integration_observations(db.conn, integration="sigma") == []
+
+
+def test_scan_sigma_reports_degraded_when_a_rule_file_fails_to_load(tmp_path: Path):
+    # RULES_DIR deliberately holds two unloadable files (malformed.yml,
+    # missing_condition.yml), so every scan above already runs with load
+    # errors present. Invariant 5 is what says a rule Secure could not
+    # load may not be reported as a clean pass: the scan health, the
+    # returned errors, and the persisted run row all have to say so —
+    # the same contract test_integrations_yarax.py holds yarax's
+    # scan_paths() to for a bad ruleset.
+    with Database(tmp_path / "test.db") as db:
+        result = scanner_module.scan_sigma(db.conn, _cfg_for(tmp_path))
+
+        assert result.health.status == STATUS_DEGRADED
+        failed = {Path(e.source_path).name for e in result.rule_load_errors}
+        assert failed == {"malformed.yml", "missing_condition.yml"}
+        assert "rule_load_errors=2" in result.health.detail
+
+        runs = list_integration_runs(db.conn, integration="sigma")
+        assert len(runs) == 1
+        assert runs[0].status == STATUS_DEGRADED
+        assert "rule_load_errors=2" in runs[0].detail
+
+
+def test_scan_sigma_reports_ok_when_every_rule_file_loads(tmp_path: Path):
+    # Positive control for the test above: run the same code path with
+    # only loadable rules and it reports OK, so "degraded" there is a
+    # real signal rather than the status this scan always returns.
+    rules_dir = tmp_path / "only_valid_rules"
+    rules_dir.mkdir()
+    (rules_dir / "process_creation_match.yml").write_text(
+        (RULES_DIR / "process_creation_match.yml").read_text()
+    )
+    cfg = AppConfig(app_dir=str(tmp_path))
+    cfg.sigma_rules_dir = str(rules_dir)
+    with Database(tmp_path / "test.db") as db:
+        result = scanner_module.scan_sigma(db.conn, cfg)
+
+        assert result.rule_load_errors == []
+        assert len(result.rules_loaded) == 1
+        assert result.health.status == STATUS_OK
+        assert "rule_load_errors" not in result.health.detail
+
+        runs = list_integration_runs(db.conn, integration="sigma")
+        assert runs[0].status == STATUS_OK
 
 
 # ---------- correlate wiring ----------

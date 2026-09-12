@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import re
 from secure.inventory import scan_network
+from secure.inventory.arp_table import normalize_mac
 from secure.storage.database import Database
 from secure.storage.models import (
     delete_junk_devices,
@@ -17,6 +19,22 @@ def _format_device_line(record, tag: str) -> str:
     mac = record.mac or "(no MAC)"
     vendor = f" [{record.vendor}]" if record.vendor else ""
     return f"[{tag:7}] {record.ip:15} {mac:17} {name}{vendor}"
+
+
+_MAC_INPUT_RE = re.compile(r"^[0-9a-fA-F]{1,2}([:-][0-9a-fA-F]{1,2}){5}$")
+
+
+def _lookup_identifier(identifier: str) -> str:
+    """Put a MAC the operator typed into the form the scanner stored.
+
+    Stored MACs are zero-padded by normalize_mac(), but `arp -a` prints
+    them unpadded (ac:de:48:0:11:22), so a MAC copied from it would
+    otherwise never match. Anything not shaped like a MAC (an IP) is
+    passed through unchanged.
+    """
+    if _MAC_INPUT_RE.match(identifier.strip()):
+        return normalize_mac(identifier)
+    return identifier
 
 
 def cmd_inventory_scan(args: argparse.Namespace) -> int:
@@ -89,7 +107,7 @@ def cmd_inventory_name(args: argparse.Namespace) -> int:
     cfg = _bootstrap()
 
     with Database(cfg.database_path()) as db:
-        device = find_device_by_identifier(db.conn, args.identifier)
+        device = find_device_by_identifier(db.conn, _lookup_identifier(args.identifier))
         if device is None:
             print(
                 f"No device found matching '{args.identifier}'. "
@@ -111,7 +129,7 @@ def cmd_inventory_mark(args: argparse.Namespace) -> int:
     known = args.status == "known"
 
     with Database(cfg.database_path()) as db:
-        device = find_device_by_identifier(db.conn, args.identifier)
+        device = find_device_by_identifier(db.conn, _lookup_identifier(args.identifier))
         if device is None:
             print(
                 f"No device found matching '{args.identifier}'. "

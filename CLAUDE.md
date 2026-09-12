@@ -126,6 +126,34 @@ itself is wrong you say so and change nothing, and a test whose stub matches
 its own scratch directory is a test that has never once exercised the scenario
 it is named for.
 
+## Both candidates re-measured at `310e338`, and what that cost
+
+A supervisor started another unattended session on 2026-09-11 and offered the
+same two candidates as work, quoting the 2026-09-10 baseline — the one the two
+commits above already superseded at the very revision it dispatched against.
+Run alone at `310e338`, same interpreter:
+
+| candidate | result |
+|---|---|
+| `test_main_reports_permission_denied_app_dir_cleanly` | **1 passed in 0.42s** |
+| `test_scan_paths_one_bad_ruleset_does_not_abort_others` | **1 failed in 0.20s**, rejected rulesets `['bad', 'secure_test_ruleset']` |
+
+Unchanged, both of them, and neither is a repair to make: the first passes only
+on the uncommitted `secure/config.py` edit described above, which is still
+unstaged and still nobody's to land, and the second is the test defect.
+
+One piece of evidence got stronger. The claim that pytest names the directory
+`test_scan_paths_one_bad_rulese0` was previously read off pytest's naming rule;
+running with `--basetemp` into a scratch directory and listing it puts the name
+on disk, next to `test_scan_paths_one_bad_rulesecurrent`. A counterfactual
+changing *only* that name reproduced both halves: `2 errors / 0 loaded / 0
+findings` with `bad` in the directory name, `1 / 1 / 1` without it.
+
+The measurement is cheap; re-deriving it for the third time is the expense.
+What is missing is not a written record — this file is the written record, it
+is correct, and it is committed — but anything that reads it before a failure
+is handed out as work again.
+
 ## Known boundary, stated by the project itself
 
 `SECURITY_INVARIANTS.md` records that there is **no OS-level sandbox** here.

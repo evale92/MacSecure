@@ -15,15 +15,21 @@ from __future__ import annotations
 import socket
 
 from secure.checks.filevault import _evaluate as evaluate_filevault
+from secure.checks.filevault import check_filevault
 from secure.checks.firewall import _evaluate as evaluate_firewall
+from secure.checks.firewall import check_firewall
 from secure.checks.gatekeeper import _evaluate as evaluate_gatekeeper
+from secure.checks.gatekeeper import check_gatekeeper
 from secure.checks.models import CheckStatus
+from secure.checks.os_version import check_os_version
 from secure.checks.runner import run_all_checks
 from secure.checks.sharing import _port_is_listening
 from secure.checks.sip import _evaluate as evaluate_sip
+from secure.checks.sip import check_sip
 from secure.checks.software_update import (
     _evaluate_automatic_updates,
     _evaluate_pending_updates,
+    check_automatic_updates,
 )
 
 # ---------- FileVault ----------
@@ -154,7 +160,65 @@ def test_port_is_listening_false():
     assert _port_is_listening(free_port, timeout=0.2) is False
 
 
+# ---------- macOS version ----------
+#
+# The only check in _SINGLE_CHECKS with no `_evaluate` seam: it reads
+# platform.mac_ver() directly, so there is no pure function for the
+# pattern this file's docstring describes to grab hold of. That is why
+# it went untested. The seam that does exist is platform.mac_ver
+# itself, patched on the module object the check reads it from and
+# undone by the monkeypatch fixture.
+
+
+def test_os_version_reports_the_running_version(monkeypatch):
+    import secure.checks.os_version as os_version_module
+
+    monkeypatch.setattr(
+        os_version_module.platform, "mac_ver", lambda: ("15.4.1", ("", "", ""), "arm64")
+    )
+
+    result = check_os_version()
+
+    assert result.status == CheckStatus.PASS
+    assert "15.4.1" in result.message
+
+
+def test_os_version_absent_is_a_warning_not_a_clean_pass(monkeypatch):
+    # Invariant 5 / TESTING_POLICY rule 9: platform.mac_ver() returns an
+    # empty version on a non-macOS host, and the honest answer there is
+    # "could not determine", never a PASS row in the posture report.
+    import secure.checks.os_version as os_version_module
+
+    monkeypatch.setattr(
+        os_version_module.platform, "mac_ver", lambda: ("", ("", "", ""), "")
+    )
+
+    result = check_os_version()
+
+    assert result.status == CheckStatus.WARNING
+    assert result.remediation
+
+
 # ---------- Runner resilience ----------
+
+
+def test_single_checks_roster_is_exactly_the_posture_check_set():
+    # Both runner tests below replace _SINGLE_CHECKS wholesale, so
+    # nothing else in the suite reads the real roster: measured against
+    # a scratch copy, dropping check_os_version from it — or deleting
+    # secure/checks/os_version.py outright — left this file at 20
+    # passed. Pinning identity and order here is what makes a check
+    # silently falling out of `secure check` a test failure.
+    import secure.checks.runner as runner_module
+
+    assert runner_module._SINGLE_CHECKS == [
+        check_os_version,
+        check_filevault,
+        check_firewall,
+        check_gatekeeper,
+        check_sip,
+        check_automatic_updates,
+    ]
 
 
 def test_run_all_checks_survives_a_crashing_check(monkeypatch):

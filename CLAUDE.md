@@ -82,8 +82,8 @@ look at and are not flakes:
   of defect: a failure reporting success, which no caller can distinguish from
   the work having been done.
 - `test_integrations_yarax.py::test_scan_paths_one_bad_ruleset_does_not_abort_others`
-  — one bad ruleset produces two `ruleset_load_error` entries, not one. The
-  count is what a caller would use to decide how degraded a scan was.
+  — one bad ruleset produces two `ruleset_load_error` entries, not one. **This
+  one is the test's own stub, not the scanner** (measured 2026-09-11, below).
 - `test_agent_center.py::tests_report` errors during collection.
 
 Recorded rather than repaired: AGENTS.md requires one reported failure at a
@@ -92,6 +92,39 @@ file. Anyone starting here should know the baseline is red before attributing
 a failure to their own work — judging a candidate against a baseline nobody
 measured is how a pre-existing failure gets charged to whoever touched the
 code next.
+
+## What the two cheap candidates turned out to be
+
+Measured 2026-09-11 in the **live checkout** at `04f58a3`, same interpreter as
+above. Both candidates were run alone first, which is the whole point of
+running them alone:
+
+**The permission-denied one now passes** — and not because anyone repaired it
+under review. `secure/config.py` carries an *uncommitted* fix in the live
+checkout: `load_config()` swapping `path.exists()` for `path.stat()` under
+`except FileNotFoundError`, because `exists()` also returns `False` on
+`PermissionError`, so an unreadable app dir looked absent and `save_config()`
+wrote a default over it and exited 0. The diagnosis is right and the test goes
+green with it. **It is committed in neither the live checkout nor the
+`fix-permission-denied-app-dir-exit` worktree**, and a repair sitting in the
+live checkout is what invariant 8 exists to prevent. Left in place, unstaged
+and unclaimed, for a human: invariant 2 makes passing tests explicitly not
+approval, so no agent gets to land it.
+
+**The yarax one is a defect in the test, not in the scanner.** Its stub is
+`if "bad" in origin: raise SyntaxError`, and `rulesets.py:108` passes
+`origin=str(path)` — the full absolute path, which is correct, since yarax uses
+origin to point error messages at a file. pytest hands the test a `tmp_path`
+named `test_scan_paths_one_bad_rulese0`, which contains `bad`, so *every*
+ruleset under it matches. The two rejected rulesets are `bad` and
+`secure_test_ruleset` — the second is the good one, thrown out for its parent
+directory's name. Re-run with only the directory renamed and nothing else
+touched: `load_errors=1, loaded=1, findings=1, degraded` — all four assertions
+hold. So the assertion is right, the scanner is right, and the stub
+over-matches. Unrepaired on purpose: AGENTS.md rule 3 says that if the test
+itself is wrong you say so and change nothing, and a test whose stub matches
+its own scratch directory is a test that has never once exercised the scenario
+it is named for.
 
 ## Known boundary, stated by the project itself
 

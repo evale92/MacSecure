@@ -154,6 +154,54 @@ What is missing is not a written record — this file is the written record, it
 is correct, and it is committed — but anything that reads it before a failure
 is handed out as work again.
 
+## A fifth dispatch, and the first Study Mode finding
+
+2026-09-11, `d90c68e`, same interpreter. The supervisor dispatched the same two
+candidates a fifth time, again against the 2026-09-10 baseline. Run alone:
+candidate 1 **passed in 0.42s**, candidate 2 **failed in 0.54s** with rejected
+rulesets `['bad', 'secure_test_ruleset']`. Both unchanged; neither repaired,
+for the reasons already written above. Nothing new was learned by re-running
+them, which is the fifth time that sentence has been true.
+
+The session's actual output is a Study Mode finding in
+`secure_gui/baseline_view.py`, registered as job J-0162:
+
+**`_mark()` ends in a no-op where the pattern it copies ends in a message.**
+Line 388 is `overview_var.set(overview_var.get())` — a `StringVar` written back
+to its own value. No `trace` is registered on it anywhere in the module; its
+only other writers are `_reload` (327, 333) and its only reader the header
+`Label` (162). So after the operator confirms "Mark Known", `secure anomalies
+mark <id> known` is dispatched and the screen changes in no way: the row still
+reads "— unreviewed", the button still reads "Mark Known", and nothing says the
+view is now stale. `alerts_view.py:395` is the same line in the same position
+and sets a real one: *"Sent — check Console in the main window for the result,
+then Refresh."* The module docstring claims it "reuses the exact DataTable +
+EvidencePanel pattern `secure_gui/alerts_view.py` already established".
+
+The divergence is structural rather than a slip: `alerts_view` has a dedicated
+`status_var` Label in its header (151-152); `baseline_view` has only
+`overview_var`, carrying the multi-line overview, so there is no widget a
+per-action status could go in. That is also why it was **left unfixed**. The
+fix needs a new header widget, and no test here can execute it — this
+project's interpreter has no `_tkinter`, so `baseline_view.py` cannot even be
+imported, and invariant 7 says inconclusive is not a pass. Writing
+user-visible behaviour that nothing in the environment can run is the shape of
+change this repository is arranged to refuse.
+
+**The score was also wrong about the file** (J-0163). "untested = no test names
+it" can never be satisfied under `secure_gui/`: `TESTING_POLICY.md` and
+`targeted_test_files()` map every `secure_gui/*` path to `tests/test_gui*.py`,
+never `tests/test_<module>.py`, and `tests/test_agent_tiers.py:139` asserts
+exactly that. A `tests/test_baseline_view.py` would satisfy the score and
+silently lose its TARGETED role. The file is not uncovered either:
+`tests/test_agent_supervisor.py:332` rglobs `secure_gui/*.py` and `ast.parse`s
+each for banned authorization imports, so it is syntax-checked and
+invariant-3-checked on every run. The real gap is narrower than the score's
+and the score does not name it — `_format_overview_text` and
+`_format_evidence_panel_text` are pure, Tkinter-free, ~70 lines, and sit in a
+module no test can import, which the module's own docstring forbids ("Keep
+genuinely testable logic in `secure_gui/data_access.py` instead").
+
 ## Known boundary, stated by the project itself
 
 `SECURITY_INVARIANTS.md` records that there is **no OS-level sandbox** here.

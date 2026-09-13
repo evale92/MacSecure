@@ -440,7 +440,15 @@ def load_config(app_dir: Path | None = None) -> AppConfig:
     """
     path = config_file_path(app_dir)
 
-    if not path.exists():
+    # Not path.exists(): it returns False for a PermissionError too, so an
+    # unreadable app dir looked "missing" and save_config() — whose
+    # harden_dir() chmods the directory to 0o700 — reopened it, wrote a
+    # default config.json over whatever was there, and the command exited 0.
+    # Only a genuinely absent file is missing; anything else propagates to
+    # main(), which reports it and exits 2.
+    try:
+        path.stat()
+    except FileNotFoundError:
         cfg = default_config()
         if app_dir is not None:
             cfg.app_dir = str(app_dir)

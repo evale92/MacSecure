@@ -11,6 +11,12 @@ Every command run through this module is:
       check manually instead.
     - given a timeout, so a hung command can't hang the whole posture
       check.
+    - resolved from a fixed list of system directories, never from
+      `$PATH`. A bare name like `csrutil` would otherwise be whatever
+      binary the inherited environment points at first, and on a
+      typical Mac `/opt/homebrew/bin` is both user-writable and ahead
+      of `/usr/bin`, so an unprivileged shim could decide what the
+      posture report says.
 
 Routing every subprocess call through one function keeps "what
 commands does this app actually run on my Mac" auditable from a single
@@ -20,8 +26,13 @@ module.
 
 from __future__ import annotations
 
+import os
 import subprocess
 from dataclasses import dataclass
+
+# Where macOS keeps the read-only tools the checks ask for. Only root
+# can write these; `$PATH` is deliberately not consulted.
+_SYSTEM_BIN_DIRS = ("/usr/bin", "/usr/sbin", "/bin", "/sbin")
 
 
 @dataclass
@@ -32,6 +43,23 @@ class ShellResult:
     returncode: "int | None"    # None if the command couldn't even start
 
 
+def _resolve(program: str) -> "str | None":
+    """Absolute path for `program`, or None if it isn't a system tool.
+
+    A program given with a slash in it is already an explicit path and
+    is returned unchanged — the caller named the file it wants. A bare
+    name is looked up in `_SYSTEM_BIN_DIRS` only, so `$PATH` never
+    chooses the binary.
+    """
+    if "/" in program:
+        return program
+    for directory in _SYSTEM_BIN_DIRS:
+        candidate = os.path.join(directory, program)
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+    return None
+
+
 def run(args: "list[str]", timeout: float = 5.0) -> ShellResult:
     """Run a read-only command and capture its output.
 
@@ -40,6 +68,16 @@ def run(args: "list[str]", timeout: float = 5.0) -> ShellResult:
     finding (e.g. some tools exit non-zero when a feature is off), so
     callers decide what a given result means, not this function.
     """
+    if args:
+        resolved = _resolve(args[0])
+        if resolved is None:
+            return ShellResult(
+                ok=False,
+                stdout="",
+                stderr=f"{args[0]}: not found in {', '.join(_SYSTEM_BIN_DIRS)}",
+                returncode=None,
+            )
+        args = [resolved, *args[1:]]
     try:
         completed = subprocess.run(
             args,

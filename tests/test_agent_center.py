@@ -32,7 +32,12 @@ from secure.agent.center import (
     read_diff,
     reviewer_report,
     rollback_strategy,
-    tests_report,
+    # Aliased, not renamed at the source: pytest collects any module-level
+    # name matching `test*`, so importing `tests_report` under its own name
+    # bound a production function as a test and every run reported an
+    # "ERROR at setup of tests_report — fixture 'view' not found". The
+    # function is exercised below, under the alias.
+    tests_report as render_tests_report,
 )
 from secure.agent.changes import STATUS_SUPERSEDED, invalidate_change_request_if_content_changed
 from secure.agent.classify import CLASS_SAFE_PROJECT_CODE, CLASS_SYSTEM_CHANGE
@@ -190,7 +195,7 @@ def test_view_tests_reports_deterministic_results_and_says_they_are_not_authoriz
     db, record = _seed(tmp_path, monkeypatch)
     try:
         view = build_change_request_view(db.conn, record.change_request_id)
-        report = tests_report(view)
+        report = render_tests_report(view)
         assert "5 passed" in report
         assert "NOT authorization" in report
     finally:

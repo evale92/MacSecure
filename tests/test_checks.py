@@ -114,6 +114,37 @@ def test_automatic_updates_unknown():
     assert result.status == CheckStatus.WARNING
 
 
+# A preference that could not be read is not a preference that is on.
+# The PASS branch's message asserts *both* settings are enabled, so it
+# may only be reached when both were actually read — one None is enough
+# to disqualify it. `test_automatic_updates_all_on` above is the
+# positive control that these two do not simply pass by never reaching
+# PASS at all.
+
+
+def test_automatic_updates_one_unreadable_pref_does_not_pass():
+    for check_enabled, critical_install, expected_key in (
+        (None, True, "AutomaticCheckEnabled"),
+        (True, None, "CriticalUpdateInstall"),
+    ):
+        result = _evaluate_automatic_updates(
+            check_enabled=check_enabled, critical_install=critical_install
+        )
+        assert result.status == CheckStatus.WARNING, (check_enabled, critical_install)
+        assert expected_key in result.message, result.message
+        assert result.remediation != ""
+
+
+def test_automatic_updates_definite_off_wins_over_unreadable():
+    # (False, None): one setting read as off, one unreadable. The off
+    # one is the actionable finding and must not be masked by the
+    # "could not read" branch.
+    result = _evaluate_automatic_updates(check_enabled=False, critical_install=None)
+    assert result.status == CheckStatus.WARNING
+    assert "checking for updates" in result.message
+    assert "turned off" in result.message
+
+
 def test_pending_updates_none():
     result = _evaluate_pending_updates("No new software available.")
     assert result.status == CheckStatus.PASS

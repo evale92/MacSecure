@@ -43,16 +43,9 @@ def _read_bool_pref(key: str) -> "bool | None":
 def _evaluate_automatic_updates(
     check_enabled: "bool | None", critical_install: "bool | None"
 ) -> CheckResult:
-    if check_enabled is None and critical_install is None:
-        return CheckResult(
-            AUTO_UPDATES_NAME,
-            CheckStatus.WARNING,
-            "Could not read automatic-update preferences (the keys may be "
-            "unset, which usually means macOS is using its default of On).",
-            "Check manually: System Settings -> General -> Software Update "
-            "-> Automatic Updates (the info button).",
-        )
-
+    # A definite Off is the more specific finding, so it is checked
+    # before the unreadable case — otherwise (False, None) would report
+    # "could not read" and lose the setting we *did* read as off.
     if check_enabled is False or critical_install is False:
         off_bits = []
         if check_enabled is False:
@@ -66,6 +59,26 @@ def _evaluate_automatic_updates(
             "Turn these on: System Settings -> General -> Software Update -> "
             "Automatic Updates. Missing security patches is one of the most "
             "common ways Macs get compromised.",
+        )
+
+    # `or`, not `and`: one unreadable key is still a value we did not
+    # read, and the PASS below asserts *both* are on. Reporting that
+    # assertion on a key we never saw is the silent clean pass this
+    # project refuses.
+    if check_enabled is None or critical_install is None:
+        unread = []
+        if check_enabled is None:
+            unread.append("AutomaticCheckEnabled")
+        if critical_install is None:
+            unread.append("CriticalUpdateInstall")
+        return CheckResult(
+            AUTO_UPDATES_NAME,
+            CheckStatus.WARNING,
+            f"Could not read automatic-update preferences ({', '.join(unread)}) "
+            "— the keys may be unset, which usually means macOS is using its "
+            "default of On.",
+            "Check manually: System Settings -> General -> Software Update "
+            "-> Automatic Updates (the info button).",
         )
 
     return CheckResult(

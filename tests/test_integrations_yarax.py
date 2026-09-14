@@ -468,7 +468,9 @@ def test_scan_paths_one_bad_ruleset_does_not_abort_others(tmp_path: Path, monkey
     monkeypatch.setattr(engine_module, "engine_version", lambda: "1.0.0")
 
     def compile_ruleset(source, origin=None):
-        if "bad" in origin:
+        # Match the file name, not the whole path: origin is absolute,
+        # and pytest names tmp_path after this test, which contains "bad".
+        if Path(origin).name == "bad.yar":
             raise SyntaxError("bad rule")
         return object()
 

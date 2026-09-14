@@ -119,6 +119,8 @@ def test_feature_maturity_is_independent_of_entity_maturity(tmp_path: Path):
         # Far below MIN_ELIGIBLE_OBSERVATIONS/DISTINCT_DAYS/SPAN — still
         # LEARNING regardless of whatever the parent entity's own
         # baseline_entities row says.
+        from datetime import datetime, timezone
+
         from secure.baseline import maturity
 
         state = maturity.compute_maturity(
@@ -127,6 +129,9 @@ def test_feature_maturity_is_independent_of_entity_maturity(tmp_path: Path):
             first_eligible_observed_at=feature.first_eligible_observed_at,
             last_eligible_observed_at=feature.last_eligible_observed_at,
             last_observed_at=feature.last_observed_at,
+            # Pinned to the day of the last observation: without it the
+            # real clock decides, and 30 days on this reads STALE.
+            now=datetime(2026, 8, 3, 12, tzinfo=timezone.utc),
         )
         assert state == maturity.LEARNING
 

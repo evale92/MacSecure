@@ -40,6 +40,10 @@ The script prints exactly one final verdict line, one of:
 
 By design, a failure to obtain Bluetooth access is NEVER reported as
 "zero nearby devices" — those are always distinct outcomes above.
+
+The exit status carries the same distinction: 0 for the two
+OPERATIONAL_* verdicts, 1 for every other one, so a caller that reads
+only the exit status cannot mistake PERMISSION_DENIED for a working scan.
 """
 
 from __future__ import annotations
@@ -52,13 +56,16 @@ print(f"python version    : {sys.version.split()[0]}")
 print(f"platform          : {sys.platform}")
 print("-" * 60)
 
+# The only verdicts that mean live BLE discovery works here.
+_OPERATIONAL_VERDICTS = frozenset({"OPERATIONAL_SCAN_OK", "OPERATIONAL_ZERO_RESULTS"})
+
 
 def verdict(label: str, detail: str) -> None:
     print()
     print(detail)
     print()
     print(f"=== VERDICT: {label} ===")
-    sys.exit(0)
+    sys.exit(0 if label in _OPERATIONAL_VERDICTS else 1)
 
 
 # --- Step 1: confirm both dependencies are importable at all -------------

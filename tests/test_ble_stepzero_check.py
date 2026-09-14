@@ -25,6 +25,10 @@ deterministic on a machine with PyObjC installed and on one
 without, and it is what lets this test assert honest absence
 (TESTING_POLICY rule 9) rather than a happy path.
 
+The exit-status tests go further with importable fakes that report a
+chosen CBCentralManager state and a canned scan result, so every
+verdict branch runs — still without any real Bluetooth.
+
 Run with:  pytest
 """
 
@@ -72,11 +76,71 @@ def _make_unimportable_stubs(tmp_path: Path) -> Path:
     return stub_dir
 
 
-def _run_script(tmp_path: Path) -> subprocess.CompletedProcess:
+_FAKE_MARKER = "FAKE_COREBLUETOOTH_STUB_IN_USE"
+
+
+def _make_fake_bluetooth(tmp_path: Path, state: int, device_count: int) -> Path:
+    """Importable fakes that report `state` and find `device_count` devices.
+
+    These reach every verdict past the import guards without a radio:
+    the fake CBCentralManager hands its delegate `state` synchronously,
+    and the fake BleakScanner returns canned devices. The import-time
+    marker proves the fakes shadowed any real PyObjC/bleak installed.
+    """
+    stub_dir = tmp_path / f"fakes_{state}_{device_count}"
+    stub_dir.mkdir()
+    (stub_dir / "Foundation.py").write_text(
+        "class NSObject:\n"
+        "    @classmethod\n"
+        "    def alloc(cls):\n"
+        "        return cls()\n"
+        "    def init(self):\n"
+        "        return self\n"
+        "class NSDate:\n"
+        "    @staticmethod\n"
+        "    def dateWithTimeIntervalSinceNow_(seconds):\n"
+        "        return seconds\n"
+        "class NSRunLoop:\n"
+        "    @staticmethod\n"
+        "    def currentRunLoop():\n"
+        "        return NSRunLoop()\n"
+        "    def runUntilDate_(self, date):\n"
+        "        pass\n",
+        encoding="utf-8",
+    )
+    (stub_dir / "CoreBluetooth.py").write_text(
+        f"print({_FAKE_MARKER!r})\n"
+        "class _Central:\n"
+        "    def state(self):\n"
+        f"        return {state}\n"
+        "class CBCentralManager:\n"
+        "    @classmethod\n"
+        "    def alloc(cls):\n"
+        "        return cls()\n"
+        "    def initWithDelegate_queue_(self, delegate, queue):\n"
+        "        delegate.centralManagerDidUpdateState_(_Central())\n"
+        "        return self\n",
+        encoding="utf-8",
+    )
+    (stub_dir / "bleak.py").write_text(
+        "class _Device:\n"
+        "    address = '00:00:00:00:00:00'\n"
+        "    name = None\n"
+        "    rssi = 0\n"
+        "class BleakScanner:\n"
+        "    @staticmethod\n"
+        "    async def discover(timeout):\n"
+        f"        return [_Device()] * {device_count}\n",
+        encoding="utf-8",
+    )
+    return stub_dir
+
+
+def _run_script(tmp_path: Path, stub_dir: Path | None = None) -> subprocess.CompletedProcess:
     env = dict(os.environ)
     # Only the stub dir: the script imports nothing from this repo, so
     # a fixed PYTHONPATH keeps the run from depending on ambient env.
-    env["PYTHONPATH"] = str(_make_unimportable_stubs(tmp_path))
+    env["PYTHONPATH"] = str(stub_dir or _make_unimportable_stubs(tmp_path))
     return subprocess.run(
         [sys.executable, str(_SCRIPT)],
         capture_output=True,
@@ -158,3 +222,43 @@ def test_script_never_reaches_bluetooth_when_dependencies_are_missing(tmp_path):
 
     assert "Attempting an 8-second live BLE scan" not in output
     assert "CBCentralManager.state = " not in output
+
+
+# ---------- behavioral: the exit status agrees with the verdict ----------
+
+
+def test_missing_dependencies_exit_nonzero(tmp_path):
+    """A run that could not even determine Bluetooth state must not
+    exit 0 — a caller reading only the status would take it for a
+    working scan (AGENTS rule 7).
+    """
+    proc = _run_script(tmp_path)
+
+    assert "=== VERDICT: API_UNAVAILABLE_OR_ERROR ===" in proc.stdout
+    assert proc.returncode == 1
+
+
+def test_every_verdict_exits_zero_only_when_operational(tmp_path):
+    """Drives each documented verdict through the fakes and pins its
+    exit status: 0 for the two OPERATIONAL_* outcomes, 1 for the rest.
+    Before this, verdict() ended in an unconditional sys.exit(0), so
+    PERMISSION_DENIED and POWERED_OFF exited exactly like a good scan.
+    """
+    # (CBCentralManager state, devices found) -> (verdict, exit status)
+    cases = {
+        (3, 0): ("PERMISSION_DENIED", 1),
+        (4, 0): ("POWERED_OFF", 1),
+        (2, 0): ("API_UNAVAILABLE_OR_ERROR", 1),
+        (0, 0): ("API_UNAVAILABLE_OR_ERROR", 1),
+        (5, 0): ("OPERATIONAL_ZERO_RESULTS", 0),
+        (5, 2): ("OPERATIONAL_SCAN_OK", 0),
+    }
+    assert {label for label, _ in cases.values()} == _DOCUMENTED_VERDICTS
+
+    for (state, devices), (label, status) in cases.items():
+        proc = _run_script(tmp_path, _make_fake_bluetooth(tmp_path, state, devices))
+        verdict_lines = [line for line in proc.stdout.splitlines() if line.startswith("=== VERDICT:")]
+
+        assert _FAKE_MARKER in proc.stdout, f"fakes not used for state={state}: {proc.stderr}"
+        assert verdict_lines == [f"=== VERDICT: {label} ==="], (state, devices, verdict_lines, proc.stderr)
+        assert proc.returncode == status, (label, proc.returncode)

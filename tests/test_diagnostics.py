@@ -139,22 +139,18 @@ def test_hardware_specs_reports_unavailable_when_sysctl_fails(monkeypatch):
     assert "total_ram_bytes" in specs.unavailable
 
 
-def test_hardware_specs_never_fabricates_a_nonzero_value_when_unavailable():
+def test_hardware_specs_never_fabricates_a_nonzero_value_when_unavailable(monkeypatch):
     """Adversarial check: even when every subprocess call fails, no
     numeric field is ever a fabricated 0 — it's None, distinguishable
     from a genuinely-measured zero.
     """
-    import secure.diagnostics._shell as shell_module
-
     def always_fail(*a, **k):
         return ShellResult(ok=False, stdout="", stderr="nope", returncode=None)
 
-    orig = shell_module.run
-    shell_module.run = always_fail
-    try:
-        specs = collect_hardware_specs()
-    finally:
-        shell_module.run = orig
+    # hardware.py binds `run` at import, so the seam is its own name —
+    # rebinding secure.diagnostics._shell.run would let real sysctl run.
+    monkeypatch.setattr(hardware_module, "run", always_fail)
+    specs = collect_hardware_specs()
     assert specs.total_ram_bytes is None  # never 0
     assert specs.physical_cores is None  # never 0
 

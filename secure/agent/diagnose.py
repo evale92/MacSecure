@@ -144,7 +144,13 @@ def reproduce_failure(
     timeout = timeout if timeout is not None else _DEFAULT_TIMEOUT_SECONDS
 
     if candidate.trigger_kind == TRIGGER_PYTEST_FAILURE:
-        argv = [sys.executable, "-m", "pytest", candidate.trigger_ref, "-q", "--tb=short"]
+        # `-p no:cacheprovider`: pytest otherwise writes .pytest_cache/
+        # into the checkout it runs from, and reproduction never writes
+        # there. PYTHONDONTWRITEBYTECODE covers __pycache__, not this.
+        argv = [
+            sys.executable, "-m", "pytest", candidate.trigger_ref, "-q", "--tb=short",
+            "-p", "no:cacheprovider",
+        ]
     elif candidate.trigger_kind == TRIGGER_VALIDATE_SCENARIO_FAILURE:
         argv = [sys.executable, "-m", "secure", "validate", "run"]
     elif candidate.trigger_kind == TRIGGER_DETECT_RULE_TEST_FAILURE:

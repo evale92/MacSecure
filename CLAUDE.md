@@ -72,7 +72,24 @@ shape. Both stand; neither replaces the other. During this run I also read a
 different process, and the number above is the one that came from this run's
 own output.
 
-**The suite is not green.** That same run: `5 failed, 2074 passed, 1 error`.
+**Superseded 2026-09-14 by a later invocation, recorded the same way:**
+
+| | |
+|---|---|
+| revision | `ca5a54c` |
+| command | `python -m pytest tests -q -p no:cacheprovider` from the repository root |
+| interpreter | `~/Desktop/Agent/.venv/bin/python` (3.14.7) |
+| date | 2026-09-14 |
+| outcome | **2291 passed, 0 failed** in 802.66s |
+
+The four failures that stood between (the yarax stub, the hardware seam, the
+feature-maturity clock, reproduction's `.pytest_cache`) were repaired in
+`feffc23`..`ca5a54c`. Each repair was then checked by a mutant that undoes the
+behaviour it pins: each kills its own test and none of the other three, with
+all four passing before and after. What follows is the 2026-09-10 picture,
+kept because it is what the dispatcher still quotes.
+
+**The suite was not green at `2f8a18d`.** That same run: `5 failed, 2074 passed, 1 error`.
 Two were reproduced individually in under five seconds, so they are cheap to
 look at and are not flakes:
 

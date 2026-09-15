@@ -209,6 +209,24 @@ def test_find_pytest_failures_no_tests_dir_returns_empty(tmp_path: Path):
     assert find_pytest_failures(root=tmp_path) == []
 
 
+def test_find_pytest_failures_never_writes_to_the_repository(tmp_path: Path):
+    """Its docstring says nothing here ever writes to the live repo, and
+    every other test of it stubs subprocess.run, so none could see the
+    real pytest leave .pytest_cache/ and __pycache__/ behind (J-0459).
+    The candidate count proves pytest really ran; an empty result would
+    also leave the tree unchanged."""
+    repo = tmp_path / "repo"
+    (repo / "tests").mkdir(parents=True)
+    (repo / "tests" / "test_widget.py").write_text("def test_boom():\n    assert 1 == 2\n")
+    before = sorted(str(p.relative_to(repo)) for p in repo.rglob("*"))
+
+    candidates = find_pytest_failures(root=repo, timeout=60)
+
+    assert [c.trigger_ref for c in candidates] == ["tests/test_widget.py::test_boom"]
+    after = sorted(str(p.relative_to(repo)) for p in repo.rglob("*"))
+    assert sorted(set(after) - set(before)) == []
+
+
 def test_evaluate_policy_rejects_disallowed_trigger_kind(tmp_path: Path):
     repo = _init_repo(tmp_path)
     with Database(tmp_path / "secure.db") as db:

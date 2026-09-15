@@ -31,6 +31,7 @@ kind added here, never a loosening of an existing one.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sqlite3
 import sys
@@ -88,10 +89,15 @@ def find_pytest_failures(
     if not tests_dir.is_dir():
         return []
 
-    argv = [sys.executable, "-m", "pytest", str(tests_dir), "-q", "--tb=short"]
+    # Same two guards as diagnose.reproduce_failure(): `-p no:cacheprovider`
+    # keeps .pytest_cache/ out of the checkout, PYTHONDONTWRITEBYTECODE
+    # keeps __pycache__/ out of it (J-0459).
+    argv = [sys.executable, "-m", "pytest", str(tests_dir), "-q", "--tb=short", "-p", "no:cacheprovider"]
+    env = dict(os.environ)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
     try:
         proc = subprocess.run(
-            argv, cwd=str(root), capture_output=True, text=True, timeout=timeout, shell=False,
+            argv, cwd=str(root), capture_output=True, text=True, timeout=timeout, shell=False, env=env,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return []

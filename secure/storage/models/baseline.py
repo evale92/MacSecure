@@ -438,20 +438,12 @@ def list_baseline_activity(
     conn: sqlite3.Connection,
     entity_type: str,
     entity_key: str,
-    since: "str | None" = None,
 ) -> "list[BaselineActivityRecord]":
-    if since is None:
-        rows = conn.execute(
-            "SELECT * FROM baseline_activity WHERE entity_type = ? AND entity_key = ? "
-            "ORDER BY created_at",
-            (entity_type, entity_key),
-        ).fetchall()
-    else:
-        rows = conn.execute(
-            "SELECT * FROM baseline_activity WHERE entity_type = ? AND entity_key = ? "
-            "AND created_at >= ? ORDER BY created_at",
-            (entity_type, entity_key, since),
-        ).fetchall()
+    rows = conn.execute(
+        "SELECT * FROM baseline_activity WHERE entity_type = ? AND entity_key = ? "
+        "ORDER BY created_at",
+        (entity_type, entity_key),
+    ).fetchall()
     return [_row_to_baseline_activity(row) for row in rows]
 
 
@@ -981,22 +973,13 @@ def list_baseline_feature_activity(
     entity_type: str,
     entity_key: str,
     feature_name: str,
-    since: "str | None" = None,
 ) -> "list[BaselineFeatureActivityRecord]":
-    if since is None:
-        rows = conn.execute(
-            "SELECT * FROM baseline_feature_activity "
-            "WHERE entity_type = ? AND entity_key = ? AND feature_name = ? "
-            "ORDER BY observed_at",
-            (entity_type, entity_key, feature_name),
-        ).fetchall()
-    else:
-        rows = conn.execute(
-            "SELECT * FROM baseline_feature_activity "
-            "WHERE entity_type = ? AND entity_key = ? AND feature_name = ? AND observed_at >= ? "
-            "ORDER BY observed_at",
-            (entity_type, entity_key, feature_name, since),
-        ).fetchall()
+    rows = conn.execute(
+        "SELECT * FROM baseline_feature_activity "
+        "WHERE entity_type = ? AND entity_key = ? AND feature_name = ? "
+        "ORDER BY observed_at",
+        (entity_type, entity_key, feature_name),
+    ).fetchall()
     return [_row_to_baseline_feature_activity(row) for row in rows]
 
 

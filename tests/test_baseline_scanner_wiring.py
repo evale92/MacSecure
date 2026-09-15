@@ -15,6 +15,7 @@ from pathlib import Path
 
 from secure.connections._shell import ShellResult
 from secure.inventory.arp_table import ArpEntry
+from secure.inventory.hostnames import NO_RECORD, HostnameLookup
 from secure.inventory.scanner import scan_network
 from secure.listening.scanner import scan_listening_services
 from secure.persistence.codesign import UNKNOWN
@@ -212,7 +213,9 @@ def test_scan_network_produces_successful_baseline_run(tmp_path: Path, monkeypat
     fake_entries = [ArpEntry(ip="192.168.1.1", mac="ac:de:48:00:11:22", hostname="gateway.local")]
     monkeypatch.setattr(scanner_module, "get_local_subnet", lambda: None)
     monkeypatch.setattr(scanner_module, "read_arp_table_with_availability", lambda: (fake_entries, True))
-    monkeypatch.setattr(scanner_module, "resolve_hostname", lambda ip: None)
+    monkeypatch.setattr(
+        scanner_module, "resolve_hostname_with_status", lambda ip: HostnameLookup(None, NO_RECORD)
+    )
 
     with Database(tmp_path / "test.db") as db:
         result = scanner_module.scan_network(db.conn)
@@ -228,7 +231,9 @@ def test_scan_network_zero_devices_is_still_a_clean_run(tmp_path: Path, monkeypa
 
     monkeypatch.setattr(scanner_module, "get_local_subnet", lambda: None)
     monkeypatch.setattr(scanner_module, "read_arp_table_with_availability", lambda: ([], True))
-    monkeypatch.setattr(scanner_module, "resolve_hostname", lambda ip: None)
+    monkeypatch.setattr(
+        scanner_module, "resolve_hostname_with_status", lambda ip: HostnameLookup(None, NO_RECORD)
+    )
 
     with Database(tmp_path / "test.db") as db:
         scanner_module.scan_network(db.conn)
@@ -243,7 +248,9 @@ def test_each_scan_produces_exactly_one_baseline_run_row(tmp_path: Path, monkeyp
 
     monkeypatch.setattr(scanner_module, "get_local_subnet", lambda: None)
     monkeypatch.setattr(scanner_module, "read_arp_table_with_availability", lambda: ([], True))
-    monkeypatch.setattr(scanner_module, "resolve_hostname", lambda ip: None)
+    monkeypatch.setattr(
+        scanner_module, "resolve_hostname_with_status", lambda ip: HostnameLookup(None, NO_RECORD)
+    )
 
     with Database(tmp_path / "test.db") as db:
         scanner_module.scan_network(db.conn)

@@ -14,6 +14,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from secure.inventory.arp_table import ArpEntry, normalize_mac, parse_arp_output
+from secure.inventory.hostnames import NO_RECORD, TIMED_OUT, HostnameLookup
 from secure.inventory.network_info import (
     LocalSubnet,
     _parse_default_interface,
@@ -22,7 +23,12 @@ from secure.inventory.network_info import (
 from secure.inventory.scanner import _is_real_device, scan_network
 from secure.inventory.vendor import lookup_vendor
 from secure.storage.database import Database
-from secure.storage.models import delete_junk_devices, list_devices, upsert_device
+from secure.storage.models import (
+    delete_junk_devices,
+    find_latest_baseline_run,
+    list_devices,
+    upsert_device,
+)
 
 # ---------- normalize_mac ----------
 
@@ -179,7 +185,9 @@ def test_scan_network_records_devices_and_flags_new_ones(tmp_path: Path, monkeyp
 
     monkeypatch.setattr(scanner_module, "get_local_subnet", lambda: None)
     monkeypatch.setattr(scanner_module, "read_arp_table_with_availability", lambda: (fake_entries, True))
-    monkeypatch.setattr(scanner_module, "resolve_hostname", lambda ip: None)
+    monkeypatch.setattr(
+        scanner_module, "resolve_hostname_with_status", lambda ip: HostnameLookup(None, NO_RECORD)
+    )
     monkeypatch.setattr(scanner_module, "ping_sweep", lambda *a, **k: (_ for _ in ()).throw(
         AssertionError("ping_sweep should not run when get_local_subnet() returns None")
     ))
@@ -206,7 +214,9 @@ def test_scan_network_second_scan_has_no_new_devices(tmp_path: Path, monkeypatch
 
     monkeypatch.setattr(scanner_module, "get_local_subnet", lambda: None)
     monkeypatch.setattr(scanner_module, "read_arp_table_with_availability", lambda: (fake_entries, True))
-    monkeypatch.setattr(scanner_module, "resolve_hostname", lambda ip: None)
+    monkeypatch.setattr(
+        scanner_module, "resolve_hostname_with_status", lambda ip: HostnameLookup(None, NO_RECORD)
+    )
 
     db_path = tmp_path / "test.db"
     with Database(db_path) as db:
@@ -253,7 +263,9 @@ def test_scan_network_filters_out_incomplete_and_broadcast_entries(tmp_path: Pat
 
     monkeypatch.setattr(scanner_module, "get_local_subnet", lambda: None)
     monkeypatch.setattr(scanner_module, "read_arp_table_with_availability", lambda: (fake_entries, True))
-    monkeypatch.setattr(scanner_module, "resolve_hostname", lambda ip: None)
+    monkeypatch.setattr(
+        scanner_module, "resolve_hostname_with_status", lambda ip: HostnameLookup(None, NO_RECORD)
+    )
 
     db_path = tmp_path / "test.db"
     with Database(db_path) as db:
@@ -278,7 +290,9 @@ def test_scan_network_arp_unavailable_is_not_a_false_clean(tmp_path: Path, monke
 
     monkeypatch.setattr(scanner_module, "get_local_subnet", lambda: None)
     monkeypatch.setattr(scanner_module, "read_arp_table_with_availability", lambda: ([], False))
-    monkeypatch.setattr(scanner_module, "resolve_hostname", lambda ip: None)
+    monkeypatch.setattr(
+        scanner_module, "resolve_hostname_with_status", lambda ip: HostnameLookup(None, NO_RECORD)
+    )
 
     db_path = tmp_path / "test.db"
     with Database(db_path) as db:
@@ -286,6 +300,91 @@ def test_scan_network_arp_unavailable_is_not_a_false_clean(tmp_path: Path, monke
 
     assert result.arp_available is False
     assert result.devices == []
+
+
+# ---------- a hostname the resolver never produced (J-0187, invariant 5) ----------
+#
+# scan_network() stores hostname=None both for a device that has no PTR
+# record and for a device whose lookup timed out. The stored row cannot
+# carry the difference, so the scan result and the baseline run have to:
+# otherwise a resolver that stopped answering reads as a network full of
+# nameless devices, which is the false clean invariant 5 forbids. Same
+# shape as arp_available directly above.
+
+
+def test_scan_network_counts_a_timed_out_hostname_lookup_as_degraded(tmp_path: Path, monkeypatch):
+    import secure.inventory.scanner as scanner_module
+
+    fake_entries = [ArpEntry(ip="192.168.1.50", mac="a4:83:e7:12:34:56", hostname=None)]
+    monkeypatch.setattr(scanner_module, "get_local_subnet", lambda: None)
+    monkeypatch.setattr(scanner_module, "read_arp_table_with_availability", lambda: (fake_entries, True))
+    monkeypatch.setattr(
+        scanner_module, "resolve_hostname_with_status", lambda ip: HostnameLookup(None, TIMED_OUT)
+    )
+
+    db_path = tmp_path / "test.db"
+    with Database(db_path) as db:
+        result = scan_network(db.conn)
+        run = find_latest_baseline_run(db.conn)
+
+    record, _was_new = result.devices[0]
+    assert record.hostname is None  # the row itself cannot say why
+    assert result.hostname_lookups_degraded == 1
+    assert run.incomplete_inputs == 1  # ...so the run does
+    # 'partial', never 'failed': the device WAS observed and stored, and
+    # only its name is missing. Counting this as an error would let one
+    # unanswered lookup call an otherwise complete scan untrustworthy.
+    assert run.status == "partial"
+    assert run.errors_count == 0
+
+
+def test_scan_network_does_not_count_a_device_with_no_ptr_record(tmp_path: Path, monkeypatch):
+    # The positive control for the test above: the ordinary case, where
+    # the resolver answered and the device simply has no name, must stay
+    # a clean scan with zero errors.
+    import secure.inventory.scanner as scanner_module
+
+    fake_entries = [ArpEntry(ip="192.168.1.50", mac="a4:83:e7:12:34:56", hostname=None)]
+    monkeypatch.setattr(scanner_module, "get_local_subnet", lambda: None)
+    monkeypatch.setattr(scanner_module, "read_arp_table_with_availability", lambda: (fake_entries, True))
+    monkeypatch.setattr(
+        scanner_module, "resolve_hostname_with_status", lambda ip: HostnameLookup(None, NO_RECORD)
+    )
+
+    db_path = tmp_path / "test.db"
+    with Database(db_path) as db:
+        result = scan_network(db.conn)
+        run = find_latest_baseline_run(db.conn)
+
+    assert result.hostname_lookups_degraded == 0
+    assert run.incomplete_inputs == 0
+    assert run.errors_count == 0
+    assert run.status == "success"
+
+
+def test_scan_network_does_not_look_up_a_hostname_arp_already_gave(tmp_path: Path, monkeypatch):
+    # `arp -an` is run numerically, but an entry can still arrive with a
+    # name. Resolving it again would pay the per-device serial lookup
+    # cost for an answer already in hand.
+    import secure.inventory.scanner as scanner_module
+
+    fake_entries = [ArpEntry(ip="192.168.1.1", mac="ac:de:48:00:11:22", hostname="gateway.local")]
+    monkeypatch.setattr(scanner_module, "get_local_subnet", lambda: None)
+    monkeypatch.setattr(scanner_module, "read_arp_table_with_availability", lambda: (fake_entries, True))
+    monkeypatch.setattr(
+        scanner_module,
+        "resolve_hostname_with_status",
+        lambda ip: (_ for _ in ()).throw(
+            AssertionError("resolve_hostname_with_status must not run for an entry that has a name")
+        ),
+    )
+
+    db_path = tmp_path / "test.db"
+    with Database(db_path) as db:
+        result = scan_network(db.conn)
+
+    record, _was_new = result.devices[0]
+    assert record.hostname == "gateway.local"
 
 
 # ---------- delete_junk_devices (cleanup for rows written before filtering existed) ----------

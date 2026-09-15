@@ -61,6 +61,14 @@ def cmd_inventory_scan(args: argparse.Namespace) -> int:
             f"  ({result.filtered_out} of {result.raw_arp_rows} ARP entries were empty "
             "addresses/broadcast/multicast, not devices — not counted above.)"
         )
+    if result.hostname_lookups_degraded:
+        # Invariant 5: a name missing because the resolver never
+        # answered must not read the same as a device that has no name.
+        print(
+            f"  ({result.hostname_lookups_degraded} hostname lookup(s) timed out or failed — "
+            "those devices show no hostname because the lookup did not answer, "
+            "not because they have none.)"
+        )
     print()
 
     for record, was_new in sorted(result.devices, key=lambda pair: pair[0].ip):

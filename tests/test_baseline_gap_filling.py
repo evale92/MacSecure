@@ -19,6 +19,7 @@ from secure.baseline.history import (
 from secure.baseline.constants import ENTITY_CAPS
 from secure.baseline.entities import INVENTORY, PROCESS, inventory_key, process_key
 from secure.inventory.arp_table import ArpEntry
+from secure.inventory.hostnames import NO_RECORD, HostnameLookup
 from secure.inventory.scanner import scan_network
 from secure.persistence.scanner import scan_persistence
 from secure.storage.database import Database
@@ -142,7 +143,9 @@ def test_scan_network_writes_baseline_gap_observations(tmp_path: Path, monkeypat
     fake_entries = [ArpEntry(ip="192.168.1.1", mac="ac:de:48:00:11:22", hostname="gateway.local")]
     monkeypatch.setattr(scanner_module, "get_local_subnet", lambda: None)
     monkeypatch.setattr(scanner_module, "read_arp_table_with_availability", lambda: (fake_entries, True))
-    monkeypatch.setattr(scanner_module, "resolve_hostname", lambda ip: None)
+    monkeypatch.setattr(
+        scanner_module, "resolve_hostname_with_status", lambda ip: HostnameLookup(None, NO_RECORD)
+    )
 
     with Database(tmp_path / "test.db") as db:
         scan_network(db.conn)

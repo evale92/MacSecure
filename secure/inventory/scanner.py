@@ -23,7 +23,7 @@ from secure.baseline.engine import BaselineRunCounters, finalize_baseline_run
 from secure.baseline.history import record_gap_observation
 from secure.baseline.entities import INVENTORY, inventory_key
 from secure.inventory.arp_table import ArpEntry, read_arp_table_with_availability
-from secure.inventory.hostnames import resolve_hostname
+from secure.inventory.hostnames import resolve_hostname_with_status
 from secure.inventory.network_info import get_local_subnet
 from secure.inventory.ping_sweep import ping_sweep
 from secure.inventory.vendor import lookup_vendor
@@ -65,6 +65,12 @@ class ScanResult:
     # failure, never a clean "nothing on the network" result. Mirrors
     # secure/arpwatch/scanner.py's own arp_available field.
     arp_available: bool = True
+    # How many devices this scan has no hostname for because the
+    # reverse-DNS lookup timed out or the resolver failed — NOT because
+    # the device has no PTR record, which is the ordinary case and is
+    # not counted here. Same "sensor failure, not silence" discipline
+    # as arp_available above (invariant 5).
+    hostname_lookups_degraded: int = 0
 
     @property
     def new_devices(self) -> List[DeviceRecord]:
@@ -116,8 +122,22 @@ def scan_network(
         counters.record_error("ARP cache could not be read this scan (arp command unavailable/timed out)")
 
     results: List[Tuple[DeviceRecord, bool]] = []
+    hostname_lookups_degraded = 0
     for entry in real_entries:
-        hostname = entry.hostname or resolve_hostname(entry.ip)
+        hostname = entry.hostname
+        if hostname is None:
+            lookup = resolve_hostname_with_status(entry.ip)
+            hostname = lookup.hostname
+            if lookup.degraded:
+                # A name missing because the resolver never answered is
+                # a sensor that could not determine a value, so the pass
+                # is 'partial' — the same channel persistence/scanner.py
+                # uses for a codesign UNKNOWN (partial_sensor_data ->
+                # incomplete_inputs), and deliberately not
+                # record_error(): the device itself was observed and
+                # stored, so this pass is degraded, never 'failed'.
+                hostname_lookups_degraded += 1
+                counters.incomplete_inputs += 1
         vendor = lookup_vendor(entry.mac)
         record, was_new = upsert_device(
             conn, ip=entry.ip, mac=entry.mac, hostname=hostname, vendor=vendor
@@ -156,4 +176,5 @@ def scan_network(
         raw_arp_rows=len(entries),
         devices=results,
         arp_available=arp_available,
+        hostname_lookups_degraded=hostname_lookups_degraded,
     )

@@ -39,6 +39,7 @@ from secure import cli
 from secure.cli import inventory as cli_inventory
 from secure.config import load_config
 from secure.inventory.arp_table import parse_arp_output
+from secure.inventory.scanner import ScanResult
 from secure.storage.database import Database
 from secure.storage.models import list_devices, upsert_device
 
@@ -148,3 +149,55 @@ def test_unknown_mac_exits_one_and_changes_nothing(monkeypatch, tmp_path):
     assert rc == 1
     assert "No device found matching 'ac:de:48:0:11:99'" in out
     assert _devices_by_ip(cfg)["192.168.1.1"].known is False
+
+
+# ---------- `secure inventory scan` output for a degraded lookup (J-0187) ----------
+#
+# The scan itself counts hostname lookups that never answered
+# (tests/test_inventory.py), but the operator only ever sees this
+# command's output. A device listed with no hostname reads as "this
+# device has no name"; when the resolver is what failed, the output has
+# to say so, or invariant 5's honest absence stops at the data layer and
+# never reaches the person. Before this, no test named cmd_inventory_scan
+# at all — not even its existing `arp` unavailable branch.
+
+
+def _scan_result(**overrides):
+    fields = dict(
+        scanned_at="2026-09-15T00:00:00+00:00",
+        subnet=None,
+        ping_sweep_performed=False,
+        raw_arp_rows=1,
+        devices=[],
+        arp_available=True,
+    )
+    fields.update(overrides)
+    return ScanResult(**fields)
+
+
+def test_scan_output_says_a_hostname_lookup_failed_rather_than_implying_no_name(
+    monkeypatch, tmp_path
+):
+    _bootstrap_to_tmp(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        cli_inventory, "scan_network", lambda conn, **kw: _scan_result(hostname_lookups_degraded=2)
+    )
+
+    rc, out = _run(cli_inventory.cmd_inventory_scan, argparse.Namespace(no_ping_sweep=True))
+
+    assert rc == 0, out
+    assert "2 hostname lookup(s) timed out or failed" in out
+
+
+def test_scan_output_stays_quiet_when_every_lookup_answered(monkeypatch, tmp_path):
+    # Positive control: the ordinary scan must not grow a line about
+    # failures that did not happen.
+    _bootstrap_to_tmp(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        cli_inventory, "scan_network", lambda conn, **kw: _scan_result(hostname_lookups_degraded=0)
+    )
+
+    rc, out = _run(cli_inventory.cmd_inventory_scan, argparse.Namespace(no_ping_sweep=True))
+
+    assert rc == 0, out
+    assert "hostname lookup" not in out

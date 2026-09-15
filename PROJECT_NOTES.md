@@ -2831,6 +2831,27 @@ a reimplementation of any of them.
   `arp -an` (`-n` = numeric, skip arp's own resolution); this app
   already does its own hostname resolution separately, so nothing
   else changed.
+- **Bugfix (2026-09-15) — the hostname timeout that bounded nothing**
+  (filed here next to the ARP bugfix above rather than in date order,
+  because it is the other half of the same story). Moving resolution
+  out of `arp` moved the hang into `hostnames.py`, whose own
+  `timeout` parameter did not bind: it set
+  `socket.setdefaulttimeout()`, which is documented to affect newly
+  created socket objects only, while `socket.gethostbyaddr()` goes
+  through the platform resolver in C without creating one. Measured
+  with the default at 1e-06s — a control `socket.create_connection`
+  raised `TimeoutError` while `gethostbyaddr('127.0.0.1')` returned
+  normally after 8543x that timeout. `scanner.py` calls it once per
+  discovered device, serially, so one unanswered lookup could stall a
+  whole scan. The deadline is now real (the lookup runs on a daemon
+  thread the caller stops waiting on), and because a lookup that never
+  answered must not be mistaken for the ordinary "this phone has no
+  reverse-DNS entry" case, `resolve_hostname_with_status()` reports
+  which of the two it was: the scan counts the failures
+  (`ScanResult.hostname_lookups_degraded`), `secure inventory scan`
+  prints them, and the baseline run for that scan records them as
+  incomplete inputs — 'partial', never 'failed', since the devices
+  themselves were still observed and stored.
 - **Bugfix — every empty address counted as a "new device"** — once
   the fix above let real ARP data through, a second problem showed up:
   a /24 ping sweep produces one "incomplete" ARP row (no MAC — nothing

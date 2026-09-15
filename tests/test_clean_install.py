@@ -23,6 +23,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 
 def _run_secure(env: dict, args: list[str], cwd: Path, timeout: float = 60.0) -> subprocess.CompletedProcess:
     return subprocess.run(
@@ -125,10 +127,39 @@ def test_run_all_completes_even_with_optional_dependencies_missing(tmp_path: Pat
     root = _project_root()
 
     _run_secure(env, ["init"], root)
-    result = _run_secure(env, ["run-all"], root, timeout=120.0)
+    try:
+        result = _run_secure(env, ["run-all"], root, timeout=120.0)
+    except subprocess.TimeoutExpired as exc:
+        # Still a failure — but a bare TimeoutExpired cannot say whether a
+        # scan hung or every scan was merely slow (J-0469). Each scan
+        # commits its perf_module_runs row as it finishes, so the killed
+        # run's own database already holds that answer.
+        db_path = Path(env["HOME"]) / ".secure" / "secure.db"
+        pytest.fail(f"run-all exceeded {exc.timeout}s; {_perf_rows_so_far(db_path)}")
 
     assert result.returncode in (0, 1)  # 1 = new correlation alerts, still a clean run
     assert "Traceback" not in result.stderr
+
+
+def _perf_rows_so_far(db_path: Path) -> str:
+    """Which scans a killed run finished, with wall and CPU seconds each.
+
+    Wall far above CPU is a scan waiting on the network or an external
+    tool; the scan after the last one listed is the one that was running.
+    """
+    if not db_path.exists():
+        return "no database, so no scan finished"
+    conn = sqlite3.connect(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT module, duration_seconds, cpu_time_seconds FROM perf_module_runs ORDER BY id"
+        ).fetchall()
+    finally:
+        conn.close()
+    if not rows:
+        return "no scan finished"
+    done = ", ".join(f"{module} {wall:.1f}s wall/{cpu or 0:.1f}s cpu" for module, wall, cpu in rows)
+    return f"finished: {done}; killed during the scan after {rows[-1][0]}"
 
 
 def test_ble_scan_reports_honest_unavailable_when_bleak_or_pyobjc_missing(tmp_path: Path):

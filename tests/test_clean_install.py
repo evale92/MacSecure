@@ -21,6 +21,7 @@ import sqlite3
 import stat
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -125,20 +126,213 @@ def test_run_all_completes_even_with_optional_dependencies_missing(tmp_path: Pat
     """
     env = _fresh_env(tmp_path, monkeypatch)
     root = _project_root()
+    db_path = Path(env["HOME"]) / ".secure" / "secure.db"
 
     _run_secure(env, ["init"], root)
     try:
-        result = _run_secure(env, ["run-all"], root, timeout=120.0)
-    except subprocess.TimeoutExpired as exc:
-        # Still a failure — but a bare TimeoutExpired cannot say whether a
-        # scan hung or every scan was merely slow (J-0469). Each scan
-        # commits its perf_module_runs row as it finishes, so the killed
-        # run's own database already holds that answer.
-        db_path = Path(env["HOME"]) / ".secure" / "secure.db"
-        pytest.fail(f"run-all exceeded {exc.timeout}s; {_perf_rows_so_far(db_path)}")
+        result = _run_secure_while_scans_progress(env, ["run-all"], root, db_path, tmp_path)
+    except _NoProgress as exc:
+        pytest.fail(f"{exc}; {_perf_rows_so_far(db_path)}")
 
     assert result.returncode in (0, 1)  # 1 = new correlation alerts, still a clean run
+    # The run's output is read back from files, so prove it was read back at
+    # all: an empty capture would make the next assertion true of nothing.
+    assert "inventory" in result.stdout.lower()
     assert "Traceback" not in result.stderr
+
+
+# -------------------------------------------------------------------------
+# Waiting on run-all by progress instead of by elapsed time (J-0469).
+#
+# The old form gave the subprocess a fixed 120s wall-clock budget. That
+# budget failed once in a loaded full-suite run (2026-09-14 at 0d7abe3,
+# 927s suite) while the same test passed alone in 25.67s — a behaviour test
+# losing to contention, which TESTING_POLICY rule 6 forbids depending on in
+# the first place. Raising the number would only move the threshold.
+#
+# Measured solo 2026-09-15 at 93a7296: run-all takes ~24s, and ~22s of that
+# is inside the nine scans, whose wall time is almost entirely spent waiting
+# on the network or an external tool rather than computing — inventory 9.9s
+# wall / 0.8s cpu, wifi 4.3s / 0.0s cpu, 2.4s cpu across all nine. Load
+# inflates the computing and not the waiting, so total elapsed is the part
+# of this that contention moves and the part the test never meant to assert.
+#
+# What a hang actually looks like is one scan that never returns. Each scan
+# commits its perf_module_runs row as it finishes and those rows are visible
+# to a second connection while the run is still going (verified: nine rows
+# observed live, largest gap between two of them 10.2s, no lock contention),
+# so a hung scan shows up as the absence of a new row. That is what this
+# waits on.
+# -------------------------------------------------------------------------
+
+# 6x the largest gap between two finished scans measured solo (10.2s).
+_SCAN_STALL_SECONDS = 60.0
+# Backstop only: nine scans each finishing just inside the stall budget
+# cannot reach this, so it fires only if the progress signal itself breaks.
+_RUN_ALL_CEILING_SECONDS = 600.0
+
+
+class _NoProgress(AssertionError):
+    """The program under test stopped recording finished work."""
+
+
+def _wait_for_progress(
+    proc: subprocess.Popen,
+    progress_count,
+    stall_seconds: float,
+    ceiling_seconds: float,
+    poll_seconds: float = 0.5,
+) -> int:
+    """Wait for `proc`, judging it by progress rather than by elapsed time.
+
+    `progress_count()` returns a non-decreasing count of work the program has
+    durably recorded somewhere the test can read while it runs. Every increase
+    resets the stall clock, so a slow machine only makes the program slower,
+    never wrong. Returns the exit status; raises `_NoProgress` — after killing
+    the process — if `stall_seconds` pass with the count unchanged, or if
+    `ceiling_seconds` pass in total.
+
+    Reusable wherever a subprocess under test writes durable progress: it is
+    the only way to tell "hung" from "loaded" without asserting a speed.
+    """
+    started = time.monotonic()
+    last_change = started
+    seen = progress_count()
+    while proc.poll() is None:
+        time.sleep(poll_seconds)
+        now = time.monotonic()
+        current = progress_count()
+        if current > seen:
+            seen, last_change = current, now
+        if now - last_change > stall_seconds:
+            proc.kill()
+            proc.wait()
+            raise _NoProgress(
+                f"no progress for {stall_seconds:.0f}s after {seen} completed"
+                f" (killed {now - started:.0f}s in)"
+            )
+        if now - started > ceiling_seconds:
+            proc.kill()
+            proc.wait()
+            raise _NoProgress(
+                f"still running after {ceiling_seconds:.0f}s with {seen} completed"
+            )
+    return proc.wait()
+
+
+def _finished_scan_count(db_path: Path) -> int:
+    """How many scans have committed their perf_module_runs row so far.
+
+    Never raises: before `init` the file is absent, and a read that loses a
+    race with the writer is not evidence of a stall, so both report the count
+    as unchanged and let the next poll decide.
+    """
+    if not db_path.exists():
+        return 0
+    try:
+        conn = sqlite3.connect(db_path, timeout=0.2)
+        try:
+            return conn.execute("SELECT COUNT(*) FROM perf_module_runs").fetchone()[0]
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return 0
+
+
+def _run_secure_while_scans_progress(
+    env: dict,
+    args: list[str],
+    cwd: Path,
+    db_path: Path,
+    out_dir: Path,
+    stall_seconds: float = _SCAN_STALL_SECONDS,
+    ceiling_seconds: float = _RUN_ALL_CEILING_SECONDS,
+) -> subprocess.CompletedProcess:
+    """`_run_secure`, but bounded by scan progress instead of by a deadline.
+
+    Output goes to files rather than pipes for two reasons: a kill discards
+    whatever a block-buffered pipe was holding, and a reader that is polling
+    instead of draining the pipe would deadlock the child on a full buffer.
+    """
+    out_path, err_path = out_dir / "run_all.out", out_dir / "run_all.err"
+    with open(out_path, "w") as out, open(err_path, "w") as err:
+        proc = subprocess.Popen(
+            [sys.executable, "-m", "secure", *args],
+            stdout=out, stderr=err, env=env, cwd=str(cwd),
+        )
+        returncode = _wait_for_progress(
+            proc, lambda: _finished_scan_count(db_path), stall_seconds, ceiling_seconds
+        )
+    return subprocess.CompletedProcess(
+        proc.args, returncode, out_path.read_text(), err_path.read_text()
+    )
+
+
+def _sleeping_child(seconds: float) -> subprocess.Popen:
+    return subprocess.Popen([sys.executable, "-c", f"import time; time.sleep({seconds})"])
+
+
+def test_wait_for_progress_kills_a_run_that_stops_recording_finished_work():
+    """The condition the budget is actually for: the program is alive and
+    producing nothing. Killing it is what keeps a hang from becoming a
+    suite-length wait, so this asserts the process is dead afterwards too.
+    """
+    proc = _sleeping_child(30)
+    try:
+        with pytest.raises(_NoProgress) as caught:
+            _wait_for_progress(proc, lambda: 0, stall_seconds=1.0, ceiling_seconds=60.0, poll_seconds=0.1)
+        assert "no progress for 1s" in str(caught.value)
+        assert proc.poll() is not None
+    finally:
+        if proc.poll() is None:  # pragma: no cover - only if the assertion above fails
+            proc.kill()
+
+
+def test_wait_for_progress_lets_a_slow_but_progressing_run_finish():
+    """The positive control, and the whole point of the change: this child
+    runs three times the stall budget and is not killed, because every poll
+    sees more work finished. A fixed elapsed-time budget fails it.
+    """
+    calls = iter(range(1000))
+    proc = _sleeping_child(3)
+    try:
+        returncode = _wait_for_progress(
+            proc, lambda: next(calls), stall_seconds=1.0, ceiling_seconds=60.0, poll_seconds=0.1
+        )
+        assert returncode == 0
+    finally:
+        if proc.poll() is None:  # pragma: no cover - only if the assertion above fails
+            proc.kill()
+
+
+def test_wait_for_progress_ceiling_fires_even_while_progress_keeps_arriving():
+    """A progress signal that increments without the work advancing would
+    otherwise let a run wait forever, so the backstop does not consult it.
+    """
+    calls = iter(range(1000))
+    proc = _sleeping_child(30)
+    try:
+        with pytest.raises(_NoProgress) as caught:
+            _wait_for_progress(
+                proc, lambda: next(calls), stall_seconds=100.0, ceiling_seconds=1.0, poll_seconds=0.1
+            )
+        assert "still running after 1s" in str(caught.value)
+        assert proc.poll() is not None
+    finally:
+        if proc.poll() is None:  # pragma: no cover - only if the assertion above fails
+            proc.kill()
+
+
+def test_finished_scan_count_reports_zero_rather_than_raising_on_an_absent_db(tmp_path: Path):
+    """A stall is decided by the count not moving, so an unreadable database
+    must read as "no new information" and never as an exception that would
+    escape the waiter and be reported as some other failure.
+    """
+    assert _finished_scan_count(tmp_path / "nothing.db") == 0
+
+    not_a_db = tmp_path / "garbage.db"
+    not_a_db.write_bytes(b"this is not a sqlite file")
+    assert _finished_scan_count(not_a_db) == 0
 
 
 def _perf_rows_so_far(db_path: Path) -> str:

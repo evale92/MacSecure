@@ -120,6 +120,12 @@ def open_baseline_window(parent: tk.Misc, *, run_command: RunCommand) -> tk.Topl
     toolbar.pack(fill=tk.X)
     refresh_btn = tk.Button(toolbar, text="Refresh", command=lambda: _reload())
     refresh_btn.pack(side=tk.LEFT)
+    # Per-action status, next to the button it points the operator at.
+    # overview_var carries the multi-line overview and cannot double as it.
+    status_var = tk.StringVar(value="")
+    tk.Label(toolbar, textvariable=status_var, font=fonts["small"], fg="#666").pack(
+        side=tk.LEFT, padx=(12, 0)
+    )
 
     body = tk.PanedWindow(win, orient=tk.VERTICAL, sashwidth=6)
     body.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -257,6 +263,7 @@ def open_baseline_window(parent: tk.Misc, *, run_command: RunCommand) -> tk.Topl
             tree.heading(c, text=_HEADINGS[c] + arrow)
 
     def _reload() -> None:
+        status_var.set("")
         try:
             overview = fetch_baseline_overview_now()
             rows = fetch_all_anomalies(limit=300)
@@ -324,7 +331,9 @@ def open_baseline_window(parent: tk.Misc, *, run_command: RunCommand) -> tk.Topl
         args = [*row.mark_command, str(row.id), new_status]
         label = f"Mark Anomaly Known/Unknown… (#{row.id}, via Baseline & Anomalies table)"
         run_command(label, args, False)
-        overview_var.set(overview_var.get())
+        status_var.set(
+            "Sent — check Console in the main window for the result, then Refresh."
+        )
         _hide_raw()
 
     def _toggle_raw() -> None:

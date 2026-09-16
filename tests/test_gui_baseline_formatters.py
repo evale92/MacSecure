@@ -265,3 +265,86 @@ def test_baseline_view_delegates_both_formatters_instead_of_redefining_them(tmp_
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
     }
     assert {"format_baseline_overview_text", "format_anomaly_evidence_text"} <= called
+
+
+def _mark_feedback_violations(source: str) -> list:
+    """What `_mark` fails to tell the operator after dispatching a command.
+
+    Two shapes: a `v.set(v.get())` self-write anywhere (a no-op with no
+    trace to fire), and a `_mark` whose `run_command(...)` is not followed
+    by a `status_var.set(<non-empty string>)`.
+    """
+    import ast
+
+    tree = ast.parse(source)
+    violations = []
+
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "set"
+            and isinstance(node.func.value, ast.Name)
+            and len(node.args) == 1
+            and isinstance(node.args[0], ast.Call)
+            and isinstance(node.args[0].func, ast.Attribute)
+            and node.args[0].func.attr == "get"
+            and isinstance(node.args[0].func.value, ast.Name)
+            and node.args[0].func.value.id == node.func.value.id
+        ):
+            violations.append(f"self-write {node.func.value.id}.set({node.func.value.id}.get()) at line {node.lineno}")
+
+    marks = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "_mark"]
+    if len(marks) != 1:
+        return violations + [f"expected one _mark, found {len(marks)}"]
+
+    body = marks[0].body
+    dispatch = [
+        i for i, stmt in enumerate(body)
+        if isinstance(stmt, ast.Expr)
+        and isinstance(stmt.value, ast.Call)
+        and isinstance(stmt.value.func, ast.Name)
+        and stmt.value.func.id == "run_command"
+    ]
+    if len(dispatch) != 1:
+        return violations + [f"expected one run_command in _mark, found {len(dispatch)}"]
+
+    told = any(
+        isinstance(stmt, ast.Expr)
+        and isinstance(stmt.value, ast.Call)
+        and isinstance(stmt.value.func, ast.Attribute)
+        and stmt.value.func.attr == "set"
+        and isinstance(stmt.value.func.value, ast.Name)
+        and stmt.value.func.value.id == "status_var"
+        and len(stmt.value.args) == 1
+        and isinstance(stmt.value.args[0], ast.Constant)
+        and isinstance(stmt.value.args[0].value, str)
+        and stmt.value.args[0].value.strip()
+        for stmt in body[dispatch[0] + 1:]
+    )
+    if not told:
+        violations.append("_mark dispatches run_command without setting a status message")
+    return violations
+
+
+def test_baseline_view_mark_tells_the_operator_what_happened():
+    # J-0162: after "Mark Known" the screen changed in no way — _mark ended
+    # in overview_var.set(overview_var.get()), with no trace registered, so
+    # the operator could not tell the command was sent or the view stale.
+    # alerts_view.py's _mark sets a real status in the same position.
+    source = Path(__file__).resolve().parent.parent / "secure_gui" / "baseline_view.py"
+    assert _mark_feedback_violations(source.read_text()) == []
+
+
+def test_mark_feedback_check_flags_the_old_no_op():
+    # Positive control: the pre-J-0162 shape must be reported, or the
+    # test above passes over nothing.
+    old = (
+        "def _mark():\n"
+        "    run_command(label, args, False)\n"
+        "    overview_var.set(overview_var.get())\n"
+        "    _hide_raw()\n"
+    )
+    violations = _mark_feedback_violations(old)
+    assert any("self-write overview_var" in v for v in violations)
+    assert "_mark dispatches run_command without setting a status message" in violations

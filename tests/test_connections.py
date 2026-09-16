@@ -238,6 +238,52 @@ def test_scan_connections_second_scan_has_no_new_endpoints(tmp_path: Path, monke
     assert len(second.new_endpoints) == 0
 
 
+# lsof reports a loopback peer in exactly the same shape as any other
+# remote peer: IPv4 bare, IPv6 bracketed (see _split_host_port()). The
+# third line is a non-loopback destination, so one scan covers both.
+_LOOPBACK_STDOUT = """\
+COMMAND     PID   USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+postgres   2001  erick   12u  IPv4 0x3333333333333333      0t0  TCP 127.0.0.1:54322->127.0.0.1:5432 (ESTABLISHED)
+redis      2002  erick   13u  IPv6 0x4444444444444444      0t0  TCP [::1]:54323->[::1]:6379 (ESTABLISHED)
+Google     1234  erick   55u  IPv4 0x1111111111111111      0t0  TCP 192.168.1.23:54321->142.250.80.14:443 (ESTABLISHED)
+"""
+
+
+def test_scan_connections_flags_first_seen_loopback_as_new(tmp_path: Path, monkeypatch):
+    """A first-seen loopback destination IS flagged new — pinned deliberately.
+
+    Nothing in the scan path calls is_loopback(); it is only used by
+    secure/cli/connections.py to annotate a line that code has already
+    decided to print. So loopback reaches new_endpoints like any other
+    destination, and `secure connections scan` exits 1 on it.
+
+    Narrowing that is a change to a detection's scope, which
+    SECURITY_INVARIANTS.md puts behind human approval. This test pins
+    the behaviour so the narrowing cannot happen silently: suppressing
+    loopback has to edit this assertion, in the open (J-0539).
+    """
+    import secure.connections.scanner as scanner_module
+
+    monkeypatch.setattr(
+        scanner_module,
+        "run",
+        lambda *a, **k: ShellResult(ok=True, stdout=_LOOPBACK_STDOUT, stderr="", returncode=0),
+    )
+
+    db_path = tmp_path / "test.db"
+    with Database(db_path) as db:
+        first = scan_connections(db.conn)
+        # Positive control: the flag is real state, not a constant true.
+        # Without this, every assertion below would also hold for a
+        # new_endpoints that simply returned everything it was given.
+        second = scan_connections(db.conn)
+
+    new_addrs = {record.remote_addr for record in first.new_endpoints}
+    assert new_addrs == {"127.0.0.1", "::1", "142.250.80.14"}
+    assert [is_loopback(a) for a in ("127.0.0.1", "::1")] == [True, True]
+    assert second.new_endpoints == []
+
+
 def test_scan_connections_counts_permission_warnings(tmp_path: Path, monkeypatch):
     import secure.connections.scanner as scanner_module
 

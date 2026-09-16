@@ -495,7 +495,13 @@ DESTINATIONS DETECTED" and `secure connections scan` exits non-zero;
 review it and mark it with `secure connections mark <id> known|unknown`
 (the id comes from the scan output or `secure connections endpoints`).
 Loopback destinations (127.0.0.1 / ::1 — this Mac talking to itself)
-are recorded like anything else but never flagged as suspicious.
+are recorded and flagged on first sight like any other destination, so
+a local dev server does put the scan into "NEW REMOTE DESTINATIONS
+DETECTED" and exit non-zero. The scan output labels them "(loopback —
+this Mac talking to itself)" so they can be told apart at a glance.
+`is_loopback()` annotates that output; it does not suppress anything,
+and suppressing it would narrow a detection, which needs approval
+first (see the note above `_LOOPBACK_PREFIXES` in `scanner.py`).
 
 `secure/connections/port_info.py` is a small, hand-picked table (same
 spirit and same "not exhaustive" caveat as the inventory package's

@@ -37,8 +37,21 @@ from secure.storage.models import (
 
 # Loopback addresses are this Mac talking to itself (e.g. a local dev
 # server, or one of its own processes talking to another over
-# localhost) — still recorded like anything else, just not the kind
-# of thing "flag unexpected outbound connections" is meant to catch.
+# localhost) — arguably not the kind of thing "flag unexpected
+# outbound connections" is meant to catch.
+#
+# Note what this prefix list does NOT do: nothing in scan_connections()
+# consults it. is_loopback() is called only by secure/cli/connections.py,
+# to annotate a destination that code has already decided to print. A
+# first-seen loopback destination is therefore flagged new like any
+# other, and `secure connections scan` exits 1 on it.
+#
+# That is left as-is on purpose. Suppressing loopback would narrow what
+# a detection reports, which SECURITY_INVARIANTS.md puts behind explicit
+# human approval, so it is not a change an automated repair may make on
+# its own initiative. The current behaviour is pinned by
+# test_scan_connections_flags_first_seen_loopback_as_new so the
+# narrowing cannot happen silently (J-0539).
 _LOOPBACK_PREFIXES = ("127.", "::1")
 
 
@@ -88,8 +101,9 @@ def scan_connections(conn: sqlite3.Connection) -> ConnectionScanResult:
     connection_events (full history, grouped by run_id). Every
     distinct outbound remote destination (address+port+protocol) gets
     upserted into remote_endpoints so a first-time destination can be
-    flagged. Loopback connections are recorded like anything else but
-    never flagged as "new" — see is_loopback().
+    flagged. Loopback destinations are included in that, flagged new on
+    first sight like any other — see the note above _LOOPBACK_PREFIXES
+    for why the suppression is not implemented here.
     """
     started_at = datetime.now(timezone.utc)
     now = started_at.isoformat()

@@ -79,6 +79,10 @@ by parsing the AST, not by substring match — no file under
 `secure/agent/` may import or call `approve_change()`/`reject_change()`.
 Prefer adding that kind of structural test over adding a comment.
 
-Rule 6's `shell=False` discipline is currently held by convention and
-code review rather than by a structural test. That is a known gap, not
-a statement that the rule is optional.
+Rule 6 is enforced the same way, by `tests/test_subprocess_seam.py`:
+every subprocess call under `secure/` is parsed and checked to be
+fixed-argv, `shell=False`, and timeout-bound, with the shell-invoking
+helpers (`os.system`, `os.popen`, `subprocess.getoutput`) banned
+outright. It was a known gap held by convention and code review until
+then; the tree was already clean when the test was added, so the test
+pins a property rather than repairing one.

@@ -166,3 +166,27 @@ def test_maintain_all_is_not_stopped_by_an_ineligible_candidate(tmp_path, monkey
     rc, _ = _run(cli_agent.cmd_agent_maintain, argparse.Namespace(all=True))
     assert log["maintained"] == [OPEN.trigger_ref]
     assert rc == 0
+
+
+def _assert_maintain_refuses_every_candidate(tmp_path, monkeypatch, all_flag):
+    second = RepairCandidate("pytest_failure", "tests/test_c.py::test_also_blocked", "")
+    refs = [BLOCKED.trigger_ref, second.trigger_ref]
+    log = _setup(monkeypatch, tmp_path, [BLOCKED, second], set(refs))
+    rc, out = _run(cli_agent.cmd_agent_maintain, argparse.Namespace(all=all_flag))
+    # Every candidate reached the policy, and each refusal was printed —
+    # so "nothing maintained" is not satisfied by never looking.
+    assert log["policy"] == refs
+    for ref in refs:
+        assert f"Skipping [pytest_failure] {ref}: agent_max_attempts" in out
+    assert log["maintained"] == []
+    assert "No eligible failures found. Nothing to maintain." in out
+    assert "maintained" not in out  # the fake describe() never printed
+    assert rc == 0
+
+
+def test_maintain_with_only_ineligible_candidates_maintains_nothing(tmp_path, monkeypatch):
+    _assert_maintain_refuses_every_candidate(tmp_path, monkeypatch, all_flag=False)
+
+
+def test_maintain_all_with_only_ineligible_candidates_maintains_nothing(tmp_path, monkeypatch):
+    _assert_maintain_refuses_every_candidate(tmp_path, monkeypatch, all_flag=True)

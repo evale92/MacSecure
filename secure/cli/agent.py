@@ -444,6 +444,21 @@ def cmd_agent_supervisor_propose(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------
 
 
+def _eligible_candidates(conn, cfg, candidates: list) -> list:
+    """The candidates evaluate_policy() allows, in order, printing why
+    each other one is skipped — the same filter `cmd_agent_run` applies.
+    attempt_repair() still refuses on its own; this only stops a refused
+    candidate from being chosen ahead of an eligible one."""
+    eligible = []
+    for candidate in candidates:
+        decision = evaluate_policy(conn, cfg, candidate)
+        if decision.allowed:
+            eligible.append(candidate)
+        else:
+            print(f"Skipping [{candidate.trigger_kind}] {candidate.trigger_ref}: {decision.reason}")
+    return eligible
+
+
 def cmd_agent_diagnose(args: argparse.Namespace) -> int:
     """Phase 43: `secure agent diagnose` — the full required sequence
     for the first eligible failure found: DETECT -> REPRODUCE ->
@@ -459,6 +474,11 @@ def cmd_agent_diagnose(args: argparse.Namespace) -> int:
     cfg = _bootstrap()
     with Database(cfg.database_path()) as db:
         candidates = find_repair_candidates(db.conn, cfg)
+        if not args.reproduce_only:
+            # Reproduction alone repairs nothing, so only the repair path
+            # is filtered: an ineligible first candidate would otherwise
+            # be reproduced and then refused, hiding every one behind it.
+            candidates = _eligible_candidates(db.conn, cfg, candidates)
         if not candidates:
             print("No eligible failures found. Nothing to diagnose.")
             return 0
@@ -625,7 +645,7 @@ def cmd_agent_maintain(args: argparse.Namespace) -> int:
 
     cfg = _bootstrap()
     with Database(cfg.database_path()) as db:
-        candidates = find_repair_candidates(db.conn, cfg)
+        candidates = _eligible_candidates(db.conn, cfg, find_repair_candidates(db.conn, cfg))
         if not candidates:
             print("No eligible failures found. Nothing to maintain.")
             return 0

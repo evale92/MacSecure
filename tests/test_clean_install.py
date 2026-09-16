@@ -593,28 +593,127 @@ def test_the_hardcoded_write_path_check_detects_a_real_escape():
     assert _hardcoded_write_targets(reads_only, "probe.py") == []
 
 
+# Packages that ship to the operator's machine. secure_gui/ is included
+# deliberately: it is a separate top-level package, so a check rooted at
+# secure/ alone would let a window handler invoke launchctl untouched.
+_SHIPPED_PACKAGES = ("secure", "secure_gui")
+
+
+def _launchctl_invocations(source: str, filename: str) -> list:
+    """Flag every string literal in `source` that names the launchctl
+    binary in an argv position.
+
+    Parsed, not grepped, for the reason
+    test_no_source_file_uses_a_self_naming_tempfile_helper states above:
+    four modules here discuss `launchctl load` in prose precisely to
+    explain that the app does NOT do it, and secure/agent/classify.py
+    even documents the argv-shaped-regex trick this replaces. Comments
+    and docstrings are not argv, and the parser drops them for free.
+
+    Matched on the PATH BASENAME, not the literal token, because this
+    codebase resolves commands out of `/usr/bin` rather than trusting
+    `$PATH` (see secure/checks/_shell.py `_resolve`, which returns a
+    slash-bearing program unchanged). After that hardening the idiomatic
+    invocation is `run("/bin/launchctl", ...)`, which a check anchored to
+    the bare name `"launchctl"` no longer sees at all.
+
+    An argv position is an element of a list/tuple literal, or an
+    argument to any call — which covers `run("/bin/launchctl", ...)`,
+    `subprocess.run(["launchctl", ...])`, `run(_resolve("launchctl"))`
+    and `argv = ["launchctl"] + extra` alike.
+
+    Stated limit, so a pass is not read as a proof of absence: the token
+    is matched syntactically, so a name assembled at runtime
+    (`"launch" + "ctl"`, or read from config) is invisible to it. It
+    catches the direct shape, which is the one an edit introduces.
+    """
+    try:
+        tree = ast.parse(source, filename=filename)
+    except SyntaxError:  # pragma: no cover — a syntax error is a different test's problem
+        return []
+
+    offending = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.List, ast.Tuple)):
+            candidates = node.elts
+        elif isinstance(node, ast.Call):
+            candidates = node.args
+        else:
+            continue
+        for element in candidates:
+            if not isinstance(element, ast.Constant) or not isinstance(element.value, str):
+                continue
+            # Treat the literal as a path and compare its basename, so
+            # "launchctl" and "/usr/bin/launchctl" are the same finding
+            # while a prose token list ending in another word is not.
+            if element.value.rsplit("/", 1)[-1] == "launchctl":
+                offending.append(f"{filename}:{element.lineno}: invokes {element.value}")
+    return offending
+
+
 def test_never_registers_itself_as_a_persistent_os_service():
     """Static check: Secure must never actually INVOKE launchctl to
     install itself as a LaunchAgent/LaunchDaemon — the one-directory
-    uninstall story depends on this. Checks for a real subprocess
-    invocation shape (`"launchctl"` inside an argv list literal), not
-    just the word "launchctl" anywhere — several files' own docstrings
-    mention `launchctl load` in prose to explain why the app does NOT
-    do this, which a plain substring check would misfire on.
+    uninstall story depends on this, and so does the larger claim that
+    this app is something you request rather than a background watcher.
+
+    The analysis lives in `_launchctl_invocations` and is pinned in both
+    directions by
+    test_the_launchctl_check_detects_a_real_invocation below.
     """
-    import re
-
-    root = _project_root() / "secure"
+    root = _project_root()
     offending = []
-    # Matches launchctl used as an argv[0]-shaped token: ["launchctl", ...
-    # or ('launchctl', ... — the way every real subprocess call in this
-    # codebase's own _shell.py seam modules is written.
-    invocation_pattern = re.compile(r"""[\[(]\s*["']launchctl["']""")
-    for path in root.rglob("*.py"):
-        if "__pycache__" in path.parts:
-            continue
-        text = path.read_text(encoding="utf-8", errors="ignore")
-        if invocation_pattern.search(text):
-            offending.append(str(path))
+    scanned = 0
+    for package in _SHIPPED_PACKAGES:
+        for path in (root / package).rglob("*.py"):
+            if "__pycache__" in path.parts:
+                continue
+            scanned += 1
+            offending.extend(
+                _launchctl_invocations(
+                    path.read_text(encoding="utf-8", errors="ignore"), str(path)
+                )
+            )
 
+    # Without this, a root that resolved wrong would walk nothing and the
+    # emptiness assertion below would pass for the wrong reason.
+    assert scanned > 100, f"scanned only {scanned} files — the walk found no source tree"
     assert offending == []
+
+
+def test_the_launchctl_check_detects_a_real_invocation():
+    """Positive control for the test above, which would otherwise be
+    indistinguishable from a checker that never fires.
+
+    The tree it scans is clean, so `offending == []` there passes whether
+    the analysis works or is a no-op. This pins both directions against
+    source it constructs itself: every invocation shape this codebase
+    can write is caught, and the prose that four real modules already
+    contain is not.
+    """
+    invocations = [
+        'subprocess.run(["launchctl", "load", p])',
+        'subprocess.run(("launchctl", "load", p))',
+        # The resolved-path forms, which the previous argv-anchored
+        # regex missed entirely — and which _shell.py's `_resolve`
+        # makes the idiomatic way to name a binary here.
+        'subprocess.run(["/bin/launchctl", "load", p])',
+        'run("/usr/bin/launchctl", "bootstrap", "gui/501", p)',
+        'run(_resolve("launchctl"), "load", p)',
+        'argv = ["launchctl"] + extra',
+    ]
+    for source in invocations:
+        found = _launchctl_invocations(source, "probe.py")
+        assert len(found) == 1, f"missed an invocation in {source!r}: {found}"
+
+    # Prose, comments and unrelated tokens. Every line below appears in
+    # spirit in the real tree; flagging any of them would make the check
+    # fire on a module that documents why it does NOT register itself.
+    prose_only = (
+        '"""Loading a LaunchAgent (`launchctl load`) needs elevated privileges."""\n'
+        "# two vantage points (launchctl/plist inventory vs. running processes)\n"
+        '_SYSTEM_TOKENS = "launchctl networksetup systemsetup pfctl nvram defaults".split()\n'
+        'run("/usr/bin/launchctl_lookalike", "load", p)\n'
+        'label = "com.example.launchctl.helper"\n'
+    )
+    assert _launchctl_invocations(prose_only, "probe.py") == []

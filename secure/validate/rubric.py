@@ -17,7 +17,7 @@ and a summary that isn't empty or a generic degraded-fallback message.
 from __future__ import annotations
 
 from secure.explain import vocab
-from secure.explain.explanation import Explanation
+from secure.explain.explanation import Explanation, is_generic_summary
 
 CHECK_HAS_SEVERITY = "has_severity"
 CHECK_HAS_EVIDENCE = "has_evidence"
@@ -47,7 +47,11 @@ def score_explanation(explanation: "Explanation | None") -> "dict[str, bool]":
     evidence_provenance_valid = has_evidence and all(
         item.provenance in vocab.EVIDENCE_PROVENANCE for item in explanation.evidence
     )
-    summary_non_generic = bool(explanation.summary) and len(explanation.summary.strip()) > 10
+    summary_non_generic = (
+        bool(explanation.summary)
+        and len(explanation.summary.strip()) > 10
+        and not is_generic_summary(explanation.summary, explanation.severity)
+    )
     not_degraded = not explanation.degraded
 
     return {

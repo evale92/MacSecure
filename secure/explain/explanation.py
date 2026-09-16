@@ -71,6 +71,22 @@ def resolve_action(key: str) -> Tuple[str, str]:
     return key, vocab.RECOMMENDED_ACTIONS[key]
 
 
+def generic_summary(severity: str, subject: Optional[str] = None) -> str:
+    """The placeholder summary generic_explanation() uses when a record
+    has no message — kept beside is_generic_summary() so the two can't
+    drift apart."""
+    subject_text = f" ({subject})" if subject else ""
+    return f"A {severity} finding was recorded{subject_text}."
+
+
+def is_generic_summary(summary: str, severity: str) -> bool:
+    """True when `summary` is generic_summary()'s placeholder for this
+    severity, with or without a subject."""
+    text = summary.strip()
+    base = f"A {severity} finding was recorded"
+    return text == base + "." or (text.startswith(base + " (") and text.endswith(")."))
+
+
 def generic_explanation(
     *,
     source_table: str,
@@ -96,8 +112,7 @@ def generic_explanation(
     message are always exactly what the detection module stored, and
     confidence is honestly INSUFFICIENT_EVIDENCE rather than guessed.
     """
-    subject_text = f" ({subject})" if subject else ""
-    summary = message or f"A {severity} finding was recorded{subject_text}."
+    summary = message or generic_summary(severity, subject)
     evidence = (EvidenceItem(message, vocab.DIRECT_OBSERVATION),) if message else ()
 
     if degraded:

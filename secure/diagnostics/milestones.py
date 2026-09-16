@@ -46,3 +46,19 @@ def record_milestone(
 def latest_milestone(conn: sqlite3.Connection) -> "Optional[PerfMilestoneRecord]":
     rows = list_perf_milestones(conn, limit=1)
     return rows[0] if rows else None
+
+
+def previous_db_size_bytes(conn: sqlite3.Connection) -> "Optional[int]":
+    """The db size the most recent milestone recorded, or None when no
+    milestone exists yet or the latest one recorded no size.
+
+    This is the `previous_db_size_bytes` argument
+    `secure.diagnostics.budgets.evaluate_budgets()` compares against:
+    its DB_GROWTH message says "since the last recorded milestone", and
+    this is that milestone. It deliberately does not scan back past the
+    latest one — a None here means no growth warning, which is honest,
+    where silently comparing against an older milestone would make the
+    message describe an interval that is not the one measured.
+    """
+    latest = latest_milestone(conn)
+    return latest.db_size_bytes if latest is not None else None

@@ -18,7 +18,7 @@ import argparse
 from secure.diagnostics.budgets import evaluate_budgets
 from secure.diagnostics.hardware import collect_hardware_specs
 from secure.diagnostics.integrations_health import collect_integration_health
-from secure.diagnostics.milestones import record_milestone
+from secure.diagnostics.milestones import previous_db_size_bytes, record_milestone
 from secure.diagnostics.report import write_report
 from secure.diagnostics.self_usage import collect_self_usage
 from secure.diagnostics.system import collect_system_health
@@ -53,6 +53,7 @@ def cmd_diagnostics_performance(args: argparse.Namespace) -> int:
         recent_runs = list_recent_perf_module_runs(db.conn, limit=20)
         warnings = evaluate_budgets(
             cfg, self_usage=self_usage, system_health=system_health, recent_module_runs=recent_runs,
+            previous_db_size_bytes=previous_db_size_bytes(db.conn),
         )
 
     print(f"Secure {hardware.secure_version} — {hardware.mac_model or 'unknown Mac'} "

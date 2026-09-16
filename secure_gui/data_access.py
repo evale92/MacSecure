@@ -630,6 +630,7 @@ def fetch_performance_overview_now() -> PerformanceOverview:
     from secure.diagnostics.budgets import evaluate_budgets
     from secure.diagnostics.hardware import collect_hardware_specs
     from secure.diagnostics.integrations_health import collect_integration_health
+    from secure.diagnostics.milestones import previous_db_size_bytes
     from secure.diagnostics.self_usage import collect_self_usage
     from secure.diagnostics.system import collect_system_health
     from secure.diagnostics.tools import collect_dev_tool_usage
@@ -645,6 +646,7 @@ def fetch_performance_overview_now() -> PerformanceOverview:
         module_runs = models.list_recent_perf_module_runs(db.conn, limit=50)
         warnings = evaluate_budgets(
             cfg, self_usage=self_usage, system_health=system_health, recent_module_runs=module_runs,
+            previous_db_size_bytes=previous_db_size_bytes(db.conn),
         )
 
     return PerformanceOverview(

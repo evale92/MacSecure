@@ -30,6 +30,7 @@ from secure.config import AppConfig
 from secure.diagnostics.budgets import PerfWarning, evaluate_budgets
 from secure.diagnostics.hardware import HardwareSpecs, collect_hardware_specs
 from secure.diagnostics.integrations_health import collect_integration_health
+from secure.diagnostics.milestones import previous_db_size_bytes
 from secure.diagnostics.self_usage import SecureSelfUsage, collect_self_usage
 from secure.diagnostics.system import SystemHealth, collect_system_health
 from secure.storage.models import list_recent_perf_module_runs
@@ -214,6 +215,7 @@ def write_report(
         self_usage=self_usage,
         system_health=system_health,
         recent_module_runs=module_runs,
+        previous_db_size_bytes=previous_db_size_bytes(conn),
     )
 
     out_dir = output_dir or _DEFAULT_OUTPUT_DIR

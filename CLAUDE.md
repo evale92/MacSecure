@@ -21,6 +21,27 @@ actually read.
 `CLAUDE.md` is **not** in `_POLICY_FILENAMES`, so nothing here reaches a repair
 prompt. That is why this file can afford prose and those four cannot.
 
+## Who governs a session here (directive 012)
+
+AGENTS.md addresses Secure's **in-product** repair agent: the external
+coding agent Secure itself runs in a worktree, whose patch becomes a
+`PENDING` change bound to a diff hash. Its rules 2 and 10 (one failure,
+do not commit) are the workflow of that loop, and the product enforces
+them there.
+
+A session dispatched by Agent's supervisor is governed on **workflow** —
+task state, authorized scope, acceptance, retries, reviewer, whether a
+turn commits — by `Agent/harness/AUTHORITY.md`. Nothing in this repository
+redefines those. Closing a job is acceptance, so a session's own
+measurement records evidence for the reviewer; it does not close the job.
+
+What precedence does **not** move: every execution safeguard still binds
+every session — AGENTS.md rules 1 and 3–9, all of SECURITY_INVARIANTS.md,
+and the dispatch's own limits (no host-state change, no push, no touching
+authorization code). Harness ownership is never a reason to weaken one.
+The dated records below are kept as history, including where they cite
+AGENTS.md as binding on a dispatched session.
+
 ## What this is
 
 A **defensive** macOS security application, built in phases: configuration and

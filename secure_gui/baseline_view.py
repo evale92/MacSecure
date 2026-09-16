@@ -42,7 +42,13 @@ from typing import Callable, Dict, List, Optional
 
 from secure_gui import tokens
 from secure_gui.components import confirm_action, resolve_fonts
-from secure_gui.data_access import AnomalyRow, fetch_all_anomalies, fetch_baseline_overview_now
+from secure_gui.data_access import (
+    AnomalyRow,
+    fetch_all_anomalies,
+    fetch_baseline_overview_now,
+    format_anomaly_evidence_text,
+    format_baseline_overview_text,
+)
 
 # Same shape as alerts_view.py's RunCommand — supplied by the caller
 # (secure_gui.py) rather than imported, so this module never needs to
@@ -60,78 +66,11 @@ _HEADINGS = {
 }
 
 
-def _format_overview_text(overview) -> str:
-    """One-line-per-section summary for the header — the same figures
-    `secure baseline status` prints (see secure/cli/baseline.py), just
-    condensed for a fixed-height header instead of a scrolling console.
-    """
-    lines = []
-    lines.append(f"Entities: {overview.total_entities}")
-    if overview.maturity_counts:
-        by_maturity = ", ".join(
-            f"{state}={n}" for state, n in sorted(overview.maturity_counts.items())
-        )
-        lines.append(f"By maturity: {by_maturity}")
-    lines.append(f"Excluded: {overview.excluded_count}   Frozen: {overview.frozen_count}")
-
-    tier_text = ", ".join(
-        f"{tier}={overview.tier_counts.get(tier, 0)}" for tier in ("critical", "high", "medium", "low")
-    )
-    lines.append(
-        f"Anomalies: {overview.total_anomalies} total "
-        f"({overview.unreviewed_anomalies} unreviewed) — {tier_text}"
-    )
-
-    run = overview.latest_run
-    if run is None:
-        lines.append("No baseline runs recorded yet.")
-    else:
-        lines.append(
-            f"Latest run: {run.status} at {run.started_at} "
-            f"({overview.total_runs} total, {overview.partial_runs} partial, "
-            f"{overview.failed_runs} failed)"
-        )
-    return "\n".join(lines)
-
-
-def _format_evidence_panel_text(row: AnomalyRow) -> str:
-    """Level 2 body text: expected_summary, score breakdown, maturity
-    context, source reference, then caveats — the same information
-    `secure anomalies show <id>` prints (see
-    secure/cli/anomalies.py's cmd_anomalies_show), reformatted for the
-    panel. Pure formatting over AnomalyRow's own real fields — computes
-    nothing new. See AnomalyRow's docstring for why this doesn't go
-    through secure.explain.dispatch.explain() yet.
-    """
-    lines = []
-    lines.append(f"Expected: {row.expected_summary}")
-
-    lines.append("")
-    lines.append("Score breakdown:")
-    for component, points in row.score_breakdown.items():
-        lines.append(f"  {component:18} {points}")
-    lines.append(f"  {'total':18} {row.anomaly_score}")
-
-    lines.append("")
-    lines.append(f"Maturity at time of observation: {row.maturity_state_at_time}")
-    lines.append(
-        f"Eligible weight at time: {row.eligible_weight_total_at_time:g} "
-        f"({row.eligible_distinct_days_at_time} distinct days)"
-    )
-
-    lines.append("")
-    if row.source_table:
-        lines.append(f"Source: {row.source_table}#{row.source_id}")
-    else:
-        lines.append("Source: (none recorded — see PROJECT_NOTES.md's provenance notes)")
-
-    if row.caveats:
-        lines.append("")
-        lines.append("Caveats:")
-        for c in row.caveats:
-            lines.append(f"  - {c}")
-
-    return "\n".join(lines)
+# The window's two text formatters are pure functions over
+# BaselineOverview / AnomalyRow and live in secure_gui/data_access.py,
+# where a test can import them — see this module's docstring ("Keep
+# genuinely testable logic in secure_gui/data_access.py instead") and
+# tests/test_gui_baseline_formatters.py.
 
 
 def open_baseline_window(parent: tk.Misc, *, run_command: RunCommand) -> tk.Toplevel:
@@ -330,7 +269,7 @@ def open_baseline_window(parent: tk.Misc, *, run_command: RunCommand) -> tk.Topl
             _select(None)
             return
 
-        overview_var.set(_format_overview_text(overview))
+        overview_var.set(format_baseline_overview_text(overview))
         state["rows"] = rows
         state["by_id"] = {str(r.id): r for r in rows}
         _populate(rows)
@@ -366,7 +305,7 @@ def open_baseline_window(parent: tk.Misc, *, run_command: RunCommand) -> tk.Topl
             text=tokens.severity_text(row.anomaly_tier), fg=tokens.severity_color(row.anomaly_tier)
         )
         score_label.configure(text=f"Score: {row.anomaly_score}  (run {row.run_id})")
-        _set_evidence_text(_format_evidence_panel_text(row))
+        _set_evidence_text(format_anomaly_evidence_text(row))
         mark_btn.configure(text=("Mark Unknown" if row.known else "Mark Known"), state=tk.NORMAL)
 
     def _mark() -> None:

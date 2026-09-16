@@ -520,6 +520,90 @@ def fetch_baseline_overview_now() -> BaselineOverview:
         return fetch_baseline_overview(db.conn)
 
 
+def format_baseline_overview_text(overview: BaselineOverview) -> str:
+    """One-line-per-section summary for the Baseline window's header —
+    the same figures `secure baseline status` prints (see
+    secure/cli/baseline.py), just condensed for a fixed-height header
+    instead of a scrolling console.
+
+    Lives here rather than in secure_gui/baseline_view.py because it is
+    pure text over BaselineOverview's own fields and touches no widget:
+    this module's docstring asks for exactly that split, and a view
+    module cannot be imported at all in an interpreter without
+    `_tkinter`, so anything left there is untestable by construction.
+    """
+    lines = []
+    lines.append(f"Entities: {overview.total_entities}")
+    if overview.maturity_counts:
+        by_maturity = ", ".join(
+            f"{state}={n}" for state, n in sorted(overview.maturity_counts.items())
+        )
+        lines.append(f"By maturity: {by_maturity}")
+    lines.append(f"Excluded: {overview.excluded_count}   Frozen: {overview.frozen_count}")
+
+    tier_text = ", ".join(
+        f"{tier}={overview.tier_counts.get(tier, 0)}" for tier in ("critical", "high", "medium", "low")
+    )
+    lines.append(
+        f"Anomalies: {overview.total_anomalies} total "
+        f"({overview.unreviewed_anomalies} unreviewed) — {tier_text}"
+    )
+
+    run = overview.latest_run
+    if run is None:
+        lines.append("No baseline runs recorded yet.")
+    else:
+        lines.append(
+            f"Latest run: {run.status} at {run.started_at} "
+            f"({overview.total_runs} total, {overview.partial_runs} partial, "
+            f"{overview.failed_runs} failed)"
+        )
+    return "\n".join(lines)
+
+
+def format_anomaly_evidence_text(row: AnomalyRow) -> str:
+    """Level 2 body text for the Baseline window's EvidencePanel:
+    expected_summary, score breakdown, maturity context, source
+    reference, then caveats — the same information `secure anomalies
+    show <id>` prints (see secure/cli/anomalies.py's
+    cmd_anomalies_show), reformatted for the panel. Pure formatting over
+    AnomalyRow's own real fields — computes nothing new. See AnomalyRow's
+    docstring for why this doesn't go through
+    secure.explain.dispatch.explain() yet.
+
+    Same reason as format_baseline_overview_text() for living here.
+    """
+    lines = []
+    lines.append(f"Expected: {row.expected_summary}")
+
+    lines.append("")
+    lines.append("Score breakdown:")
+    for component, points in row.score_breakdown.items():
+        lines.append(f"  {component:18} {points}")
+    lines.append(f"  {'total':18} {row.anomaly_score}")
+
+    lines.append("")
+    lines.append(f"Maturity at time of observation: {row.maturity_state_at_time}")
+    lines.append(
+        f"Eligible weight at time: {row.eligible_weight_total_at_time:g} "
+        f"({row.eligible_distinct_days_at_time} distinct days)"
+    )
+
+    lines.append("")
+    if row.source_table:
+        lines.append(f"Source: {row.source_table}#{row.source_id}")
+    else:
+        lines.append("Source: (none recorded — see PROJECT_NOTES.md's provenance notes)")
+
+    if row.caveats:
+        lines.append("")
+        lines.append("Caveats:")
+        for c in row.caveats:
+            lines.append(f"  - {c}")
+
+    return "\n".join(lines)
+
+
 @dataclass(frozen=True)
 class PerformanceOverview:
     """Read-only summary for the Diagnostics -> Performance window

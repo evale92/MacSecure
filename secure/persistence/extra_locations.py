@@ -2,8 +2,9 @@
 persistence/extra_locations.py — macOS persistence locations beyond
 LaunchAgents/LaunchDaemons and login items, read directly from disk.
 
-Like launch_items.py this never shells out: a directory listing and
-`plistlib` are all it needs. It only reads; it never loads, unloads,
+Like launch_items.py it reads files directly (a directory listing and
+`plistlib`), except for the user's crontab, which only `crontab -l` can
+read. It only reads; it never loads, unloads,
 disables or deletes anything it lists.
 
 **Scope, and why each location is here.** Every one is a documented
@@ -28,6 +29,23 @@ a LaunchAgent/LaunchDaemon, and each is readable as a normal user:
     folder_action_script  ~/Library/Scripts/Folder Action Scripts/*
     ssh_rc                ~/.ssh/rc and /etc/ssh/sshrc, run by sshd for
                           every SSH login
+    system_crontab        /etc/crontab (absent on a stock Mac)
+    at_job                /usr/lib/cron/jobs/* (queued at(1) jobs)
+    cron_job              one entry per job line of this user's crontab,
+                          read with `/usr/bin/crontab -l` through
+                          persistence/_shell.py — the only source here
+                          that runs a subprocess
+    ssh_authorized_key    one entry per key in ~/.ssh/authorized_keys and
+                          authorized_keys2. Access persistence rather than
+                          execution: a key someone added logs them back in
+                          without a password. Identity is the key's SHA256
+                          fingerprint, so a replaced key is a new entry.
+
+**Not covered, stated rather than hidden.** /usr/lib/cron/tabs (every
+user's crontab) is root-only on every Mac, so only the scanning user's
+own crontab is visible. That is a privilege boundary this sensor never
+crosses (no sudo), not a read that failed, so it is documented here
+instead of being recorded as a scan error on every run forever.
 
 Sources consulted: rmusser01/Infosec_Reference Draft/PrivescPostExmac.md
 (Persistence and Privilege Escalation sections) and Draft/DFIR.md (OS X
@@ -46,9 +64,14 @@ kinds.
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import plistlib
+import re
 from pathlib import Path
 from typing import Dict, List, Tuple
+
+from secure.persistence._shell import run
 
 _HOME = Path.home()
 
@@ -65,6 +88,10 @@ _EXTRA_LOCATIONS: Dict[str, Tuple[str, List[Path]]] = {
     "emond_rule": ("bundle:.plist", [Path("/etc/emond.d/rules")]),
     "folder_action_script": ("children", [_HOME / "Library" / "Scripts" / "Folder Action Scripts"]),
     "ssh_rc": ("files", [_HOME / ".ssh" / "rc", Path("/etc/ssh/sshrc")]),
+    "system_crontab": ("files", [Path("/etc/crontab")]),
+    "at_job": ("children", [Path("/usr/lib/cron/jobs")]),
+    "cron_job": ("crontab", [Path("/usr/bin/crontab")]),
+    "ssh_authorized_key": ("authorized_keys", [_HOME / ".ssh" / "authorized_keys", _HOME / ".ssh" / "authorized_keys2"]),
 }
 
 
@@ -78,6 +105,70 @@ def _bundle_label(path: Path) -> str:
     except (OSError, plistlib.InvalidFileException, ValueError, AttributeError):
         pass
     return path.name
+
+
+# A key line is [options] keytype base64 [comment]; options may hold quoted
+# spaces, so the key type is found rather than split on.
+_KEY_RE = re.compile(r"(?:^|\s)((?:ssh|ecdsa|sk)-[A-Za-z0-9@._-]+)\s+([A-Za-z0-9+/]+={0,3})(?:\s+(.*))?$")
+_CRON_ENV_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\s*=")
+
+
+def _crontab_entries(kind: str, crontab: Path) -> Tuple[List[Dict[str, object]], List[str]]:
+    result = run([str(crontab), "-l"])
+    if result.returncode == 1 and "no crontab" in result.stderr.lower():
+        return [], []
+    if not result.ok:
+        return [], [f"{kind}: {crontab} -l: {(result.stderr or 'exit ' + str(result.returncode)).strip()}"]
+    entries = []
+    for raw in result.stdout.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or _CRON_ENV_RE.match(line):
+            continue
+        fields = line.split(None, 1 if line.startswith("@") else 5)
+        command = fields[-1] if len(fields) == (2 if line.startswith("@") else 6) else ""
+        first = command.split(None, 1)[0] if command else ""
+        digest = hashlib.sha256(line.encode()).hexdigest()[:16]
+        entries.append({"kind": kind, "path": f"crontab:{digest}", "label": line[:200],
+                        "program_path": first if first.startswith("/") else None,
+                        "run_at_load": None, "keep_alive": None})
+    return entries, []
+
+
+def _authorized_key_entries(kind: str, path: Path) -> Tuple[List[Dict[str, object]], List[str]]:
+    try:
+        if not path.is_file():
+            return [], []
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return [], [f"{kind}: {path}: {type(exc).__name__}: {exc}"]
+    entries = []
+    for number, raw in enumerate(text.splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        match = _KEY_RE.search(line)
+        fingerprint = None
+        if match:
+            try:
+                blob = base64.b64decode(match.group(2), validate=True)
+                fingerprint = "SHA256:" + base64.b64encode(hashlib.sha256(blob).digest()).decode().rstrip("=")
+            except ValueError:
+                fingerprint = None
+        if fingerprint is None:
+            # Unparseable is not ignorable: sshd may still accept a line this
+            # parser does not understand, so it is listed, never skipped.
+            digest = hashlib.sha256(line.encode()).hexdigest()[:16]
+            entries.append({"kind": kind, "path": f"{path}#unparsed:{digest}",
+                            "label": f"unparseable line {number}", "program_path": None,
+                            "run_at_load": None, "keep_alive": None})
+            continue
+        options = line[:match.start(1)].strip()
+        label = " ".join(p for p in (match.group(1), (match.group(3) or "").strip()) if p)
+        if "command=" in options:
+            label += " [forced command]"
+        entries.append({"kind": kind, "path": f"{path}#{fingerprint}", "label": label,
+                        "program_path": None, "run_at_load": None, "keep_alive": None})
+    return entries, []
 
 
 def _entry(kind: str, path: Path, label: str) -> Dict[str, object]:
@@ -94,6 +185,12 @@ def scan_extra_locations() -> Tuple[List[Dict[str, object]], List[str]]:
     unavailable: List[str] = []
     for kind, (mode, locations) in _EXTRA_LOCATIONS.items():
         for location in locations:
+            if mode in ("crontab", "authorized_keys"):
+                reader = _crontab_entries if mode == "crontab" else _authorized_key_entries
+                found, problems = reader(kind, location)
+                entries.extend(found)
+                unavailable.extend(problems)
+                continue
             if mode == "files":
                 try:
                     if location.is_file():

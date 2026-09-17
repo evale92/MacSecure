@@ -60,6 +60,13 @@ a LaunchAgent/LaunchDaemon, and each is readable as a normal user:
                           the same first-seen question — a new keyboard-class
                           device can type commands (BadUSB). Built-in buses
                           and hubs without a vendor id are not recorded
+    browser_extension     Chromium-family extensions (Chrome, Brave, Edge, Arc):
+                          <profile>/Extensions/<id>/<version>/manifest.json,
+                          keyed by browser, profile and extension id; the label
+                          names permissions that reach every site, cookies or
+                          traffic. A new version of the same id is not a new
+                          entry. Safari web extensions are app extensions and
+                          are left to a separate reader
     ssh_authorized_key    one entry per key in ~/.ssh/authorized_keys and
                           authorized_keys2. Access persistence rather than
                           execution: a key someone added logs them back in
@@ -146,6 +153,11 @@ _EXTRA_LOCATIONS: Dict[str, Tuple[str, List[Path]]] = {
     "trusted_root": ("trust", [Path("/usr/bin/security")]),
     "vpn_service": ("vpn", [Path("/usr/sbin/scutil")]),
     "usb_device": ("usb", [Path("/usr/sbin/system_profiler")]),
+    "browser_extension": ("chromium_extensions", [
+        _HOME / "Library" / "Application Support" / "Google" / "Chrome",
+        _HOME / "Library" / "Application Support" / "BraveSoftware" / "Brave-Browser",
+        _HOME / "Library" / "Application Support" / "Microsoft Edge",
+        _HOME / "Library" / "Application Support" / "Arc" / "User Data"]),
     "ssh_authorized_key": ("authorized_keys", [_HOME / ".ssh" / "authorized_keys", _HOME / ".ssh" / "authorized_keys2"]),
 }
 
@@ -443,7 +455,56 @@ def _usb_entries(kind: str, tool: Path) -> Tuple[List[Dict[str, object]], List[s
     return [_plain_entry(kind, path, label) for path, label in dict(found).items()], []
 
 
+_BROAD_PERMISSIONS = {"<all_urls>", "*://*/*", "http://*/*", "https://*/*", "cookies", "webRequest",
+                      "webRequestBlocking", "declarativeNetRequest", "proxy", "nativeMessaging",
+                      "debugger", "management", "history", "clipboardRead"}
+
+
+def _chromium_extension_entries(kind: str, root: Path) -> Tuple[List[Dict[str, object]], List[str]]:
+    try:
+        if not root.is_dir():
+            return [], []
+        profiles = sorted(p for p in root.iterdir() if (p / "Extensions").is_dir())
+    except OSError as exc:
+        return [], [f"{kind}: {root}: {type(exc).__name__}: {exc}"]
+    entries, problems = [], []
+    for profile in profiles:
+        try:
+            ids = sorted(d for d in (profile / "Extensions").iterdir() if d.is_dir() and not d.name.startswith("."))
+        except OSError as exc:
+            problems.append(f"{kind}: {profile / 'Extensions'}: {type(exc).__name__}: {exc}")
+            continue
+        for ext in ids:
+            manifests = sorted(ext.glob("*/manifest.json"))
+            if not manifests:
+                problems.append(f"{kind}: {ext}: no manifest.json in any version directory")
+                continue
+            try:
+                manifest = json.loads(manifests[-1].read_text(encoding="utf-8-sig"))
+            except (OSError, ValueError) as exc:
+                problems.append(f"{kind}: {manifests[-1]}: {type(exc).__name__}: {exc}")
+                continue
+            name = manifest.get("name") if isinstance(manifest.get("name"), str) else "?"
+            if name.startswith("__MSG_") and name.endswith("__"):
+                # Localised name: resolve from the default locale, keep the key if that fails.
+                try:
+                    messages = json.loads((manifests[-1].parent / "_locales" / str(manifest.get("default_locale", "en"))
+                                           / "messages.json").read_text(encoding="utf-8-sig"))
+                    wanted = name[6:-2].lower()
+                    name = next(v["message"] for k, v in messages.items() if k.lower() == wanted)
+                except (OSError, ValueError, StopIteration, KeyError, TypeError):
+                    pass
+            requested = [p for key in ("permissions", "host_permissions", "optional_permissions")
+                         for p in (manifest.get(key) or []) if isinstance(p, str)]
+            broad = sorted(set(requested) & _BROAD_PERMISSIONS)
+            label = f"{name} {manifest.get('version', '?')} [{root.name}/{profile.name}]" + (
+                f" broad: {', '.join(broad)}" if broad else "")
+            entries.append(_plain_entry(kind, f"ext:{root.name}:{profile.name}:{ext.name}", label))
+    return entries, problems
+
+
 _READERS = {
+    "chromium_extensions": _chromium_extension_entries,
     "usb": _usb_entries,
     "vpn": _vpn_entries,
     "trust": _trust_entries,

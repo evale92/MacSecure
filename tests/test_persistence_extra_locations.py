@@ -365,3 +365,30 @@ def test_usb_devices_nested_under_hubs_and_an_empty_bus_list_is_not_clean(monkey
     assert extra._usb_entries("usb_device", Path("/usr/sbin/system_profiler"))[1]
     monkeypatch.setattr(extra, "run", lambda args, timeout=5.0: ShellResult(True, "not json", "", 0))
     assert "unreadable JSON" in extra._usb_entries("usb_device", Path("/usr/sbin/system_profiler"))[1][0]
+
+
+# ---------- browser extensions (J-0654) ----------
+
+
+def test_chromium_extensions_per_profile_with_broad_permissions_named(tmp_path):
+    import json as _json
+    root = tmp_path / "Chrome"
+    ok = root / "Default" / "Extensions" / "abcdefghijklmnop" / "1.2_0"
+    ok.mkdir(parents=True)
+    (ok / "manifest.json").write_text(_json.dumps({"name": "Coupon Helper", "version": "1.2",
+                                                   "permissions": ["cookies", "storage"], "host_permissions": ["<all_urls>"]}))
+    bad = root / "Profile 1" / "Extensions" / "zzzz" / "0.1_0"
+    bad.mkdir(parents=True)
+    (bad / "manifest.json").write_text("{not json")
+    (root / "Profile 2" / "Extensions" / "empty").mkdir(parents=True)
+    (root / "System Profile").mkdir()
+    loc = root / "Default" / "Extensions" / "localised" / "2.0_0"
+    (loc / "_locales" / "en").mkdir(parents=True)
+    (loc / "manifest.json").write_text(_json.dumps({"name": "__MSG_appName__", "version": "2.0", "default_locale": "en"}))
+    (loc / "_locales" / "en" / "messages.json").write_text(_json.dumps({"appname": {"message": "Password Saver"}}))
+    entries, problems = extra._chromium_extension_entries("browser_extension", root)
+    assert [e["path"] for e in entries] == ["ext:Chrome:Default:abcdefghijklmnop", "ext:Chrome:Default:localised"]
+    assert entries[1]["label"].startswith("Password Saver 2.0")
+    assert "broad: <all_urls>, cookies" in entries[0]["label"]
+    assert len(problems) == 2 and any("zzzz" in p for p in problems) and any("no manifest.json" in p for p in problems)
+    assert extra._chromium_extension_entries("browser_extension", tmp_path / "absent") == ([], [])

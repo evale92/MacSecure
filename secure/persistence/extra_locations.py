@@ -43,6 +43,11 @@ a LaunchAgent/LaunchDaemon, and each is readable as a normal user:
                           setting OSX/MaMi changed. DHCP-supplied servers are
                           deliberately not recorded: they change with every
                           network and would bury a real change in noise
+    trusted_root          certificates given trust settings in the user and
+                          admin domains (`/usr/bin/security dump-trust-settings`
+                          and `-d`) — a root trusted by malware (OSX/MaMi) or
+                          interception software. The system domain (Apple's
+                          built-in roots) is deliberately not recorded
     ssh_authorized_key    one entry per key in ~/.ssh/authorized_keys and
                           authorized_keys2. Access persistence rather than
                           execution: a key someone added logs them back in
@@ -125,6 +130,7 @@ _EXTRA_LOCATIONS: Dict[str, Tuple[str, List[Path]]] = {
     "hosts_entry": ("hosts", [Path("/etc/hosts")]),
     "resolver_file": ("children", [Path("/etc/resolver")]),
     "manual_dns_server": ("dnsservers", [Path("/usr/sbin/networksetup")]),
+    "trusted_root": ("trust", [Path("/usr/bin/security")]),
     "ssh_authorized_key": ("authorized_keys", [_HOME / ".ssh" / "authorized_keys", _HOME / ".ssh" / "authorized_keys2"]),
 }
 
@@ -347,7 +353,32 @@ def _dns_server_entries(kind: str, tool: Path) -> Tuple[List[Dict[str, object]],
     return entries, problems
 
 
+_TRUST_COUNT_RE = re.compile(r"^Number of trusted certs = (\d+)")
+_TRUST_CERT_RE = re.compile(r"^Cert \d+: (.+)$")
+
+
+def _trust_entries(kind: str, tool: Path) -> Tuple[List[Dict[str, object]], List[str]]:
+    entries, problems = [], []
+    for domain, flags in (("user", []), ("admin", ["-d"])):
+        result = run([str(tool), "dump-trust-settings", *flags], timeout=10.0)
+        if result.returncode == 1 and "no trust settings were found" in result.stderr.lower():
+            continue
+        if not result.ok:
+            problems.append(f"{kind}: {tool} dump-trust-settings {' '.join(flags)}: "
+                            f"{(result.stderr or 'exit ' + str(result.returncode)).strip()}")
+            continue
+        lines = result.stdout.splitlines()
+        declared = _TRUST_COUNT_RE.match(lines[0]) if lines else None
+        found = [m.group(1).strip() for m in map(_TRUST_CERT_RE.match, lines) if m]
+        entries.extend(_plain_entry(kind, f"trust:{domain}:{name}", f"{name} ({domain} trust)") for name in found)
+        if declared is None or int(declared.group(1)) != len(found):
+            problems.append(f"{kind}: {domain} trust settings: parsed {len(found)} cert(s), tool declared "
+                            f"{declared.group(1) if declared else 'no count'}")
+    return entries, problems
+
+
 _READERS = {
+    "trust": _trust_entries,
     "hosts": _hosts_entries,
     "dnsservers": _dns_server_entries,
     "crontab": _crontab_entries,

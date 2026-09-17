@@ -303,3 +303,25 @@ def test_a_new_hosts_redirect_raises_a_high_alert_through_the_scan(tmp_path: Pat
         hosts.write_text("127.0.0.1 localhost\n203.0.113.9 bank.example\n")
         second = scanner_module.scan_persistence(db.conn)
     assert [(a.kind, a.severity, a.target_type) for a in second.alerts] == [("new_persistence_entry", "high", "hosts_entry")]
+
+
+# ---------- trusted roots (J-0651) ----------
+
+
+def test_trusted_roots_per_domain_none_is_empty_and_a_short_parse_is_reported(monkeypatch):
+    calls = []
+
+    def fake_run(args, timeout=5.0):
+        calls.append(args)
+        if "-d" in args:
+            return ShellResult(False, "", "SecTrustSettingsCopyCertificates: No Trust Settings were found.\n", 1)
+        return ShellResult(True, "Number of trusted certs = 2\nCert 0: Evil Intercept Root CA\n   Number of trust settings : 1\n", "", 0)
+
+    monkeypatch.setattr(extra, "run", fake_run)
+    entries, problems = extra._trust_entries("trusted_root", Path("/usr/bin/security"))
+    assert [e["path"] for e in entries] == ["trust:user:Evil Intercept Root CA"]
+    assert len(problems) == 1 and "parsed 1 cert(s), tool declared 2" in problems[0]
+    assert [a[1:] for a in calls] == [["dump-trust-settings"], ["dump-trust-settings", "-d"]]
+    monkeypatch.setattr(extra, "run", lambda args, timeout=5.0: ShellResult(False, "", "security: bad\n", 2))
+    entries, problems = extra._trust_entries("trusted_root", Path("/usr/bin/security"))
+    assert entries == [] and len(problems) == 2

@@ -73,6 +73,13 @@ a LaunchAgent/LaunchDaemon, and each is readable as a normal user:
                           returning origin is not re-alerted. Local console
                           and terminal sessions carry no origin and are not
                           recorded
+    admin_member          each member of the local admin group
+                          (`/usr/bin/dscl . -read /Groups/admin
+                          GroupMembership`): a new admin is a privilege change
+    sudoers_include       file names in /etc/sudoers.d. The files and
+                          /etc/sudoers itself are root-only (0440), so their
+                          contents are a privilege boundary this sensor states
+                          rather than reads
     ssh_authorized_key    one entry per key in ~/.ssh/authorized_keys and
                           authorized_keys2. Access persistence rather than
                           execution: a key someone added logs them back in
@@ -165,6 +172,8 @@ _EXTRA_LOCATIONS: Dict[str, Tuple[str, List[Path]]] = {
         _HOME / "Library" / "Application Support" / "Microsoft Edge",
         _HOME / "Library" / "Application Support" / "Arc" / "User Data"]),
     "remote_login_origin": ("last", [Path("/usr/bin/last")]),
+    "admin_member": ("admin_group", [Path("/usr/bin/dscl")]),
+    "sudoers_include": ("children", [Path("/etc/sudoers.d")]),
     "ssh_authorized_key": ("authorized_keys", [_HOME / ".ssh" / "authorized_keys", _HOME / ".ssh" / "authorized_keys2"]),
 }
 
@@ -529,7 +538,22 @@ def _remote_login_entries(kind: str, tool: Path) -> Tuple[List[Dict[str, object]
     return [_plain_entry(kind, path, label) for path, label in origins.items()], []
 
 
+def _admin_member_entries(kind: str, tool: Path) -> Tuple[List[Dict[str, object]], List[str]]:
+    result = run([str(tool), ".", "-read", "/Groups/admin", "GroupMembership"], timeout=10.0)
+    if not result.ok:
+        return [], [f"{kind}: {tool} -read /Groups/admin: {(result.stderr or 'exit ' + str(result.returncode)).strip()}"]
+    text = result.stdout.strip()
+    if not text.startswith("GroupMembership:"):
+        return [], [f"{kind}: {tool} -read /Groups/admin: unexpected output"]
+    members = text.split(":", 1)[1].split()
+    if not members:
+        # macOS always has root in admin; an empty list is a read problem, not "no admins".
+        return [], [f"{kind}: {tool} -read /Groups/admin: no members parsed"]
+    return [_plain_entry(kind, f"admin:{m}", f"{m} is an administrator") for m in members], []
+
+
 _READERS = {
+    "admin_group": _admin_member_entries,
     "last": _remote_login_entries,
     "chromium_extensions": _chromium_extension_entries,
     "usb": _usb_entries,

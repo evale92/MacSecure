@@ -411,3 +411,16 @@ def test_remote_login_origins_ignore_local_sessions_and_repeat_origins(monkeypat
     assert [e["path"] for e in entries] == ["login:admin@203.0.113.50", "login:erickvale@macbook.lan"]
     monkeypatch.setattr(extra, "run", lambda args, timeout=5.0: ShellResult(False, "", "", None))
     assert extra._remote_login_entries("remote_login_origin", Path("/usr/bin/last"))[1]
+
+
+# ---------- local privilege changes (J-0656) ----------
+
+
+def test_admin_members_are_entries_and_an_empty_membership_is_a_read_problem(monkeypatch):
+    monkeypatch.setattr(extra, "run", lambda args, timeout=5.0: ShellResult(True, "GroupMembership: root erickvale backdoor\n", "", 0))
+    entries, problems = extra._admin_member_entries("admin_member", Path("/usr/bin/dscl"))
+    assert [e["path"] for e in entries] == ["admin:root", "admin:erickvale", "admin:backdoor"] and problems == []
+    monkeypatch.setattr(extra, "run", lambda args, timeout=5.0: ShellResult(True, "GroupMembership:\n", "", 0))
+    assert extra._admin_member_entries("admin_member", Path("/usr/bin/dscl")) == ([], ["admin_member: /usr/bin/dscl -read /Groups/admin: no members parsed"])
+    monkeypatch.setattr(extra, "run", lambda args, timeout=5.0: ShellResult(True, "No such key: GroupMembership\n", "", 0))
+    assert "unexpected output" in extra._admin_member_entries("admin_member", Path("/usr/bin/dscl"))[1][0]

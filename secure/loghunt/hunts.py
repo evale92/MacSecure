@@ -33,6 +33,17 @@ HUNTS = {
         'process == "CoreServicesUIAgent" AND category == "uiagent" AND eventMessage CONTAINS "GKQuarantineResolver"',
         "The 'downloaded from the internet' first-open check on quarantined files.",
     ),
+    # J-0661. Measured on this Mac 2026-09-16 over 24h: 18 matches, 17 opendirectoryd
+    # credential rejections and 1 lock-screen wrong password. Broad phrases ("invalid
+    # user", "authentication failed" anywhere) also matched ScreenTime and Mail account
+    # noise (17 of 37), so each clause is pinned to the process or subsystem that owns it.
+    "failed_logins": (
+        '(subsystem == "com.apple.opendirectoryd" AND category == "auth" AND eventMessage CONTAINS "Authentication failed")'
+        ' OR (process == "loginwindow" AND eventMessage CONTAINS[c] "incorrect password")'
+        ' OR (process == "sshd" AND (eventMessage CONTAINS "Failed password" OR eventMessage CONTAINS "Invalid user"))'
+        ' OR (process == "sudo" AND eventMessage CONTAINS "incorrect password")',
+        "Local authentication failures: rejected account passwords, lock-screen, SSH and sudo attempts.",
+    ),
 }
 
 

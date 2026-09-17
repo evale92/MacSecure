@@ -93,3 +93,15 @@ def test_the_cli_exposes_loghunt_with_only_the_fixed_hunt_names():
     assert args.func is cli_loghunt.cmd_loghunt and args.hunt == ["gatekeeper", "tcc_denials"]
     with pytest.raises(SystemExit):
         build_parser().parse_args(["loghunt", "--hunt", "anything else"])
+
+
+def test_failed_logins_hunt_is_pinned_to_owning_processes_and_last_in_order():
+    predicate, meaning = HUNTS["failed_logins"]
+    assert list(HUNTS)[-1] == "failed_logins"
+    for owner in ('subsystem == "com.apple.opendirectoryd"', 'process == "loginwindow"', 'process == "sshd"', 'process == "sudo"'):
+        assert owner in predicate
+    # The unanchored phrase that matched ScreenTime/Mail noise must not come back.
+    assert 'eventMessage CONTAINS[c] "invalid user"' not in predicate
+    calls = []
+    run_hunts(hours=24, names=["failed_logins"], runner=lambda a: calls.append(a) or ShellResult(True, _ndjson([]), "", 0))
+    assert calls[0][-1] == predicate

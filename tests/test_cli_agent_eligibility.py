@@ -31,6 +31,8 @@ import io
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from secure import cli
 from secure.agent import diagnose as agent_diagnose
 from secure.agent import maintenance as agent_maintenance
@@ -46,8 +48,13 @@ OPEN = RepairCandidate("pytest_failure", "tests/test_b.py::test_open", "")
 def _setup(monkeypatch, tmp_path: Path, candidates, refused_refs) -> dict:
     """Isolated app_dir, fake discovery and policy. Returns a call log."""
     monkeypatch.setattr(cli, "load_config", lambda: load_config(app_dir=tmp_path))
-    log: dict = {"policy": [], "diagnosed": [], "maintained": []}
-    monkeypatch.setattr(agent_policy, "find_repair_candidates", lambda conn, cfg: list(candidates))
+    log: dict = {"discovered": 0, "policy": [], "reproduced": [], "diagnosed": [], "maintained": []}
+
+    def fake_discover(conn, cfg):
+        log["discovered"] += 1
+        return list(candidates)
+
+    monkeypatch.setattr(agent_policy, "find_repair_candidates", fake_discover)
 
     def fake_policy(conn, cfg, candidate, **kwargs):
         log["policy"].append(candidate.trigger_ref)
@@ -65,6 +72,11 @@ def _setup(monkeypatch, tmp_path: Path, candidates, refused_refs) -> dict:
         log["maintained"].append(candidate.trigger_ref)
         return SimpleNamespace(promotion_eligible=True)
 
+    def fake_reproduce(candidate, cfg, **kwargs):
+        log["reproduced"].append(candidate.trigger_ref)
+        return SimpleNamespace(status="reproduced", reproduced=True, command="pytest")
+
+    monkeypatch.setattr(agent_diagnose, "reproduce_failure", fake_reproduce)
     monkeypatch.setattr(agent_diagnose, "diagnose_failure", fake_diagnose)
     monkeypatch.setattr(agent_diagnose, "describe", lambda result: "diagnosed")
     monkeypatch.setattr(agent_maintenance, "run_maintenance_cycle", fake_cycle)
@@ -190,3 +202,47 @@ def test_maintain_with_only_ineligible_candidates_maintains_nothing(tmp_path, mo
 
 def test_maintain_all_with_only_ineligible_candidates_maintains_nothing(tmp_path, monkeypatch):
     _assert_maintain_refuses_every_candidate(tmp_path, monkeypatch, all_flag=True)
+
+
+# ---------- empty discovery ----------
+#
+# The refusal tests above end on the same "No eligible failures found"
+# line, so the message alone cannot tell "discovery found nothing" from
+# "policy refused everything". These pin the empty case on the call log:
+# discovery ran exactly once, and nothing after it did.
+
+
+def _assert_nothing_after_discovery(log, out):
+    assert log["discovered"] == 1  # discovery was asked, not skipped
+    assert log["policy"] == []
+    assert log["reproduced"] == []
+    assert log["diagnosed"] == []
+    assert log["maintained"] == []
+    assert "Skipping" not in out  # nothing was refused, because nothing was seen
+
+
+@pytest.mark.parametrize(
+    "flags",
+    [
+        {},
+        {"all": True},
+        {"reproduce_only": True},
+        {"all": True, "reproduce_only": True},
+    ],
+    ids=["first", "all", "reproduce-only", "all-reproduce-only"],
+)
+def test_diagnose_with_no_candidates_does_nothing_and_says_so(tmp_path, monkeypatch, flags):
+    log = _setup(monkeypatch, tmp_path, [], set())
+    rc, out = _run(cli_agent.cmd_agent_diagnose, _diagnose_args(**flags))
+    _assert_nothing_after_discovery(log, out)
+    assert out.strip() == "No eligible failures found. Nothing to diagnose."
+    assert rc == 0
+
+
+@pytest.mark.parametrize("all_flag", [False, True], ids=["first", "all"])
+def test_maintain_with_no_candidates_does_nothing_and_says_so(tmp_path, monkeypatch, all_flag):
+    log = _setup(monkeypatch, tmp_path, [], set())
+    rc, out = _run(cli_agent.cmd_agent_maintain, argparse.Namespace(all=all_flag))
+    _assert_nothing_after_discovery(log, out)
+    assert out.strip() == "No eligible failures found. Nothing to maintain."
+    assert rc == 0

@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 
 from secure.checks.backup import check_backup
+from secure.checks.boot_security import check_boot_security
 from secure.checks.filevault import check_filevault
 from secure.checks.firewall import check_firewall
 from secure.checks.gatekeeper import check_gatekeeper
@@ -38,6 +39,7 @@ _SINGLE_CHECKS = [
     check_automatic_updates,
     check_xprotect,
     check_backup,
+    check_boot_security,
 ]
 
 

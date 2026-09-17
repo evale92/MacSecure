@@ -32,6 +32,7 @@ from secure.checks.software_update import (
     check_automatic_updates,
 )
 from secure.checks.backup import _evaluate as _backup_evaluate, check_backup
+from secure.checks.boot_security import _evaluate as _boot_evaluate, check_boot_security
 from secure.checks.xprotect import check_xprotect
 
 # ---------- FileVault ----------
@@ -253,6 +254,7 @@ def test_single_checks_roster_is_exactly_the_posture_check_set():
         check_automatic_updates,
         check_xprotect,
         check_backup,
+        check_boot_security,
     ]
 
 
@@ -310,3 +312,31 @@ def test_backup_stale_or_unknown_latest_is_a_warning():
     unknown = _backup_evaluate(info, False, "", now)
     assert unknown.status == CheckStatus.WARNING and "could not be determined" in unknown.message
     assert _backup_evaluate("garbage", False, "", now).status == CheckStatus.WARNING
+
+
+# ---------- firmware and boot security ----------
+
+
+def _profiler(level="Full Security", other_kext="No", ssv="Enabled", firmware="18000.161.10"):
+    import json as _json
+    hw = {"boot_rom_version": firmware, "os_loader_version": "18000.161.10"} if firmware else {}
+    bridge = {"ibridge_secure_boot": level, "ibridge_sb_other_kext": other_kext, "ibridge_sb_manual_mdm": "No",
+              "ibridge_sb_ssv": ssv} if level else {}
+    return _json.dumps({"SPHardwareDataType": [hw], "SPiBridgeDataType": [bridge] if bridge else []})
+
+
+def test_boot_full_security_passes():
+    r = _boot_evaluate(_profiler())
+    assert r.status == CheckStatus.PASS and "Full Security" in r.message
+
+
+def test_boot_reduced_security_or_kexts_warn_with_each_reason():
+    r = _boot_evaluate(_profiler(level="Reduced Security", other_kext="Yes", ssv="Disabled"))
+    assert r.status == CheckStatus.WARNING
+    assert "Reduced Security" in r.message and "kernel extensions are allowed" in r.message and "Signed System Volume" in r.message
+
+
+def test_boot_no_policy_or_bad_output_is_not_a_pass():
+    assert _boot_evaluate(_profiler(level=None)).status == CheckStatus.WARNING
+    assert _boot_evaluate(_profiler(firmware=None)).status == CheckStatus.WARNING
+    assert _boot_evaluate("not json").status == CheckStatus.WARNING

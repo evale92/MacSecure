@@ -49,6 +49,14 @@ a LaunchAgent/LaunchDaemon, and each is readable as a normal user:
                           (DEP/MDM enrollment), since a profile or an MDM
                           can install certificates, proxies and managed
                           settings without an app to show for it
+    tcc_grant             allowed grants of the sensitive TCC services
+                          (Full Disk Access, Screen Recording,
+                          Accessibility, Input Monitoring, Camera,
+                          Microphone, ...) from the system and user
+                          TCC.db, read through storage/models/
+                          macos_readonly.py. The user TCC.db needs Full
+                          Disk Access; without it that location is
+                          unavailable with the reason, never "no grants"
 
 **Not covered, stated rather than hidden.** /usr/lib/cron/tabs (every
 user's crontab) is root-only on every Mac, so only the scanning user's
@@ -82,6 +90,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 from secure.persistence._shell import run
+from secure.storage.models.macos_readonly import MacDatabaseUnavailable, read_tcc_grants
 
 _HOME = Path.home()
 
@@ -103,6 +112,8 @@ _EXTRA_LOCATIONS: Dict[str, Tuple[str, List[Path]]] = {
     "cron_job": ("crontab", [Path("/usr/bin/crontab")]),
     "system_extension": ("sysext", [Path("/usr/bin/systemextensionsctl")]),
     "configuration_profile": ("profiles", [Path("/usr/bin/profiles")]),
+    "tcc_grant": ("tcc", [Path("/Library/Application Support/com.apple.TCC/TCC.db"),
+                          _HOME / "Library" / "Application Support" / "com.apple.TCC" / "TCC.db"]),
     "ssh_authorized_key": ("authorized_keys", [_HOME / ".ssh" / "authorized_keys", _HOME / ".ssh" / "authorized_keys2"]),
 }
 
@@ -240,11 +251,53 @@ def _entry(kind: str, path: Path, label: str) -> Dict[str, object]:
             "run_at_load": None, "keep_alive": None}
 
 
+# The TCC services malware and stalkerware ask for. Others (contacts,
+# calendars, AppleEvents automation) are real but far noisier.
+_SENSITIVE_TCC_SERVICES = {
+    "kTCCServiceSystemPolicyAllFiles": "Full Disk Access",
+    "kTCCServiceSystemPolicySysAdminFiles": "Administer files",
+    "kTCCServiceScreenCapture": "Screen Recording",
+    "kTCCServiceAccessibility": "Accessibility",
+    "kTCCServiceListenEvent": "Input Monitoring",
+    "kTCCServicePostEvent": "Synthetic input",
+    "kTCCServiceCamera": "Camera",
+    "kTCCServiceMicrophone": "Microphone",
+    "kTCCServiceDeveloperTool": "Developer Tools",
+    "kTCCServiceEndpointSecurityClient": "Endpoint Security",
+}
+_TCC_ALLOWED = {2: "allowed", 3: "limited"}
+
+
+def _tcc_entries(kind: str, database: Path) -> Tuple[List[Dict[str, object]], List[str]]:
+    try:
+        grants = read_tcc_grants(database)
+    except MacDatabaseUnavailable as exc:
+        if not database.exists():
+            return [], []
+        hint = " (grant Full Disk Access to the app running Secure to read it)" if "unable to open" in str(exc) else ""
+        return [], [f"{kind}: {exc}{hint}"]
+    entries = []
+    for grant in grants:
+        name = _SENSITIVE_TCC_SERVICES.get(grant.service)
+        if name is None or grant.auth_value not in _TCC_ALLOWED:
+            continue
+        entries.append({
+            "kind": kind,
+            "path": f"tcc:{database}:{grant.service}:{grant.client}",
+            "label": f"{name} {_TCC_ALLOWED[grant.auth_value]}: {grant.client}",
+            # A path client is an executable codesign can judge; a bundle id is not a path.
+            "program_path": grant.client if grant.client_type == 1 and grant.client.startswith("/") else None,
+            "run_at_load": None, "keep_alive": None,
+        })
+    return entries, []
+
+
 _READERS = {
     "crontab": _crontab_entries,
     "authorized_keys": _authorized_key_entries,
     "sysext": _sysext_entries,
     "profiles": _profile_entries,
+    "tcc": _tcc_entries,
 }
 
 

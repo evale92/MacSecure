@@ -637,3 +637,11 @@ from .ai import (
     mark_ai_change_request_notified,
 )
 
+
+from .macos_readonly import (
+    MacDatabaseUnavailable,
+    QuarantineEvent,
+    TccGrant,
+    read_quarantine_events,
+    read_tcc_grants,
+)

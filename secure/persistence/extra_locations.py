@@ -53,6 +53,13 @@ a LaunchAgent/LaunchDaemon, and each is readable as a normal user:
                           someone added routes traffic without an app in the
                           Dock. Transient utun interfaces (iCloud Private
                           Relay and the like) are deliberately not recorded
+    usb_device            attached USB devices from `/usr/sbin/system_profiler
+                          -json SPUSBHostDataType` (SPUSBDataType is empty on
+                          current macOS, measured 2026-09-16), keyed by
+                          vendor:product:serial. Not persistence strictly, but
+                          the same first-seen question — a new keyboard-class
+                          device can type commands (BadUSB). Built-in buses
+                          and hubs without a vendor id are not recorded
     ssh_authorized_key    one entry per key in ~/.ssh/authorized_keys and
                           authorized_keys2. Access persistence rather than
                           execution: a key someone added logs them back in
@@ -103,6 +110,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import plistlib
+import json
 import re
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -137,6 +145,7 @@ _EXTRA_LOCATIONS: Dict[str, Tuple[str, List[Path]]] = {
     "manual_dns_server": ("dnsservers", [Path("/usr/sbin/networksetup")]),
     "trusted_root": ("trust", [Path("/usr/bin/security")]),
     "vpn_service": ("vpn", [Path("/usr/sbin/scutil")]),
+    "usb_device": ("usb", [Path("/usr/sbin/system_profiler")]),
     "ssh_authorized_key": ("authorized_keys", [_HOME / ".ssh" / "authorized_keys", _HOME / ".ssh" / "authorized_keys2"]),
 }
 
@@ -406,7 +415,36 @@ def _vpn_entries(kind: str, tool: Path) -> Tuple[List[Dict[str, object]], List[s
     return entries, ([f"{kind}: {tool} --nc list: {unparsed} row(s) not understood"] if unparsed else [])
 
 
+def _usb_walk(items, found):
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        vendor, product = item.get("USBDeviceKeyVendorID"), item.get("USBDeviceKeyProductID")
+        if vendor and product:
+            serial = item.get("USBDeviceKeySerialNumber") or "no-serial"
+            found.append((f"usb:{vendor}:{product}:{serial}",
+                          f"{item.get('_name', '?')} ({item.get('USBDeviceKeyVendorName', 'unknown vendor')})"))
+        _usb_walk(item.get("_items"), found)
+
+
+def _usb_entries(kind: str, tool: Path) -> Tuple[List[Dict[str, object]], List[str]]:
+    result = run([str(tool), "-json", "SPUSBHostDataType"], timeout=20.0)
+    if not result.ok:
+        return [], [f"{kind}: {tool} SPUSBHostDataType: {(result.stderr or 'exit ' + str(result.returncode)).strip()}"]
+    try:
+        buses = json.loads(result.stdout)["SPUSBHostDataType"]
+    except (ValueError, KeyError, TypeError) as exc:
+        return [], [f"{kind}: {tool} SPUSBHostDataType: unreadable JSON ({type(exc).__name__})"]
+    if not isinstance(buses, list) or not buses:
+        # Every Mac has at least one USB host bus; none listed is not "no devices".
+        return [], [f"{kind}: {tool} SPUSBHostDataType: no USB bus listed"]
+    found: list = []
+    _usb_walk(buses, found)
+    return [_plain_entry(kind, path, label) for path, label in dict(found).items()], []
+
+
 _READERS = {
+    "usb": _usb_entries,
     "vpn": _vpn_entries,
     "trust": _trust_entries,
     "hosts": _hosts_entries,

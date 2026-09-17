@@ -342,3 +342,26 @@ def test_vpn_services_are_keyed_by_uuid_and_unknown_rows_are_reported(monkeypatc
     assert problems == ["vpn_service: /usr/sbin/scutil --nc list: 1 row(s) not understood"]
     monkeypatch.setattr(extra, "run", lambda args, timeout=5.0: ShellResult(True, "changed format\n", "", 0))
     assert extra._vpn_entries("vpn_service", Path("/usr/sbin/scutil")) == ([], ["vpn_service: /usr/sbin/scutil --nc list: unexpected output header"])
+
+
+# ---------- USB devices (J-0653) ----------
+
+
+def test_usb_devices_nested_under_hubs_and_an_empty_bus_list_is_not_clean(monkeypatch):
+    import json as _json
+    data = {"SPUSBHostDataType": [
+        {"_name": "USB 3.1 Bus", "USBKeyHardwareType": "Built-in"},
+        {"_name": "USB 3.1 Bus", "_items": [
+            {"_name": "Hub", "_items": [
+                {"_name": "Rubber Ducky", "USBDeviceKeyVendorID": "0x05ac", "USBDeviceKeyProductID": "0x0220",
+                 "USBDeviceKeyVendorName": "Apple Inc."}]},
+            {"_name": "HD WEBCAM", "USBDeviceKeyVendorID": "0x1d6c", "USBDeviceKeyProductID": "0x0103",
+             "USBDeviceKeySerialNumber": "20200506"}]}]}
+    monkeypatch.setattr(extra, "run", lambda args, timeout=5.0: ShellResult(True, _json.dumps(data), "", 0))
+    entries, problems = extra._usb_entries("usb_device", Path("/usr/sbin/system_profiler"))
+    assert problems == []
+    assert sorted(e["path"] for e in entries) == ["usb:0x05ac:0x0220:no-serial", "usb:0x1d6c:0x0103:20200506"]
+    monkeypatch.setattr(extra, "run", lambda args, timeout=5.0: ShellResult(True, '{"SPUSBHostDataType": []}', "", 0))
+    assert extra._usb_entries("usb_device", Path("/usr/sbin/system_profiler"))[1]
+    monkeypatch.setattr(extra, "run", lambda args, timeout=5.0: ShellResult(True, "not json", "", 0))
+    assert "unreadable JSON" in extra._usb_entries("usb_device", Path("/usr/sbin/system_profiler"))[1][0]

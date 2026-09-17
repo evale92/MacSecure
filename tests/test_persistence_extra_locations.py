@@ -392,3 +392,22 @@ def test_chromium_extensions_per_profile_with_broad_permissions_named(tmp_path):
     assert "broad: <all_urls>, cookies" in entries[0]["label"]
     assert len(problems) == 2 and any("zzzz" in p for p in problems) and any("no manifest.json" in p for p in problems)
     assert extra._chromium_extension_entries("browser_extension", tmp_path / "absent") == ([], [])
+
+
+# ---------- remote login origins (J-0655) ----------
+
+
+def test_remote_login_origins_ignore_local_sessions_and_repeat_origins(monkeypatch):
+    out = ("erickvale  ttys003                         Mon Sep 14 13:37   still logged in\n"
+           "erickvale  console                         Mon Sep 14 13:36   still logged in\n"
+           "admin      ttys004  203.0.113.50          Tue Sep 15 02:11 - 02:40  (00:29)\n"
+           "admin      ttys005  203.0.113.50          Tue Sep 15 03:00 - 03:10  (00:10)\n"
+           "erickvale  ttys006  macbook.lan           Wed Sep 16 09:00   still logged in\n"
+           "reboot time                                Mon Sep 14 13:34\n"
+           "\nwtmp begins Mon Sep 14 13:30\n")
+    monkeypatch.setattr(extra, "run", lambda args, timeout=5.0: ShellResult(True, out, "", 0))
+    entries, problems = extra._remote_login_entries("remote_login_origin", Path("/usr/bin/last"))
+    assert problems == []
+    assert [e["path"] for e in entries] == ["login:admin@203.0.113.50", "login:erickvale@macbook.lan"]
+    monkeypatch.setattr(extra, "run", lambda args, timeout=5.0: ShellResult(False, "", "", None))
+    assert extra._remote_login_entries("remote_login_origin", Path("/usr/bin/last"))[1]

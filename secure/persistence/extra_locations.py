@@ -67,6 +67,12 @@ a LaunchAgent/LaunchDaemon, and each is readable as a normal user:
                           traffic. A new version of the same id is not a new
                           entry. Safari web extensions are app extensions and
                           are left to a separate reader
+    remote_login_origin   each (user, remote origin) pair in the login record
+                          (`/usr/bin/last`): the first login from a new host
+                          or address is the signal, not every session, so a
+                          returning origin is not re-alerted. Local console
+                          and terminal sessions carry no origin and are not
+                          recorded
     ssh_authorized_key    one entry per key in ~/.ssh/authorized_keys and
                           authorized_keys2. Access persistence rather than
                           execution: a key someone added logs them back in
@@ -158,6 +164,7 @@ _EXTRA_LOCATIONS: Dict[str, Tuple[str, List[Path]]] = {
         _HOME / "Library" / "Application Support" / "BraveSoftware" / "Brave-Browser",
         _HOME / "Library" / "Application Support" / "Microsoft Edge",
         _HOME / "Library" / "Application Support" / "Arc" / "User Data"]),
+    "remote_login_origin": ("last", [Path("/usr/bin/last")]),
     "ssh_authorized_key": ("authorized_keys", [_HOME / ".ssh" / "authorized_keys", _HOME / ".ssh" / "authorized_keys2"]),
 }
 
@@ -503,7 +510,27 @@ def _chromium_extension_entries(kind: str, root: Path) -> Tuple[List[Dict[str, o
     return entries, problems
 
 
+_WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+
+
+def _remote_login_entries(kind: str, tool: Path) -> Tuple[List[Dict[str, object]], List[str]]:
+    result = run([str(tool)], timeout=10.0)
+    if not result.ok:
+        return [], [f"{kind}: {tool}: {(result.stderr or 'exit ' + str(result.returncode)).strip()}"]
+    origins: Dict[str, str] = {}
+    for line in result.stdout.splitlines():
+        fields = line.split()
+        if len(fields) < 4 or fields[0] in ("reboot", "shutdown", "wtmp"):
+            continue
+        user, tty, third = fields[0], fields[1], fields[2]
+        if third in _WEEKDAYS:
+            continue                      # no origin column: a local session
+        origins.setdefault(f"login:{user}@{third}", f"{user} from {third} via {tty} ({' '.join(fields[3:7])})")
+    return [_plain_entry(kind, path, label) for path, label in origins.items()], []
+
+
 _READERS = {
+    "last": _remote_login_entries,
     "chromium_extensions": _chromium_extension_entries,
     "usb": _usb_entries,
     "vpn": _vpn_entries,

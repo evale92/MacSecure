@@ -56,6 +56,24 @@ def test_output_without_the_finished_marker_is_an_error_not_a_zero():
     assert results[0].status == "ERROR" and not results[0].complete and "finished marker" in results[0].detail
 
 
+def test_a_nonzero_exit_is_an_error_even_when_the_finished_marker_is_there():
+    # `log show` can print its {"finished": 1} trailer and still exit non-zero — a
+    # predicate the running OS rejects late, an archive it could only partly read. The
+    # trailer says output ended tidily, not that the hunt was allowed to finish.
+    quiet = run_hunts(hours=1, names=["gatekeeper"],
+                      runner=lambda a: ShellResult(False, _ndjson(EVENTS), "", 1))[0]
+    assert quiet.status == "ERROR" and quiet.detail == "exit 1"
+    assert quiet.complete and quiet.total == 3 and quiet.templates    # what it did read is still summarised
+    loud = run_hunts(hours=1, names=["gatekeeper"],
+                     runner=lambda a: ShellResult(False, _ndjson(EVENTS), "log: archive unreadable", 2))[0]
+    assert loud.status == "ERROR" and loud.detail == "log: archive unreadable"
+    # Control: the same three events and the same trailer at exit 0 are the OK path, so
+    # it is the exit code deciding here and not the summary.
+    clean = run_hunts(hours=1, names=["gatekeeper"],
+                      runner=lambda a: ShellResult(True, _ndjson(EVENTS), "", 0))[0]
+    assert clean.status == "OK" and clean.total == 3 and clean.detail == ""
+
+
 def test_a_timeout_or_missing_tool_is_reported():
     timed_out = run_hunts(names=["gatekeeper"], runner=lambda a: ShellResult(False, "", "command timed out", None))
     missing = run_hunts(names=["gatekeeper"], runner=lambda a: ShellResult(False, "", "/usr/bin/log: command not found", None))

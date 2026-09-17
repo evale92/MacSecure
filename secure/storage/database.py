@@ -472,7 +472,8 @@ CREATE TABLE IF NOT EXISTS process_entries (
 -- login item) observed in a single `secure persistence scan` —
 -- append-only history, same run_id-groups-a-scan pattern as every
 -- other *_observations table. `kind` is one of "launch_agent_user",
--- "launch_agent_global", "launch_daemon", or "login_item". Has always
+-- "launch_agent_global", "launch_daemon", "login_item", or a kind from
+-- secure/persistence/extra_locations.py (authorization_plugin, kext, ...). Has always
 -- had a stable per-row `id`; this is the row anomaly provenance
 -- references (source_table='persistence_observations',
 -- source_id=persistence_observations.id — see
@@ -528,7 +529,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_persistence_entries_path
 -- persistence entry's backing executable going from signed to
 -- unsigned between scans. `target_type` says what the alert is about
 -- ("process", "launch_agent_user", "launch_agent_global",
--- "launch_daemon", or "login_item"); `identifier` is that target's
+-- "launch_daemon", "login_item", or an extra_locations.py kind); `identifier` is that target's
 -- executable path, plist path, or login item name. `known` defaults
 -- to 0 (unreviewed), same pattern as every other *_alerts table.
 CREATE TABLE IF NOT EXISTS persistence_alerts (

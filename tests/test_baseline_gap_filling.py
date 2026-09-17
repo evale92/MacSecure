@@ -161,6 +161,8 @@ def test_scan_persistence_writes_baseline_gap_observations(tmp_path: Path, monke
 
     fresh = {kind: [tmp_path / f"_unused_{kind}"] for kind in launch_items_module._LAUNCH_ITEM_DIRECTORIES}
     monkeypatch.setattr(launch_items_module, "_LAUNCH_ITEM_DIRECTORIES", fresh)
+    import secure.persistence.extra_locations as extra_locations_module
+    monkeypatch.setattr(extra_locations_module, "_EXTRA_LOCATIONS", {})
 
     monkeypatch.setattr(scanner_module, "list_processes", lambda: (
         True, [{"pid": "1", "ppid": "0", "user": "root", "path_or_name": "/usr/bin/true"}]

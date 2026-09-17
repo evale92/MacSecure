@@ -4,7 +4,10 @@ Monitor scan: inventory running processes, inventory LaunchAgents/
 LaunchDaemons/login items, compare against everything this app already
 knows, and flag what's worth a look.
 
-Four things happen on every scan:
+Four things happen on every scan (step 2 also covers the extra
+locations in extra_locations.py — authorization plugins, scripting
+additions, kexts, startup items, periodic/emond/folder-action/ssh rc
+scripts — through the same new/changed-entry path):
 
     1. Process inventory (processes.py) — every currently-running
        process with a resolvable executable path is recorded,
@@ -59,6 +62,7 @@ from secure.persistence.analysis import (
     process_alert_severity,
 )
 from secure.persistence.codesign import UNKNOWN, check_code_signing
+from secure.persistence.extra_locations import scan_extra_locations
 from secure.persistence.launch_items import scan_launch_items
 from secure.persistence.login_items import get_login_items
 from secure.persistence.processes import is_resolvable_path, list_processes
@@ -213,7 +217,7 @@ def _scan_processes(
     return True, process_count, new_processes
 
 
-def _collect_persistence_items() -> "tuple[bool, list]":
+def _collect_persistence_items() -> "tuple[bool, list, list]":
     """Gather every LaunchAgent/LaunchDaemon/login item entry from all
     four sources into one flat list of dicts sharing a common shape:
     {"kind", "path", "label", "program_path", "run_at_load", "keep_alive"}.
@@ -251,7 +255,13 @@ def _collect_persistence_items() -> "tuple[bool, list]":
             }
         )
 
-    return login_items_ok, entries
+    # Authorization plugins, kexts, periodic scripts, ssh rc and the rest of
+    # extra_locations.py's scope. A location that exists but could not be
+    # read comes back in `unavailable` and is recorded as a scan error.
+    extra_entries, unavailable = scan_extra_locations()
+    entries.extend(extra_entries)
+
+    return login_items_ok, entries, unavailable
 
 
 def _scan_persistence_items(
@@ -259,7 +269,9 @@ def _scan_persistence_items(
     counters: "BaselineRunCounters",
 ) -> "tuple[bool, List[PersistenceEntryRecord], int]":
     now = datetime.now(timezone.utc).isoformat()
-    login_items_ok, entries = _collect_persistence_items()
+    login_items_ok, entries, unavailable = _collect_persistence_items()
+    for problem in unavailable:
+        counters.record_error(f"persistence location unreadable this scan: {problem}")
     if not login_items_ok:
         # Partial sensor failure (Stage 4 approval item 3): login items
         # (osascript) failed, but LaunchAgent/LaunchDaemon entries were

@@ -41,6 +41,7 @@ def scenario_cross_module_cluster_fires(sb: Sandbox) -> ScenarioResult:
 
     def build():
         import secure.persistence.launch_items as launch_items_module
+        import secure.persistence.extra_locations as extra_locations_module
         import secure.persistence.scanner as scanner_module
         from secure.fileintegrity.paths import normalize_path
         from secure.fileintegrity.scanner import scan_file_integrity
@@ -58,6 +59,7 @@ def scenario_cross_module_cluster_fires(sb: Sandbox) -> ScenarioResult:
         }
         with ExitStack() as stack:
             stack.enter_context(patch.object(launch_items_module, "_LAUNCH_ITEM_DIRECTORIES", fresh_dirs))
+            stack.enter_context(patch.object(extra_locations_module, "_EXTRA_LOCATIONS", {}))
             stack.enter_context(patch.object(scanner_module, "list_processes", lambda: (True, [])))
             stack.enter_context(patch.object(scanner_module, "get_login_items", lambda: (True, [])))
             stack.enter_context(patch.object(scanner_module, "check_code_signing", lambda p: "unsigned"))
@@ -117,6 +119,7 @@ def scenario_single_module_signal_does_not_cluster(sb: Sandbox) -> ScenarioResul
 
     def build():
         import secure.persistence.launch_items as launch_items_module
+        import secure.persistence.extra_locations as extra_locations_module
         import secure.persistence.scanner as scanner_module
 
         tmp_root = sb.cfg.app_dir_path() / "validate_fixtures"
@@ -131,6 +134,7 @@ def scenario_single_module_signal_does_not_cluster(sb: Sandbox) -> ScenarioResul
         }
         with ExitStack() as stack:
             stack.enter_context(patch.object(launch_items_module, "_LAUNCH_ITEM_DIRECTORIES", fresh_dirs))
+            stack.enter_context(patch.object(extra_locations_module, "_EXTRA_LOCATIONS", {}))
             stack.enter_context(patch.object(scanner_module, "list_processes", lambda: (True, [])))
             stack.enter_context(patch.object(scanner_module, "get_login_items", lambda: (True, [])))
             stack.enter_context(patch.object(scanner_module, "check_code_signing", lambda p: "unsigned"))
@@ -170,6 +174,7 @@ def scenario_persistence_process_deduplication(sb: Sandbox) -> ScenarioResult:
 
     def build():
         import secure.persistence.launch_items as launch_items_module
+        import secure.persistence.extra_locations as extra_locations_module
         import secure.persistence.scanner as scanner_module
 
         tmp_root = sb.cfg.app_dir_path() / "validate_fixtures"
@@ -185,6 +190,7 @@ def scenario_persistence_process_deduplication(sb: Sandbox) -> ScenarioResult:
         ps_result = (True, [{"pid": "9001", "ppid": "1", "user": "root", "path_or_name": program_path}])
         with ExitStack() as stack:
             stack.enter_context(patch.object(launch_items_module, "_LAUNCH_ITEM_DIRECTORIES", fresh_dirs))
+            stack.enter_context(patch.object(extra_locations_module, "_EXTRA_LOCATIONS", {}))
             stack.enter_context(patch.object(scanner_module, "list_processes", lambda: ps_result))
             stack.enter_context(patch.object(scanner_module, "get_login_items", lambda: (True, [])))
             stack.enter_context(patch.object(scanner_module, "check_code_signing", lambda p: "signed_apple"))

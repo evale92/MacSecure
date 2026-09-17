@@ -46,6 +46,7 @@ def _write_plist(path, label: str, program_path: str) -> None:
 
 def _run_persistence_scan(sb: Sandbox, *, daemon_program_path=None, signing_map=None, ps_result=None):
     import secure.persistence.launch_items as launch_items_module
+    import secure.persistence.extra_locations as extra_locations_module
     import secure.persistence.scanner as scanner_module
 
     tmp_root = sb.cfg.app_dir_path() / "validate_fixtures"
@@ -65,6 +66,7 @@ def _run_persistence_scan(sb: Sandbox, *, daemon_program_path=None, signing_map=
 
     with ExitStack() as stack:
         stack.enter_context(patch.object(launch_items_module, "_LAUNCH_ITEM_DIRECTORIES", fresh_dirs))
+        stack.enter_context(patch.object(extra_locations_module, "_EXTRA_LOCATIONS", {}))
         stack.enter_context(patch.object(scanner_module, "list_processes", lambda: ps_result or (True, [])))
         stack.enter_context(patch.object(scanner_module, "get_login_items", lambda: (True, [])))
         stack.enter_context(

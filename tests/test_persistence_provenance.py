@@ -46,6 +46,8 @@ def _patch_launch_dirs(monkeypatch, tmp_path: Path, **overrides):
     fresh = {kind: [tmp_path / f"_unused_{kind}"] for kind in launch_items_module._LAUNCH_ITEM_DIRECTORIES}
     fresh.update(overrides)
     monkeypatch.setattr(launch_items_module, "_LAUNCH_ITEM_DIRECTORIES", fresh)
+    import secure.persistence.extra_locations as extra_locations_module
+    monkeypatch.setattr(extra_locations_module, "_EXTRA_LOCATIONS", {})
 
 
 def _patch_scanner(monkeypatch, ps_result=None, login_items_result=None, signing_map=None):

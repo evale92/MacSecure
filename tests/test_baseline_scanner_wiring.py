@@ -149,6 +149,8 @@ def _patch_empty_launch_dirs(monkeypatch, tmp_path: Path):
         "launch_daemon": [tmp_path / "does_not_exist_daemons"],
     }
     monkeypatch.setattr(launch_items_module, "_LAUNCH_ITEM_DIRECTORIES", fresh)
+    import secure.persistence.extra_locations as extra_locations_module
+    monkeypatch.setattr(extra_locations_module, "_EXTRA_LOCATIONS", {})
 
 
 def test_scan_persistence_process_listing_failure_is_recorded(tmp_path: Path, monkeypatch):

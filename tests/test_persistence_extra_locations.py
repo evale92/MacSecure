@@ -325,3 +325,20 @@ def test_trusted_roots_per_domain_none_is_empty_and_a_short_parse_is_reported(mo
     monkeypatch.setattr(extra, "run", lambda args, timeout=5.0: ShellResult(False, "", "security: bad\n", 2))
     entries, problems = extra._trust_entries("trusted_root", Path("/usr/bin/security"))
     assert entries == [] and len(problems) == 2
+
+
+# ---------- VPN services (J-0652) ----------
+
+
+def test_vpn_services_are_keyed_by_uuid_and_unknown_rows_are_reported(monkeypatch):
+    out = ('Available network connection services in the current set (*=enabled):\n'
+           '* (Connected)      9A1B2C3D-0000-4000-8000-123456789ABC IPSec              "Work VPN"      [IPSec]\n'
+           '  (Disconnected)   0f0e0d0c-1111-4222-8333-444455556666 VPN (com.wireguard.macos) "wg0" [VPN:com.wireguard.macos]\n'
+           'something new the parser does not know\n')
+    monkeypatch.setattr(extra, "run", lambda args, timeout=5.0: ShellResult(True, out, "", 0))
+    entries, problems = extra._vpn_entries("vpn_service", Path("/usr/sbin/scutil"))
+    assert [e["path"] for e in entries] == ["vpn:9A1B2C3D-0000-4000-8000-123456789ABC", "vpn:0F0E0D0C-1111-4222-8333-444455556666"]
+    assert "Work VPN [IPSec] (Connected, enabled)" == entries[0]["label"]
+    assert problems == ["vpn_service: /usr/sbin/scutil --nc list: 1 row(s) not understood"]
+    monkeypatch.setattr(extra, "run", lambda args, timeout=5.0: ShellResult(True, "changed format\n", "", 0))
+    assert extra._vpn_entries("vpn_service", Path("/usr/sbin/scutil")) == ([], ["vpn_service: /usr/sbin/scutil --nc list: unexpected output header"])

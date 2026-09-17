@@ -48,6 +48,11 @@ a LaunchAgent/LaunchDaemon, and each is readable as a normal user:
                           and `-d`) — a root trusted by malware (OSX/MaMi) or
                           interception software. The system domain (Apple's
                           built-in roots) is deliberately not recorded
+    vpn_service           configured VPN services (`/usr/sbin/scutil --nc
+                          list`), keyed by service UUID: a VPN or proxy tunnel
+                          someone added routes traffic without an app in the
+                          Dock. Transient utun interfaces (iCloud Private
+                          Relay and the like) are deliberately not recorded
     ssh_authorized_key    one entry per key in ~/.ssh/authorized_keys and
                           authorized_keys2. Access persistence rather than
                           execution: a key someone added logs them back in
@@ -131,6 +136,7 @@ _EXTRA_LOCATIONS: Dict[str, Tuple[str, List[Path]]] = {
     "resolver_file": ("children", [Path("/etc/resolver")]),
     "manual_dns_server": ("dnsservers", [Path("/usr/sbin/networksetup")]),
     "trusted_root": ("trust", [Path("/usr/bin/security")]),
+    "vpn_service": ("vpn", [Path("/usr/sbin/scutil")]),
     "ssh_authorized_key": ("authorized_keys", [_HOME / ".ssh" / "authorized_keys", _HOME / ".ssh" / "authorized_keys2"]),
 }
 
@@ -377,7 +383,31 @@ def _trust_entries(kind: str, tool: Path) -> Tuple[List[Dict[str, object]], List
     return entries, problems
 
 
+_NC_HEADER = "available network connection services"
+_NC_ROW_RE = re.compile(r'^\s*(\*)?\s*\(([^)]*)\)\s+([0-9A-Fa-f-]{36})\s+(.*?)\s+"(.*)"\s+\[(.*)\]\s*$')
+
+
+def _vpn_entries(kind: str, tool: Path) -> Tuple[List[Dict[str, object]], List[str]]:
+    result = run([str(tool), "--nc", "list"], timeout=10.0)
+    if not result.ok:
+        return [], [f"{kind}: {tool} --nc list: {(result.stderr or 'exit ' + str(result.returncode)).strip()}"]
+    lines = [line for line in result.stdout.splitlines() if line.strip()]
+    if not lines or not lines[0].lower().startswith(_NC_HEADER):
+        return [], [f"{kind}: {tool} --nc list: unexpected output header"]
+    entries, unparsed = [], 0
+    for line in lines[1:]:
+        row = _NC_ROW_RE.match(line)
+        if row is None:
+            unparsed += 1
+            continue
+        enabled, state, uuid, _, name, service_type = row.groups()
+        entries.append(_plain_entry(kind, f"vpn:{uuid.upper()}",
+                                    f"{name} [{service_type}] ({state}{', enabled' if enabled else ''})"))
+    return entries, ([f"{kind}: {tool} --nc list: {unparsed} row(s) not understood"] if unparsed else [])
+
+
 _READERS = {
+    "vpn": _vpn_entries,
     "trust": _trust_entries,
     "hosts": _hosts_entries,
     "dnsservers": _dns_server_entries,

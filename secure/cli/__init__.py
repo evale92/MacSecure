@@ -501,6 +501,7 @@ from .root import (
     cmd_self_mark_update_context,
     cmd_run_all,
 )
+from .downloads import cmd_downloads
 from .inventory import (
     _format_device_line,
     cmd_inventory_scan,
@@ -761,7 +762,7 @@ def build_parser() -> argparse.ArgumentParser:
     check_parser = subparsers.add_parser(
         "check",
         help="Run the macOS security posture check (FileVault, firewall, "
-        "Gatekeeper, SIP, updates, sharing services).",
+        "Gatekeeper, SIP, updates, XProtect, sharing services).",
     )
     check_parser.add_argument(
         "--quick",
@@ -770,6 +771,16 @@ def build_parser() -> argparse.ArgumentParser:
         "the network and can take several seconds.",
     )
     check_parser.set_defaults(func=cmd_check)
+
+    downloads_parser = subparsers.add_parser(
+        "downloads",
+        help="Where recent downloads came from (macOS quarantine history), with "
+        "installers, IP-address hosts and plain-http downloads flagged.",
+    )
+    downloads_parser.add_argument("--days", type=int, default=30, help="How far back to look (default: 30).")
+    downloads_parser.add_argument("--limit", type=int, default=500, help="Most events to show (default: 500).")
+    downloads_parser.add_argument("--flagged", action="store_true", help="Show only flagged downloads.")
+    downloads_parser.set_defaults(func=cmd_downloads)
 
     snapshot_parser = subparsers.add_parser(
         "snapshot",

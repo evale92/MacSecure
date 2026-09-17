@@ -90,8 +90,14 @@ def read_tcc_grants(path: Path) -> "list[TccGrant]":
     ]
 
 
-def read_quarantine_events(path: Path, since_unix: float, limit: int) -> "list[QuarantineEvent]":
-    """Quarantine events at or after `since_unix`, newest first, at most `limit`."""
+def read_quarantine_events(
+    path: Path, since_unix: float, limit: int, require_url: bool = False
+) -> "list[QuarantineEvent]":
+    """Quarantine events at or after `since_unix`, newest first, at most `limit`.
+
+    require_url drops events with neither a file nor an origin URL. Chrome
+    writes hundreds of those a day, and they say nothing about provenance.
+    """
     conn = _open_readonly(path)
     try:
         rows = conn.execute(
@@ -100,7 +106,9 @@ def read_quarantine_events(path: Path, since_unix: float, limit: int) -> "list[Q
             "LSQuarantineDataURLString, LSQuarantineOriginURLString, "
             "LSQuarantineSenderName, LSQuarantineTypeNumber "
             "FROM LSQuarantineEvent WHERE LSQuarantineTimeStamp >= ? "
-            "ORDER BY LSQuarantineTimeStamp DESC LIMIT ?",
+            + ("AND (COALESCE(LSQuarantineDataURLString, '') != '' "
+               "OR COALESCE(LSQuarantineOriginURLString, '') != '') " if require_url else "")
+            + "ORDER BY LSQuarantineTimeStamp DESC LIMIT ?",
             (since_unix - _COCOA_EPOCH_OFFSET, int(limit)),
         ).fetchall()
     except sqlite3.Error as exc:

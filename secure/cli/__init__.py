@@ -502,6 +502,10 @@ from .root import (
     cmd_run_all,
 )
 from .downloads import cmd_downloads
+from .loghunt import cmd_loghunt
+from secure.loghunt.hunts import HUNTS as _LOGHUNTS
+
+HUNT_NAMES = tuple(_LOGHUNTS)
 from .inventory import (
     _format_device_line,
     cmd_inventory_scan,
@@ -781,6 +785,16 @@ def build_parser() -> argparse.ArgumentParser:
     downloads_parser.add_argument("--limit", type=int, default=500, help="Most events to show (default: 500).")
     downloads_parser.add_argument("--flagged", action="store_true", help="Show only flagged downloads.")
     downloads_parser.set_defaults(func=cmd_downloads)
+
+    loghunt_parser = subparsers.add_parser(
+        "loghunt",
+        help="Search the macOS unified log with fixed hunts (Gatekeeper, XProtect, TCC denials, "
+        "quarantine checks) and summarise matches by message template.",
+    )
+    loghunt_parser.add_argument("--hours", type=int, default=24, help="Window, 1-72 hours (default: 24).")
+    loghunt_parser.add_argument("--hunt", action="append", choices=sorted(HUNT_NAMES),
+                                help="Run only this hunt; repeat for several (default: all).")
+    loghunt_parser.set_defaults(func=cmd_loghunt)
 
     snapshot_parser = subparsers.add_parser(
         "snapshot",

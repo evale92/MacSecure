@@ -295,6 +295,8 @@ def _print_yara_scan_result(result, targets=None) -> None:
             print(f"  SKIPPED [{fr.skip_reason}] {fr.path}{reason}")
             continue
         match_note = f"{len(fr.observations)} match(es)" if fr.observations else "no matches"
+        if fr.content_note:
+            match_note += f" (bytes of a {fr.content_note.replace('_', ' ')}; contents not inspected)"
         print(f"  scanned  {fr.path}{reason} — {match_note}")
         for err in fr.ruleset_errors:
             print(f"      ruleset error: {err}")

@@ -75,6 +75,36 @@ class YaraFileResult:
     file_hash: Optional[str] = None
     observations: List[ExternalObservation] = field(default_factory=list)
     ruleset_errors: List[str] = field(default_factory=list)
+    # Set when the bytes are a compressed or encrypted container: rules only
+    # saw the container, so "no matches" says nothing about what is inside.
+    content_note: Optional[str] = None
+
+
+# (offset, magic, note). Checked in order; stdlib byte comparisons only, nothing is
+# extracted. Source: netron's staged format detection, which names what a file
+# contains instead of letting an unrecognised file pass silently.
+_CONTAINER_MAGIC = (
+    (0, b"AES", "aes_crypt_encrypted"),
+    (0, b"encrcdsa", "encrypted_disk_image"),
+    (0, b"\x1f\x8b", "gzip_compressed"),
+    (0, b"\xfd7zXZ\x00", "xz_compressed"),
+    (0, b"BZh", "bzip2_compressed"),
+    (0, b"7z\xbc\xaf\x27\x1c", "7z_archive"),
+    (0, b"Rar!\x1a\x07", "rar_archive"),
+)
+
+
+def container_note(data: bytes) -> Optional[str]:
+    """Name the container these bytes are, or None for ordinary content."""
+    if data[:4] == b"PK\x03\x04":
+        flags = int.from_bytes(data[6:8], "little") if len(data) >= 8 else 0
+        return "encrypted_zip" if flags & 0x1 else "zip_archive"
+    for offset, magic, note in _CONTAINER_MAGIC:
+        if data[offset:offset + len(magic)] == magic:
+            return note
+    if len(data) >= 512 and data[-512:-508] == b"koly":
+        return "disk_image"
+    return None
 
 
 @dataclass(frozen=True)
@@ -171,6 +201,7 @@ def _scan_one_file(
         file_hash=file_hash,
         observations=observations,
         ruleset_errors=ruleset_errors,
+        content_note=container_note(data),
     )
 
 
@@ -266,6 +297,9 @@ def scan_paths(
         f"rulesets_loaded={len(compiled_rulesets)}",
         f"files_scanned={sum(1 for fr in file_results if fr.scanned)}/{len(file_results)}",
     ]
+    containers = sum(1 for fr in file_results if fr.content_note)
+    if containers:
+        detail_parts.append(f"containers_not_inspected={containers}")
     if not compiled_rulesets and not load_errors:
         detail_parts.append(f"no ruleset files found in {rules_dir}")
     status = STATUS_DEGRADED if load_errors or any(fr.ruleset_errors for fr in file_results) else STATUS_OK

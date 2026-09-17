@@ -659,3 +659,28 @@ def test_explain_integration_alert_unrecognized_integration_degrades_gracefully(
     assert exp.degraded is True
     assert exp.severity == "low"  # never hidden even when degraded
     assert exp.summary  # generic_explanation still produces something
+
+
+# ---------- containers the rules cannot see into (J-0665) ----------
+
+
+def test_container_note_names_encrypted_and_compressed_containers():
+    note = scanner_module.container_note
+    encrypted_zip = b"PK\x03\x04" + b"\x14\x00" + b"\x01\x00" + b"\x00" * 30
+    plain_zip = b"PK\x03\x04" + b"\x14\x00" + b"\x00\x00" + b"\x00" * 30
+    assert note(encrypted_zip) == "encrypted_zip"
+    assert note(plain_zip) == "zip_archive"
+    assert note(b"AES\x02\x00rest") == "aes_crypt_encrypted"
+    assert note(b"\x1f\x8b\x08\x00") == "gzip_compressed"
+    assert note(b"\xfd7zXZ\x00\x00") == "xz_compressed"
+    assert note(b"\x00" * 600 + b"koly" + b"\x00" * 508) == "disk_image"
+    assert note(b"#!/bin/sh\necho hi\n") is None
+    assert note(b"") is None
+
+
+def test_a_scanned_container_carries_its_note_and_the_run_detail_counts_it(tmp_path, monkeypatch):
+    blob = tmp_path / "invoice.zip"
+    blob.write_bytes(b"PK\x03\x04\x14\x00\x01\x00" + b"\x00" * 64)
+    monkeypatch.setattr(scanner_module, "compute_sha256", lambda p, max_bytes: ("h", None))
+    result = scanner_module._scan_one_file(str(blob), [], "2026-09-16T00:00:00+00:00", 5.0, 1 << 20)
+    assert result.scanned and result.observations == [] and result.content_note == "encrypted_zip"

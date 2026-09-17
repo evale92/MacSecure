@@ -258,3 +258,48 @@ def test_no_profiles_is_empty_and_a_failed_profiles_tool_is_unavailable(monkeypa
     })
     entries, unavailable = extra.scan_extra_locations()
     assert entries == [] and len(unavailable) == 2
+
+
+# ---------- DNS configuration (J-0650) ----------
+
+
+def test_hosts_entries_skip_macos_defaults_and_split_aliases(tmp_path):
+    hosts = tmp_path / "hosts"
+    hosts.write_text("127.0.0.1\tlocalhost\n255.255.255.255 broadcasthost\n::1 localhost\n"
+                     "# 10.0.0.1 commented.example\n203.0.113.9 update.apple.com appleid.apple.com  # added\n")
+    entries, problems = extra._hosts_entries("hosts_entry", hosts)
+    assert problems == []
+    assert [e["path"] for e in entries] == ["hosts:update.apple.com:203.0.113.9", "hosts:appleid.apple.com:203.0.113.9"]
+    assert all(e["program_path"] is None for e in entries)
+    assert extra._hosts_entries("hosts_entry", tmp_path / "absent") == ([], [])
+
+
+def test_manual_dns_servers_are_entries_and_dhcp_or_failure_are_not_silent(monkeypatch):
+    def fake_run(args, timeout=5.0):
+        if args[1] == "-listallnetworkservices":
+            return ShellResult(True, "An asterisk (*) denotes that a network service is disabled.\nWi-Fi\n*Ethernet\nVPN\n", "", 0)
+        service = args[2]
+        if service == "Wi-Fi":
+            return ShellResult(True, "185.228.168.9\n185.228.169.9\n", "", 0)
+        if service == "Ethernet":
+            return ShellResult(True, "There aren't any DNS Servers set on Ethernet.\n", "", 0)
+        return ShellResult(False, "", "** Error: The parameters were not valid.\n", 4)
+
+    monkeypatch.setattr(extra, "run", fake_run)
+    entries, problems = extra._dns_server_entries("manual_dns_server", Path("/usr/sbin/networksetup"))
+    assert [e["path"] for e in entries] == ["dns:Wi-Fi:185.228.168.9", "dns:Wi-Fi:185.228.169.9"]
+    assert len(problems) == 1 and "-getdnsservers VPN" in problems[0]
+    monkeypatch.setattr(extra, "run", lambda args, timeout=5.0: ShellResult(False, "", "", None))
+    assert extra._dns_server_entries("manual_dns_server", Path("/usr/sbin/networksetup"))[1]
+
+
+def test_a_new_hosts_redirect_raises_a_high_alert_through_the_scan(tmp_path: Path, monkeypatch):
+    hosts = tmp_path / "hosts"
+    hosts.write_text("127.0.0.1 localhost\n")
+    _isolate(monkeypatch, tmp_path, {"hosts_entry": ("hosts", [hosts])})
+    monkeypatch.setattr(scanner_module, "check_code_signing", lambda p: "unsigned")
+    with Database(tmp_path / "test.db") as db:
+        assert scanner_module.scan_persistence(db.conn).alerts == []
+        hosts.write_text("127.0.0.1 localhost\n203.0.113.9 bank.example\n")
+        second = scanner_module.scan_persistence(db.conn)
+    assert [(a.kind, a.severity, a.target_type) for a in second.alerts] == [("new_persistence_entry", "high", "hosts_entry")]

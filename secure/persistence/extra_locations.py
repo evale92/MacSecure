@@ -35,6 +35,14 @@ a LaunchAgent/LaunchDaemon, and each is readable as a normal user:
                           read with `/usr/bin/crontab -l` through
                           persistence/_shell.py — the only source here
                           that runs a subprocess
+    hosts_entry           one entry per non-default mapping in /etc/hosts
+                          (redirecting a domain here needs no resolver change)
+    resolver_file         /etc/resolver/* (per-domain DNS overrides)
+    manual_dns_server     DNS servers set by hand on a network service, read
+                          with `/usr/sbin/networksetup -getdnsservers` — the
+                          setting OSX/MaMi changed. DHCP-supplied servers are
+                          deliberately not recorded: they change with every
+                          network and would bury a real change in noise
     ssh_authorized_key    one entry per key in ~/.ssh/authorized_keys and
                           authorized_keys2. Access persistence rather than
                           execution: a key someone added logs them back in
@@ -114,6 +122,9 @@ _EXTRA_LOCATIONS: Dict[str, Tuple[str, List[Path]]] = {
     "configuration_profile": ("profiles", [Path("/usr/bin/profiles")]),
     "tcc_grant": ("tcc", [Path("/Library/Application Support/com.apple.TCC/TCC.db"),
                           _HOME / "Library" / "Application Support" / "com.apple.TCC" / "TCC.db"]),
+    "hosts_entry": ("hosts", [Path("/etc/hosts")]),
+    "resolver_file": ("children", [Path("/etc/resolver")]),
+    "manual_dns_server": ("dnsservers", [Path("/usr/sbin/networksetup")]),
     "ssh_authorized_key": ("authorized_keys", [_HOME / ".ssh" / "authorized_keys", _HOME / ".ssh" / "authorized_keys2"]),
 }
 
@@ -292,7 +303,53 @@ def _tcc_entries(kind: str, database: Path) -> Tuple[List[Dict[str, object]], Li
     return entries, []
 
 
+_HOSTS_DEFAULTS = {("127.0.0.1", "localhost"), ("255.255.255.255", "broadcasthost"), ("::1", "localhost")}
+
+
+def _hosts_entries(kind: str, path: Path) -> Tuple[List[Dict[str, object]], List[str]]:
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except FileNotFoundError:
+        return [], []
+    except OSError as exc:
+        return [], [f"{kind}: {path}: {type(exc).__name__}: {exc}"]
+    entries = []
+    for raw in text.splitlines():
+        fields = raw.split("#", 1)[0].split()
+        if len(fields) < 2:
+            continue
+        address = fields[0]
+        for name in fields[1:]:
+            if (address, name) not in _HOSTS_DEFAULTS:
+                entries.append(_plain_entry(kind, f"hosts:{name}:{address}", f"{name} -> {address}"))
+    return entries, []
+
+
+def _dns_server_entries(kind: str, tool: Path) -> Tuple[List[Dict[str, object]], List[str]]:
+    listed = run([str(tool), "-listallnetworkservices"], timeout=10.0)
+    if not listed.ok:
+        return [], [f"{kind}: {tool} -listallnetworkservices: {(listed.stderr or 'exit ' + str(listed.returncode)).strip()}"]
+    services = [line.lstrip("*").strip() for line in listed.stdout.splitlines()[1:] if line.strip()]
+    if not services:
+        return [], [f"{kind}: {tool} -listallnetworkservices: no network services parsed"]
+    entries, problems = [], []
+    for service in services:
+        result = run([str(tool), "-getdnsservers", service], timeout=10.0)
+        if not result.ok:
+            problems.append(f"{kind}: {tool} -getdnsservers {service}: "
+                            f"{(result.stderr or 'exit ' + str(result.returncode)).strip()}")
+            continue
+        for line in result.stdout.splitlines():
+            server = line.strip()
+            if not server or server.lower().startswith("there aren't any dns servers"):
+                continue
+            entries.append(_plain_entry(kind, f"dns:{service}:{server}", f"{service}: {server}"))
+    return entries, problems
+
+
 _READERS = {
+    "hosts": _hosts_entries,
+    "dnsservers": _dns_server_entries,
     "crontab": _crontab_entries,
     "authorized_keys": _authorized_key_entries,
     "sysext": _sysext_entries,

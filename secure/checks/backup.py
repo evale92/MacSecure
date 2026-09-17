@@ -21,7 +21,6 @@ from secure.checks.models import CheckResult, CheckStatus
 NAME = "Time Machine backup"
 STALE_DAYS = 7
 _STAMP_RE = re.compile(r"(\d{4}-\d{2}-\d{2}-\d{6})")
-_MANUAL = "Run `tmutil destinationinfo` and `tmutil latestbackup` yourself in Terminal to check manually."
 
 
 def _evaluate(destinations: str, latest_ok: bool, latest: str, now: float) -> CheckResult:
@@ -32,12 +31,12 @@ def _evaluate(destinations: str, latest_ok: bool, latest: str, now: float) -> Ch
     count = len(re.findall(r"^\s*Name\s*:", destinations, re.MULTILINE))
     if count == 0:
         return CheckResult(NAME, CheckStatus.WARNING,
-                           f"Could not interpret `tmutil destinationinfo` output: {destinations.strip()[:200]!r}", _MANUAL)
+                           f"Could not interpret `tmutil destinationinfo` output: {destinations.strip()[:200]!r}", "Run `tmutil destinationinfo` and `tmutil latestbackup` yourself in Terminal to check manually.")
     stamp = _STAMP_RE.search(latest) if latest_ok else None
     if stamp is None:
         return CheckResult(NAME, CheckStatus.WARNING,
                            f"{count} destination(s) configured, but the latest backup could not be determined "
-                           "(destination not mounted or no completed backup).", _MANUAL)
+                           "(destination not mounted or no completed backup).", "Run `tmutil destinationinfo` and `tmutil latestbackup` yourself in Terminal to check manually.")
     taken = datetime.strptime(stamp.group(1), "%Y-%m-%d-%H%M%S").timestamp()
     age_days = (now - taken) / 86400
     message = (f"{count} destination(s); latest backup {age_days:.0f} day(s) ago. "
@@ -51,7 +50,7 @@ def _evaluate(destinations: str, latest_ok: bool, latest: str, now: float) -> Ch
 def check_backup(now: Optional[float] = None) -> CheckResult:
     info = run(["/usr/bin/tmutil", "destinationinfo"], timeout=15.0)
     if info.returncode is None:
-        return CheckResult(NAME, CheckStatus.WARNING, f"Could not run `tmutil destinationinfo` ({info.stderr.strip()}).", _MANUAL)
+        return CheckResult(NAME, CheckStatus.WARNING, f"Could not run `tmutil destinationinfo` ({info.stderr.strip()}).", "Run `tmutil destinationinfo` and `tmutil latestbackup` yourself in Terminal to check manually.")
     text = info.stdout + info.stderr
     latest = run(["/usr/bin/tmutil", "latestbackup"], timeout=15.0) if "no destinations" not in text.lower() else None
     return _evaluate(text, bool(latest and latest.returncode == 0), latest.stdout if latest else "",

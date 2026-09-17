@@ -20,7 +20,6 @@ from secure.checks._shell import run
 from secure.checks.models import CheckResult, CheckStatus
 
 NAME = "Firmware and boot security"
-_MANUAL = "Run `system_profiler SPHardwareDataType SPiBridgeDataType` yourself in Terminal to check manually."
 
 
 def _evaluate(stdout: str) -> CheckResult:
@@ -29,16 +28,16 @@ def _evaluate(stdout: str) -> CheckResult:
         hardware = (data.get("SPHardwareDataType") or [{}])[0]
         bridge = (data.get("SPiBridgeDataType") or [{}])[0]
     except (ValueError, AttributeError, IndexError, TypeError):
-        return CheckResult(NAME, CheckStatus.WARNING, "Could not read system_profiler output.", _MANUAL)
+        return CheckResult(NAME, CheckStatus.WARNING, "Could not read system_profiler output.", "Run `system_profiler SPHardwareDataType SPiBridgeDataType` yourself in Terminal to check manually.")
     firmware = hardware.get("boot_rom_version")
     if not firmware:
-        return CheckResult(NAME, CheckStatus.WARNING, "system_profiler reported no firmware version.", _MANUAL)
+        return CheckResult(NAME, CheckStatus.WARNING, "system_profiler reported no firmware version.", "Run `system_profiler SPHardwareDataType SPiBridgeDataType` yourself in Terminal to check manually.")
     loader = hardware.get("os_loader_version", "unknown")
     level = bridge.get("ibridge_secure_boot")
     if not level:
         return CheckResult(NAME, CheckStatus.WARNING,
                            f"Firmware {firmware}, OS loader {loader}. No Secure Boot policy reported "
-                           "(Intel Mac or unreadable), so boot security was not verified.", _MANUAL)
+                           "(Intel Mac or unreadable), so boot security was not verified.", "Run `system_profiler SPHardwareDataType SPiBridgeDataType` yourself in Terminal to check manually.")
     concerns = []
     if level != "Full Security":
         concerns.append(f"Secure Boot is '{level}'")
@@ -60,5 +59,5 @@ def check_boot_security() -> CheckResult:
     result = run(["/usr/sbin/system_profiler", "-json", "SPHardwareDataType", "SPiBridgeDataType"], timeout=30.0)
     if result.returncode is None or not result.ok:
         return CheckResult(NAME, CheckStatus.WARNING,
-                           f"Could not run system_profiler ({(result.stderr or 'exit ' + str(result.returncode)).strip()}).", _MANUAL)
+                           f"Could not run system_profiler ({(result.stderr or 'exit ' + str(result.returncode)).strip()}).", "Run `system_profiler SPHardwareDataType SPiBridgeDataType` yourself in Terminal to check manually.")
     return _evaluate(result.stdout)

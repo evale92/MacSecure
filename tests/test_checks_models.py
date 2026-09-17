@@ -54,6 +54,8 @@ _EXPECTED_MODULES = {
     "sip.py",
     "software_update.py",
     "xprotect.py",
+    "backup.py",
+    "boot_security.py",
 }
 
 # Total construction sites at the same revision. A whole-package walk

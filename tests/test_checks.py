@@ -31,6 +31,7 @@ from secure.checks.software_update import (
     _evaluate_pending_updates,
     check_automatic_updates,
 )
+from secure.checks.backup import _evaluate as _backup_evaluate, check_backup
 from secure.checks.xprotect import check_xprotect
 
 # ---------- FileVault ----------
@@ -251,6 +252,7 @@ def test_single_checks_roster_is_exactly_the_posture_check_set():
         check_sip,
         check_automatic_updates,
         check_xprotect,
+        check_backup,
     ]
 
 
@@ -284,3 +286,27 @@ def test_run_all_checks_quick_skips_pending_updates(monkeypatch):
     run_all_checks(include_pending_updates=False)
 
     assert calls == []
+
+
+# ---------- Time Machine backup ----------
+
+
+def test_backup_none_configured_is_a_warning():
+    r = _backup_evaluate("tmutil: No destinations configured.\n", False, "", 2_000_000_000.0)
+    assert r.status == CheckStatus.WARNING and "No Time Machine" in r.message
+
+
+def test_backup_recent_passes_and_never_claims_encryption_was_checked():
+    now = 1_789_600_000.0
+    r = _backup_evaluate("====\nName : Backups\nKind : Local\n", True,
+                         "/Volumes/.timemachine/x/2026-09-15-120000.backup/2026-09-15-120000.backup\n", now)
+    assert r.status == CheckStatus.PASS and "not verified" in r.message
+
+
+def test_backup_stale_or_unknown_latest_is_a_warning():
+    now = 1_789_600_000.0
+    info = "Name : Backups\nKind : Network\n"
+    assert _backup_evaluate(info, True, "/x/2026-08-01-120000.backup\n", now).status == CheckStatus.WARNING
+    unknown = _backup_evaluate(info, False, "", now)
+    assert unknown.status == CheckStatus.WARNING and "could not be determined" in unknown.message
+    assert _backup_evaluate("garbage", False, "", now).status == CheckStatus.WARNING

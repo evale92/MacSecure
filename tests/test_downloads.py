@@ -46,6 +46,13 @@ def test_flags_are_deterministic_string_rules():
     assert flags_for(_event("https://example.com/report.pdf", "https://example.com/")) == []
 
 
+def test_plain_http_origin_flags_even_when_the_data_url_is_https():
+    # The page that led to the download is part of the event: an https file
+    # linked from a plain-http page was still reachable by a network rewrite.
+    assert flags_for(_event("https://cdn.example.com/report.pdf", "http://example.com/")) == ["plain_http"]
+    assert flags_for(_event("https://cdn.example.com/report.pdf", "HTTP://example.com/")) == ["plain_http"]
+
+
 def test_history_skips_url_less_rows_orders_newest_first_and_flags(tmp_path):
     db = _db(tmp_path / "q", [
         ("a", 3600, "Safari", "https://example.com/a.pdf", ""),

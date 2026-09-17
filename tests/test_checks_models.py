@@ -53,6 +53,7 @@ _EXPECTED_MODULES = {
     "sharing.py",
     "sip.py",
     "software_update.py",
+    "xprotect.py",
 }
 
 # Total construction sites at the same revision. A whole-package walk

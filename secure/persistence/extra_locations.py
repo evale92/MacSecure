@@ -40,10 +40,20 @@ a LaunchAgent/LaunchDaemon, and each is readable as a normal user:
                           execution: a key someone added logs them back in
                           without a password. Identity is the key's SHA256
                           fingerprint, so a replaced key is a new entry.
+    system_extension      `/usr/bin/systemextensionsctl list`: network,
+                          endpoint-security and driver extensions, the
+                          modern replacement for kexts and a favourite of
+                          traffic-intercepting software
+    configuration_profile `/usr/bin/profiles list` (this user's profiles)
+                          plus `/usr/bin/profiles status -type enrollment`
+                          (DEP/MDM enrollment), since a profile or an MDM
+                          can install certificates, proxies and managed
+                          settings without an app to show for it
 
 **Not covered, stated rather than hidden.** /usr/lib/cron/tabs (every
 user's crontab) is root-only on every Mac, so only the scanning user's
-own crontab is visible. That is a privilege boundary this sensor never
+own crontab is visible, and computer-level configuration profiles need
+root to list (enrollment status does not, so an MDM is still seen). That is a privilege boundary this sensor never
 crosses (no sudo), not a read that failed, so it is documented here
 instead of being recorded as a scan error on every run forever.
 
@@ -91,6 +101,8 @@ _EXTRA_LOCATIONS: Dict[str, Tuple[str, List[Path]]] = {
     "system_crontab": ("files", [Path("/etc/crontab")]),
     "at_job": ("children", [Path("/usr/lib/cron/jobs")]),
     "cron_job": ("crontab", [Path("/usr/bin/crontab")]),
+    "system_extension": ("sysext", [Path("/usr/bin/systemextensionsctl")]),
+    "configuration_profile": ("profiles", [Path("/usr/bin/profiles")]),
     "ssh_authorized_key": ("authorized_keys", [_HOME / ".ssh" / "authorized_keys", _HOME / ".ssh" / "authorized_keys2"]),
 }
 
@@ -171,9 +183,69 @@ def _authorized_key_entries(kind: str, path: Path) -> Tuple[List[Dict[str, objec
     return entries, []
 
 
+# Matched from the team id on: the enabled/active columns are "*" or blank.
+_SYSEXT_ROW_RE = re.compile(r"(\S+)\s+(\S+)\s+\(([^)]*)\)\s+(.*?)\s+\[([^\]]*)\]\s*$")
+_PROFILE_ID_RE = re.compile(r"^(\S+?)\[\d+\]\s+attribute:\s+profileIdentifier:\s+(\S+)")
+
+
+def _plain_entry(kind: str, path: str, label: str) -> Dict[str, object]:
+    return {"kind": kind, "path": path, "label": label, "program_path": None,
+            "run_at_load": None, "keep_alive": None}
+
+
+def _sysext_entries(kind: str, tool: Path) -> Tuple[List[Dict[str, object]], List[str]]:
+    result = run([str(tool), "list"], timeout=10.0)
+    if not result.ok:
+        return [], [f"{kind}: {tool} list: {(result.stderr or 'exit ' + str(result.returncode)).strip()}"]
+    lines = result.stdout.splitlines()
+    declared = re.match(r"^\s*(\d+) extension\(s\)", lines[0]) if lines else None
+    entries = []
+    for line in lines:
+        row = _SYSEXT_ROW_RE.search(line)
+        if row and row.group(1) != "teamID":
+            team, bundle_id, version, name, state = row.groups()
+            entries.append(_plain_entry(kind, f"sysext:{team}:{bundle_id}", f"{name} {bundle_id} ({version}) [{state}]"))
+    if declared is None or int(declared.group(1)) != len(entries):
+        # The tool said how many it has; not finding that many rows means the
+        # output format moved, and a short list must not pass as complete.
+        return entries, [f"{kind}: {tool} list: parsed {len(entries)} row(s), tool declared "
+                         f"{declared.group(1) if declared else 'no count'}"]
+    return entries, []
+
+
+def _profile_entries(kind: str, tool: Path) -> Tuple[List[Dict[str, object]], List[str]]:
+    entries, problems = [], []
+    listed = run([str(tool), "list"], timeout=10.0)
+    if listed.ok:
+        for line in listed.stdout.splitlines():
+            match = _PROFILE_ID_RE.match(line.strip())
+            if match:
+                scope, identifier = match.groups()
+                entries.append(_plain_entry(kind, f"profile:{scope}:{identifier}", f"{identifier} ({scope})"))
+    else:
+        problems.append(f"{kind}: {tool} list: {(listed.stderr or 'exit ' + str(listed.returncode)).strip()}")
+    status = run([str(tool), "status", "-type", "enrollment"], timeout=10.0)
+    if status.ok:
+        for line in status.stdout.splitlines():
+            key, _, value = line.partition(":")
+            if value.strip().lower().startswith("yes"):
+                entries.append(_plain_entry(kind, f"enrollment:{key.strip()}", line.strip()))
+    else:
+        problems.append(f"{kind}: {tool} status: {(status.stderr or 'exit ' + str(status.returncode)).strip()}")
+    return entries, problems
+
+
 def _entry(kind: str, path: Path, label: str) -> Dict[str, object]:
     return {"kind": kind, "path": str(path), "label": label, "program_path": str(path),
             "run_at_load": None, "keep_alive": None}
+
+
+_READERS = {
+    "crontab": _crontab_entries,
+    "authorized_keys": _authorized_key_entries,
+    "sysext": _sysext_entries,
+    "profiles": _profile_entries,
+}
 
 
 def scan_extra_locations() -> Tuple[List[Dict[str, object]], List[str]]:
@@ -185,8 +257,8 @@ def scan_extra_locations() -> Tuple[List[Dict[str, object]], List[str]]:
     unavailable: List[str] = []
     for kind, (mode, locations) in _EXTRA_LOCATIONS.items():
         for location in locations:
-            if mode in ("crontab", "authorized_keys"):
-                reader = _crontab_entries if mode == "crontab" else _authorized_key_entries
+            if mode in _READERS:
+                reader = _READERS[mode]
                 found, problems = reader(kind, location)
                 entries.extend(found)
                 unavailable.extend(problems)

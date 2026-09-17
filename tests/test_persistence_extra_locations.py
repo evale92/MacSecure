@@ -197,3 +197,64 @@ def test_new_authorized_key_raises_a_high_persistence_alert(tmp_path: Path, monk
         alerts = list_persistence_alerts(db.conn)
     assert [(a.kind, a.severity) for a in first.alerts] == [("new_persistence_entry", "high")]
     assert len(alerts) == 1 and alerts[0].target_type == "ssh_authorized_key"
+
+
+# ---------- system extensions and configuration profiles (J-0637) ----------
+
+_SYSEXT_OUT = (
+    "2 extension(s)\n"
+    "--- com.apple.system_extension.network_extension\n"
+    "enabled\tactive\tteamID\tbundleID (version)\tname\t[state]\n"
+    "*\t*\tABCDE12345\tcom.example.vpn.tunnel (2.1/210)\tExample Tunnel\t[activated enabled]\n"
+    "--- com.apple.system_extension.endpoint_security\n"
+    "enabled\tactive\tteamID\tbundleID (version)\tname\t[state]\n"
+    "\t\tZZZZZ99999\tcom.example.es (1.0/1)\tExample ES\t[terminated waiting to uninstall on reboot]\n"
+)
+
+
+def _fake_tools(monkeypatch, outputs):
+    def fake_run(args, timeout=5.0):
+        return outputs[tuple(args[1:])]
+    monkeypatch.setattr(extra, "run", fake_run)
+
+
+def test_system_extensions_are_listed_including_rows_with_blank_flags(monkeypatch):
+    _fake_tools(monkeypatch, {("list",): ShellResult(True, _SYSEXT_OUT, "", 0)})
+    monkeypatch.setattr(extra, "_EXTRA_LOCATIONS", {"system_extension": ("sysext", [Path("/usr/bin/systemextensionsctl")])})
+    entries, unavailable = extra.scan_extra_locations()
+    assert unavailable == []
+    assert [e["path"] for e in entries] == ["sysext:ABCDE12345:com.example.vpn.tunnel", "sysext:ZZZZZ99999:com.example.es"]
+    assert "Example Tunnel" in entries[0]["label"] and "[activated enabled]" in entries[0]["label"]
+
+
+def test_system_extension_count_mismatch_is_unavailable_not_a_short_clean_list(monkeypatch):
+    _fake_tools(monkeypatch, {("list",): ShellResult(True, "3 extension(s)\nsomething new\n", "", 0)})
+    monkeypatch.setattr(extra, "_EXTRA_LOCATIONS", {"system_extension": ("sysext", [Path("/usr/bin/systemextensionsctl")])})
+    entries, unavailable = extra.scan_extra_locations()
+    assert entries == [] and len(unavailable) == 1 and "declared 3" in unavailable[0]
+
+
+def test_profiles_and_mdm_enrollment_become_entries(monkeypatch):
+    _fake_tools(monkeypatch, {
+        ("list",): ShellResult(True, "erickvale[1] attribute: profileIdentifier: com.evil.proxy\nThere are 1 configuration profiles installed for user 'erickvale'\n", "", 0),
+        ("status", "-type", "enrollment"): ShellResult(True, "Enrolled via DEP: No\nMDM enrollment: Yes (User Approved)\n", "", 0),
+    })
+    monkeypatch.setattr(extra, "_EXTRA_LOCATIONS", {"configuration_profile": ("profiles", [Path("/usr/bin/profiles")])})
+    entries, unavailable = extra.scan_extra_locations()
+    assert unavailable == []
+    assert [e["path"] for e in entries] == ["profile:erickvale:com.evil.proxy", "enrollment:MDM enrollment"]
+
+
+def test_no_profiles_is_empty_and_a_failed_profiles_tool_is_unavailable(monkeypatch):
+    monkeypatch.setattr(extra, "_EXTRA_LOCATIONS", {"configuration_profile": ("profiles", [Path("/usr/bin/profiles")])})
+    _fake_tools(monkeypatch, {
+        ("list",): ShellResult(True, "There are no configuration profiles installed for user 'x'\n", "", 0),
+        ("status", "-type", "enrollment"): ShellResult(True, "Enrolled via DEP: No\nMDM enrollment: No\n", "", 0),
+    })
+    assert extra.scan_extra_locations() == ([], [])
+    _fake_tools(monkeypatch, {
+        ("list",): ShellResult(False, "", "command timed out", None),
+        ("status", "-type", "enrollment"): ShellResult(False, "", "command timed out", None),
+    })
+    entries, unavailable = extra.scan_extra_locations()
+    assert entries == [] and len(unavailable) == 2

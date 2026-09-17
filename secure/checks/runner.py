@@ -21,6 +21,7 @@ from secure.checks.os_version import check_os_version
 from secure.checks.sharing import check_sharing_services
 from secure.checks.sip import check_sip
 from secure.checks.software_update import check_automatic_updates, check_pending_updates
+from secure.checks.xprotect import check_xprotect
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ _SINGLE_CHECKS = [
     check_gatekeeper,
     check_sip,
     check_automatic_updates,
+    check_xprotect,
 ]
 
 

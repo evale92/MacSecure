@@ -31,6 +31,7 @@ from secure.checks.software_update import (
     _evaluate_pending_updates,
     check_automatic_updates,
 )
+from secure.checks.xprotect import check_xprotect
 
 # ---------- FileVault ----------
 
@@ -249,6 +250,7 @@ def test_single_checks_roster_is_exactly_the_posture_check_set():
         check_gatekeeper,
         check_sip,
         check_automatic_updates,
+        check_xprotect,
     ]
 
 

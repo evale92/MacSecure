@@ -306,8 +306,11 @@ def test_reset_preserves_feature_activity_and_anomaly_events(tmp_path: Path):
 def test_reset_returns_maturity_to_no_baseline_and_rebuilds_forward(tmp_path: Path):
     with Database(tmp_path / "test.db") as db:
         key = process_key("/usr/bin/curl")
+        # Local relative base, not the module NOW: a fixed span ages into
+        # STALE before the ESTABLISHED assertion (see maturity.py).
+        base = datetime.now(timezone.utc) - timedelta(days=26)
         for day in range(25):  # enough to reach ESTABLISHED
-            record_gap_observation(db.conn, f"run{day}", PROCESS, key, _iso(NOW + timedelta(days=day)))
+            record_gap_observation(db.conn, f"run{day}", PROCESS, key, _iso(base + timedelta(days=day)))
         mature = find_baseline_entity(db.conn, "process", key)
         assert mature.maturity_state == "established"
 
@@ -317,7 +320,7 @@ def test_reset_returns_maturity_to_no_baseline_and_rebuilds_forward(tmp_path: Pa
 
         # A new observation after reset builds forward from zero, not
         # from the preserved raw baseline_activity history.
-        record_gap_observation(db.conn, "run_after", PROCESS, key, _iso(NOW + timedelta(days=25)))
+        record_gap_observation(db.conn, "run_after", PROCESS, key, _iso(base + timedelta(days=25)))
         rebuilt = find_baseline_entity(db.conn, "process", key)
         assert rebuilt.eligible_weight_total == 1.0
 

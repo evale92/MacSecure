@@ -233,8 +233,10 @@ def test_baseline_reset_one_entity(tmp_path: Path, monkeypatch):
     cfg = _bootstrap_to_tmp(monkeypatch, tmp_path)
     key = process_key("/usr/bin/curl")
     with Database(cfg.database_path()) as db:
+        # Relative dates: a fixed span ages into STALE (see maturity.py).
+        base = datetime.now(timezone.utc) - timedelta(days=25)
         for day in range(25):
-            record_gap_observation(db.conn, f"run{day}", PROCESS, key, f"2026-08-{1+day:02d}T00:00:00+00:00")
+            record_gap_observation(db.conn, f"run{day}", PROCESS, key, (base + timedelta(days=day)).isoformat())
         assert find_baseline_entity(db.conn, "process", key).maturity_state == "established"
 
     rc, stdout = _run_capturing_stdout(
@@ -280,10 +282,11 @@ def test_baseline_reset_all_without_yes_is_a_dry_preview(tmp_path: Path, monkeyp
 def test_baseline_reset_all_with_yes_resets_everything_in_scope(tmp_path: Path, monkeypatch):
     cfg = _bootstrap_to_tmp(monkeypatch, tmp_path)
     with Database(cfg.database_path()) as db:
+        base = datetime.now(timezone.utc) - timedelta(days=25)
         for day in range(25):
             record_gap_observation(
                 db.conn, f"run{day}", PROCESS, process_key("/usr/bin/curl"),
-                f"2026-08-{1+day:02d}T00:00:00+00:00",
+                (base + timedelta(days=day)).isoformat(),
             )
         get_or_create_baseline_entity(db.conn, "wifi", "HomeNetwork")
 

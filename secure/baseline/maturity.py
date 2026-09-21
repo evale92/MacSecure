@@ -61,10 +61,12 @@ def compute_maturity(
 
     All *_at parameters are ISO-8601 strings (datetime.isoformat()),
     matching every timestamp already stored elsewhere in this project.
-    `now` is an explicit parameter, never read internally from
-    datetime.now() — this keeps the function deterministic and
-    testable without monkeypatching the clock (Phase 14 approval item
-    20, "deterministic scoring").
+    `now` is an explicit parameter so callers and tests can pin the
+    clock (Phase 14 approval item 20, "deterministic scoring"). When it
+    is omitted the function falls back to datetime.now(timezone.utc),
+    and the production callers in history.py rely on that fallback, so
+    their results depend on the real date. Tests that assert a maturity
+    state must seed timestamps relative to now or pass `now` explicitly.
 
     Order of evaluation matters:
       1. No eligible history at all -> NO_BASELINE, regardless of any

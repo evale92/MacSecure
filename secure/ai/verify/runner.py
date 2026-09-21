@@ -43,7 +43,10 @@ from secure.ai.verify.operations import (
 from secure.config import AppConfig
 from secure.storage.models import add_ai_verification_run, complete_ai_verification_run
 
-DEFAULT_PYTEST_TIMEOUT = 120.0
+# Both run the whole tests/ suite, which takes ~200-310s on the target
+# Mac (2540 tests, 2026-09-21). Below that, the step always ends as
+# "timeout" instead of a verdict. Keep ~2x headroom over a full run.
+DEFAULT_PYTEST_TIMEOUT = 600.0
 
 # Statuses where the OPERATION ran to completion and returned real
 # information, whether or not the thing it verified turned out to be

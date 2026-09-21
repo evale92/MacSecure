@@ -54,7 +54,10 @@ ALL_TRIGGER_KINDS = (
 )
 
 _MAX_DETAIL_CHARS = 4000
-_DEFAULT_PYTEST_TIMEOUT = 180.0
+# Both run the whole tests/ suite, which takes ~200-310s on the target
+# Mac (2540 tests, 2026-09-21). Below that, the step always ends as
+# "timeout" instead of a verdict. Keep ~2x headroom over a full run.
+_DEFAULT_PYTEST_TIMEOUT = 600.0
 
 
 @dataclass(frozen=True)

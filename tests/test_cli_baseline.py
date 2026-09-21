@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import io
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from secure import cli
@@ -63,7 +64,9 @@ def test_baseline_status_reflects_entities(tmp_path: Path, monkeypatch):
     cfg = _bootstrap_to_tmp(monkeypatch, tmp_path)
     key = process_key("/usr/bin/curl")
     with Database(cfg.database_path()) as db:
-        record_gap_observation(db.conn, "run1", PROCESS, key, "2026-08-19T00:00:00+00:00")
+        # Relative date: a fixed one ages into STALE (see maturity.py).
+        seen = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        record_gap_observation(db.conn, "run1", PROCESS, key, seen)
 
     rc, stdout = _run_capturing_stdout(cli.cmd_baseline_status, _ns())
     assert rc == 0

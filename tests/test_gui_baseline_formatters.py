@@ -44,6 +44,7 @@ Run with:  pytest tests/test_gui_baseline_formatters.py
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from secure.baseline import engine
@@ -69,7 +70,10 @@ from secure_gui.data_access import (
     list_all_anomalies,
 )
 
-NOW = "2026-08-19T12:00:00+00:00"
+# Relative to the real clock: maturity compares last-seen against
+# datetime.now() (secure/baseline/maturity.py), so a fixed date here
+# silently turns into STALE once it is more than STALE_AFTER_DAYS old.
+NOW = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
 
 
 def _seed_one_anomaly(conn) -> None:

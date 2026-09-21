@@ -20,6 +20,7 @@ Run with:  pytest
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from secure.baseline import engine
@@ -251,7 +252,10 @@ def test_correlation_row_falls_back_gracefully_for_unmapped_member_module(tmp_pa
 
 # ---------- Phase 14.5 Stage D: Baseline & Anomalies ----------
 
-NOW = "2026-08-19T12:00:00+00:00"
+# Relative to the real clock: maturity compares last-seen against
+# datetime.now() (secure/baseline/maturity.py), so a fixed date here
+# silently turns into STALE once it is more than STALE_AFTER_DAYS old.
+NOW = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
 
 
 def test_fetch_baseline_overview_empty_db(tmp_path: Path):

@@ -15,6 +15,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+import pytest
+
 from secure.ai.base import STATUS_OK as PSTATUS_OK
 from secure.ai.base import ProviderCompletionResult, ProviderIdentity
 from secure.ai.changes import notify as notify_module
@@ -255,6 +257,7 @@ def test_propose_simplification_no_provider_creates_no_change_request(tmp_path: 
     assert outcome.change_request is None
 
 
+@pytest.mark.usefixtures("stub_verification_pytest")
 def test_propose_simplification_full_pipeline_creates_pending_cr(tmp_path: Path, monkeypatch):
     import secure.ai.changes.workflow as workflow_module
 
@@ -282,6 +285,7 @@ def test_propose_simplification_full_pipeline_creates_pending_cr(tmp_path: Path,
     assert outcome.verification is not None
 
 
+@pytest.mark.usefixtures("stub_verification_pytest")
 def test_propose_simplification_never_auto_approves(tmp_path: Path, monkeypatch):
     # Even when both models "agree," the resulting change request must
     # still be 'pending' — agreement between the two models is

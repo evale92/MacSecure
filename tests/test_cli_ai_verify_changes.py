@@ -17,6 +17,8 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+import pytest
+
 from secure import cli
 from secure.ai.base import STATUS_OK as PSTATUS_OK
 from secure.ai.base import ProviderCompletionResult, ProviderIdentity
@@ -144,6 +146,7 @@ def _stub_providers(cfg):
     }
 
 
+@pytest.mark.usefixtures("stub_verification_pytest")
 def test_cmd_ai_changes_propose_then_list_then_show(tmp_path: Path, monkeypatch):
     _bootstrap_to_tmp(monkeypatch, tmp_path)
     import secure.ai.changes.workflow as workflow_module
@@ -168,6 +171,7 @@ def test_cmd_ai_changes_propose_then_list_then_show(tmp_path: Path, monkeypatch)
     assert "To approve:" in show
 
 
+@pytest.mark.usefixtures("stub_verification_pytest")
 def test_cmd_ai_changes_approve_requires_correct_hash(tmp_path: Path, monkeypatch):
     cfg = _bootstrap_to_tmp(monkeypatch, tmp_path)
     import secure.ai.changes.workflow as workflow_module
@@ -198,6 +202,7 @@ def test_cmd_ai_changes_approve_requires_correct_hash(tmp_path: Path, monkeypatc
     assert "approved" in stdout2
 
 
+@pytest.mark.usefixtures("stub_verification_pytest")
 def test_cmd_ai_changes_reject(tmp_path: Path, monkeypatch):
     _bootstrap_to_tmp(monkeypatch, tmp_path)
     import secure.ai.changes.workflow as workflow_module

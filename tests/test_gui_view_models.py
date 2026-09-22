@@ -125,3 +125,48 @@ def test_view_models_imports_with_tkinter_unavailable():
         capture_output=True, text=True, timeout=60,
     )
     assert proc.returncode == 0, proc.stderr
+
+
+# ---------- cr_approve_request (Change Request Center) ----------
+
+
+def _cr_view(*, run_id=None):
+    return SimpleNamespace(
+        cr_id="CR-3", run_id=run_id, revision_hash="abc123", classification="safe", title="Fix widget",
+    )
+
+
+def test_center_approve_of_an_agent_request_goes_through_the_revalidation_gate():
+    from secure_gui.view_models import cr_approve_request
+
+    req = cr_approve_request(_cr_view(run_id="AR-2"))
+
+    # Same route agent_view uses: `secure agent approve <run_id>` re-checks
+    # the worktree diff before approving (orchestrator.revalidate_before_approval).
+    assert req.args == ("agent", "approve", "AR-2", "--cr-id", "CR-3")
+    assert req.label == "Approve Agent Repair Change Request (CR-3)"
+    assert req.confirm_title == "Approve change request"
+    assert "CR-3" in req.confirm_body and "AR-2" in req.confirm_body
+    assert "re-check" in req.confirm_body and "supersede" in req.confirm_body
+
+
+def test_center_approve_of_a_non_agent_request_approves_that_exact_revision():
+    from secure_gui.view_models import cr_approve_request
+
+    req = cr_approve_request(_cr_view(run_id=None))
+
+    assert req.args == ("ai", "changes", "approve", "CR-3", "abc123")
+    assert req.label == "secure ai changes approve CR-3 abc123"
+    assert "abc123" in req.confirm_body
+    # No revalidation runs on this path, so the dialog must not promise one.
+    assert "supersede" not in req.confirm_body
+    assert "refused" in req.confirm_body
+
+
+def test_agent_approve_args_bind_the_approval_to_the_change_request_shown():
+    # `agent approve <run_id>` alone approves whatever request the run links
+    # to at click time, which after a drift is a replacement the operator
+    # never saw. --cr-id makes the CLI refuse unless it is still this one.
+    from secure_gui.view_models import agent_approve_args
+
+    assert agent_approve_args("AR-2", "CR-3") == ("agent", "approve", "AR-2", "--cr-id", "CR-3")

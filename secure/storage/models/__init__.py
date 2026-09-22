@@ -596,6 +596,7 @@ from .agent import (
     complete_agent_repair_run,
     set_agent_repair_run_change_request,
     find_agent_repair_run,
+    find_agent_repair_run_for_change_request,
     list_agent_repair_runs,
     list_agent_repair_runs_for_trigger,
     AgentActionRecord,

@@ -2265,6 +2265,11 @@ def build_parser() -> argparse.ArgumentParser:
         "was proposed. The only way secure/agent/ ever approves anything — see secure/cli/agent.py.",
     )
     agent_approve_parser.add_argument("run_id")
+    agent_approve_parser.add_argument(
+        "--cr-id", default=None,
+        help="Refuse unless the run still links this change request (the one you reviewed). "
+        "The GUI always passes it.",
+    )
     agent_approve_parser.add_argument("--approved-by", default=None)
     agent_approve_parser.set_defaults(func=cmd_agent_approve)
 

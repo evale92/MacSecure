@@ -72,3 +72,65 @@ def alert_mark_request(row: "AlertRow") -> Optional[MarkRequest]:
         args=(*command, str(row.source_id), new_status),
         label=f"Mark Alert Known/Unknown… ({row.module}, via Alerts table)",
     )
+
+
+def agent_approve_args(run_id: str, cr_id: str) -> Tuple[str, ...]:
+    """argv for approving an agent-originated change request through the
+    revalidation gate, bound to the request the operator was shown: the
+    CLI refuses if the run no longer links `cr_id`. Shared by the Change
+    Request Center and Agent -> Repairs."""
+    return ("agent", "approve", run_id, "--cr-id", cr_id)
+
+
+@dataclass(frozen=True)
+class ApproveRequest:
+    """What the Change Request Center's Approve button shows and sends."""
+
+    confirm_title: str
+    confirm_body: str
+    args: Tuple[str, ...]
+    label: str
+
+
+def cr_approve_request(view) -> ApproveRequest:
+    """The Center's Approve request for one pending change request.
+
+    A request a repair run proposed (run_id set) goes through
+    `secure agent approve <run_id>`, the same revalidation gate
+    agent_view uses: it re-checks the worktree diff and supersedes a
+    drifted request instead of approving it. Any other request is
+    approved at exactly its revision hash. Each dialog describes only
+    the check its own route performs.
+    """
+    classification = view.classification or "(unclassified)"
+    closing = "\n\nA passing test result is not authorization. Have you read the diff?"
+    if view.run_id:
+        return ApproveRequest(
+            confirm_title="Approve change request",
+            confirm_body=(
+                f"Approve {view.cr_id}?\n\n"
+                f"Classification: {classification}\n"
+                f"Proposed by:    agent repair run {view.run_id}\n\n"
+                "Secure will first re-check that the repair worktree's current diff still\n"
+                "matches what was proposed. If it has drifted, it will refuse to approve, and\n"
+                "instead supersede this change request and (if the current worktree still\n"
+                "passes re-verification) propose a fresh one for you to review.\n\n"
+                "Approving only records authorization; nothing is applied to the live checkout."
+                + closing
+            ),
+            args=agent_approve_args(view.run_id, view.cr_id),
+            label=f"Approve Agent Repair Change Request ({view.cr_id})",
+        )
+    return ApproveRequest(
+        confirm_title="Approve change request",
+        confirm_body=(
+            f"Approve {view.cr_id}?\n\n"
+            f"Classification: {classification}\n"
+            f"Revision hash:  {view.revision_hash}\n\n"
+            "This approves EXACTLY the revision above. If the change request has been\n"
+            "revised since this window loaded, the approval is refused."
+            + closing
+        ),
+        args=("ai", "changes", "approve", view.cr_id, view.revision_hash),
+        label=f"secure ai changes approve {view.cr_id} {view.revision_hash}",
+    )

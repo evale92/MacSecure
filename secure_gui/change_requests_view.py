@@ -9,13 +9,15 @@ so it narrates into the same console transcript and goes through the
 exact same code path a terminal user would.
 
 This window CANNOT approve anything by itself. Its Approve button is a
-convenience for typing
+convenience for typing the approval command a terminal user would:
 
-    secure ai changes approve <cr_id> <revision_hash>
+    secure agent approve <run_id>                    (a repair run proposed it)
+    secure ai changes approve <cr_id> <revision_hash> (anything else)
 
-with the revision hash taken from the database record rather than
-retyped by hand, and Phase 28's approve_change() still independently
-verifies that hash before doing anything. A human still has to click.
+An agent-originated request must go through `secure agent approve`, the
+revalidation gate that re-checks the worktree diff first (Phase 31); plain
+`ai changes approve` refuses those. The choice and the dialog text live in
+secure_gui/view_models.py's cr_approve_request(). A human still has to click.
 Nothing in secure/agent/ can trigger this window or its buttons.
 
 Where agent_view.py is RUN-centric (one row per repair attempt), this
@@ -33,6 +35,7 @@ from typing import Callable, List
 
 from secure_gui.components import resolve_fonts
 from secure_gui.data_access import fetch_change_request_center_now
+from secure_gui.view_models import cr_approve_request
 
 RunCommand = Callable[[str, List[str], bool], None]
 
@@ -256,23 +259,10 @@ def open_change_requests_window(parent: tk.Misc, *, run_command: RunCommand) -> 
         view = _require_selection()
         if view is None:
             return
-        confirmed = messagebox.askyesno(
-            "Approve change request",
-            f"Approve {view.cr_id}?\n\n"
-            f"Classification: {view.classification or '(unclassified)'}\n"
-            f"Revision hash:  {view.revision_hash}\n\n"
-            "This approves EXACTLY the revision above. If the content has changed since it was\n"
-            "proposed, the request will be superseded instead of approved.\n\n"
-            "A passing test result is not authorization. Have you read the diff?",
-            parent=win,
-        )
-        if not confirmed:
+        req = cr_approve_request(view)
+        if not messagebox.askyesno(req.confirm_title, req.confirm_body, parent=win):
             return
-        run_command(
-            f"secure ai changes approve {view.cr_id} {view.revision_hash}",
-            ["ai", "changes", "approve", view.cr_id, view.revision_hash],
-            False,
-        )
+        run_command(req.label, list(req.args), False)
 
     def _reject() -> None:
         view = _require_selection()

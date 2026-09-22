@@ -19,9 +19,11 @@ unless it still matches the diff the change request was proposed from
 once that passes does it call the real, unchanged `secure ai changes
 approve <cr_id> <revision_hash>` machinery. A human still has to type
 this command themselves; nothing here runs on its own. Plain `secure
-ai changes approve` still works too and is unaffected — this command
-is a stricter path specifically for agent-originated change requests,
-not a replacement for the general one.
+ai changes approve` still approves change requests no repair run
+proposed, but refuses agent-originated ones and points here: every
+agent-originated approval goes through this revalidation gate,
+whichever surface (CLI, Agent -> Repairs, Change Request Center)
+triggers it.
 """
 
 from __future__ import annotations
@@ -148,11 +150,27 @@ def cmd_agent_approve(args: argparse.Namespace) -> int:
     — it reports that the old CR is now superseded and, if
     re-verification of the current worktree state passed, names the
     new replacement CR for the human to separately review and approve
-    (by running this same command again with a fresh run_id lookup, or
-    `secure ai changes approve <new_cr_id> <its revision_hash>`)."""
+    (`secure agent approve <run_id> --cr-id <new_cr_id>`; plain
+    `ai changes approve` refuses agent-originated requests).
+
+    With --cr-id, it first refuses unless the run still links that
+    change request. Without it, a click on a stale screen approves
+    whatever the run links to now, which after a drift is a replacement
+    the operator never saw. Both GUI windows always pass it."""
     cfg = _bootstrap()
     approved_by = args.approved_by or "cli-user"
     with Database(cfg.database_path()) as db:
+        expected_cr = getattr(args, "cr_id", None)
+        if expected_cr:
+            run = find_agent_repair_run(db.conn, args.run_id)
+            linked = run.change_request_id if run is not None else None
+            if linked != expected_cr:
+                print(
+                    f"REFUSED: {args.run_id} now links change request {linked or '(none)'}, "
+                    f"not {expected_cr}. It was superseded or replaced since you last looked. "
+                    "Review the current one, then approve it by its own id."
+                )
+                return 1
         try:
             revalidation = revalidate_before_approval(db.conn, cfg, args.run_id)
         except ValueError as exc:
@@ -173,10 +191,19 @@ def cmd_agent_approve(args: argparse.Namespace) -> int:
                 if new_cr is not None:
                     print(f"Review it, then approve it explicitly:")
                     print(f"  secure ai changes show {new_cr.cr_id}")
-                    print(f"  secure agent approve {args.run_id}   (will now revalidate against {new_cr.cr_id})")
+                    print(f"  secure agent approve {args.run_id} --cr-id {new_cr.cr_id}")
             else:
                 print("Re-verification of the current worktree state did not pass either — "
                       "no replacement change request was created. Investigate manually.")
+            return 1
+
+        if expected_cr and revalidation.old_cr_id != expected_cr:
+            # Revalidation re-reads the run; if it was relinked in between,
+            # do not approve a request the operator did not name.
+            print(
+                f"REFUSED: revalidation checked {revalidation.old_cr_id}, not {expected_cr}. "
+                "Nothing was approved; review the current change request and try again."
+            )
             return 1
 
         cr = find_ai_change_request(db.conn, revalidation.old_cr_id)
@@ -337,7 +364,12 @@ def cmd_agent_center_show(args: argparse.Namespace) -> int:
             print(read_diff(view))
         print("\nA passing verification result is NOT authorization, and a second model raising")
         print("no blocking findings is not an approval. Approve with:")
-        print(f"  secure ai changes approve {view.cr_id} {view.revision_hash}")
+        if view.run_id:
+            # Agent-originated: the revalidation gate, never plain
+            # `ai changes approve` (which refuses these).
+            print(f"  secure agent approve {view.run_id} --cr-id {view.cr_id}")
+        else:
+            print(f"  secure ai changes approve {view.cr_id} {view.revision_hash}")
     return 0
 
 

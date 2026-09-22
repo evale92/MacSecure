@@ -19,6 +19,7 @@ from secure.ai.verify.runner import run_default_verification_suite, run_operatio
 from secure.investigate.entity import EntityRef
 from secure.storage.database import Database
 from secure.storage.models import (
+    find_agent_repair_run_for_change_request,
     find_ai_analyst_query,
     find_ai_change_request,
     find_ai_verification_run,
@@ -457,6 +458,18 @@ def cmd_ai_changes_approve(args: argparse.Namespace) -> int:
     cfg = _bootstrap()
     approved_by = _resolve_approved_by(args)
     with Database(cfg.database_path()) as db:
+        # A change request a repair run proposed must be approved through
+        # `secure agent approve <run_id>`, which first re-checks that the
+        # worktree diff still matches (revalidate_before_approval). This
+        # path only compares the revision hash, so it refuses them.
+        run = find_agent_repair_run_for_change_request(db.conn, args.cr_id)
+        if run is not None:
+            print(
+                f"REFUSED: {args.cr_id} was proposed by agent repair run {run.run_id}. "
+                f"Approve it with `secure agent approve {run.run_id} --cr-id {args.cr_id}`, which re-checks "
+                "the worktree diff before approving."
+            )
+            return 1
         try:
             cr = approve_change(db.conn, args.cr_id, revision_hash=args.revision_hash, approved_by=approved_by)
         except RevisionMismatchError as exc:

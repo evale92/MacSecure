@@ -14,11 +14,10 @@ and goes through the exact same code path a terminal user would.
 
 This window can never approve its own output. "Approve" here is
 nothing more than a convenience for typing
-`secure ai changes approve <cr_id> <revision_hash>` — the exact
-revision hash shown come from the database record itself (never
-retyped by hand), and Phase 28's approve_change() still independently
-verifies it matches before doing anything. A human still has to click
-the button; nothing in this package or secure/agent/ can trigger it.
+`secure agent approve <run_id> --cr-id <cr_id>`: the revalidation gate,
+which re-checks the worktree diff first and refuses if the run no longer
+links the change request shown. A human still has to click the button;
+nothing in this package or secure/agent/ can trigger it.
 """
 
 from __future__ import annotations
@@ -29,6 +28,7 @@ from typing import Callable, List
 
 from secure_gui.components import resolve_fonts
 from secure_gui.data_access import AgentRepairsOverview, fetch_agent_actions_now, fetch_agent_repairs_overview_now
+from secure_gui.view_models import agent_approve_args
 
 RunCommand = Callable[[str, List[str], bool], None]
 
@@ -426,7 +426,7 @@ def open_agent_window(parent: tk.Misc, *, run_command: RunCommand) -> tk.Topleve
         # for agent-originated change requests.
         run_command(
             f"Approve Agent Repair Change Request ({cr.cr_id})",
-            ["agent", "approve", run.run_id],
+            list(agent_approve_args(run.run_id, cr.cr_id)),
             False,
         )
 

@@ -316,6 +316,21 @@ def find_agent_repair_run(conn: sqlite3.Connection, run_id: str) -> "Optional[Ag
     return _row_to_record(row) if row else None
 
 
+def find_agent_repair_run_for_change_request(
+    conn: sqlite3.Connection, cr_id: str
+) -> "Optional[AgentRepairRunRecord]":
+    """The repair run that proposed change request `cr_id`, or None if no
+    run did. An exact match on the stored link, not a scan of recent runs:
+    this decides whether a change request must go through the agent's
+    revalidation gate, so it must not miss an old run. A change request
+    whose run link was never written looks like a non-agent one."""
+    row = conn.execute(
+        "SELECT * FROM agent_repair_runs WHERE change_request_id = ? ORDER BY id DESC LIMIT 1",
+        (cr_id,),
+    ).fetchone()
+    return _row_to_record(row) if row else None
+
+
 def list_agent_repair_runs(
     conn: sqlite3.Connection, *, status: "Optional[str]" = None, limit: int = 50
 ) -> "list[AgentRepairRunRecord]":

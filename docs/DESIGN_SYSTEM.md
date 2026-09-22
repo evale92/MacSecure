@@ -414,7 +414,8 @@ secure_gui/
                        SIGNAL_MODULE_LABELS.
     view_models.py      Pure, and guard-tested as such: no tkinter,
                        storage or subprocess. Decisions extracted from
-                       the view closures (MarkRequest, mark requests).
+                       the view closures (MarkRequest, mark requests;
+                       ApproveRequest, the Center's approval route).
     alerts_view.py      Tkinter. The Alerts DataTable + EvidencePanel.
 secure_gui.py            Entry-point script. Unchanged responsibilities;
                        now imports tokens/components/alerts_view and

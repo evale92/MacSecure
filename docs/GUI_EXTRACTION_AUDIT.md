@@ -63,21 +63,29 @@ Line numbers are the `def` of the enclosing nested function at `34424de`.
 | A1 | `agent_view.py` `_approve_selected` L390, `_reject_selected` L433 | Identical 3-step eligibility check: no CR on the run / CR not loadable / CR not pending, each with its own message and severity | `repair_cr_check(run, overview, verb) -> (ok, level, message)` |
 | A2 | `agent_view.py` `_reload` L225 | "Ready to run repairs." vs "Not ready: …" from `git_ok`, `tool_available`, `ollama_configured` | `agent_readiness_text(overview)` |
 | A3 | `agent_view.py` `_run_specific` L344 | Trigger-kind validation against `_TRIGGER_KIND_CHOICES` and the `agent run` argv | `specific_trigger_command(kind, ref) -> argv or error` |
-| A4 | `change_requests_view.py` `_approve` L255, `_reject` L277 | Confirmation text and argv; approve must carry exactly `cr_id` + `revision_hash` | `approve_prompt(view)`, `approve_command(view)`, `reject_command(view)` |
+| A4 | `change_requests_view.py` `_approve` L255, `_reject` L277 | Confirmation text and argv. **Approve: done** (`view_models.cr_approve_request`, with the approval-route fix). Reject still inline | `reject_command(view)` |
 | A5 | `baseline_view.py` `_mark` L318, `alerts_view.py` `_mark` L376 | `new_status`, confirmation body, argv, console label (alerts: plus the "no mark action defined" case) | `anomaly_mark_request(row)`, `alert_mark_request(row)` |
 | A6 | `agent_view.py` `_resume_selected` L364 | Status gate (`run.status != "running"` refuses) and `agent resume` argv | `resume_command(run) -> argv or refusal` |
 | A7 | `agent_view.py` `_remove_worktree_selected` L377 | Confirmation text and `agent remove-worktree` argv. **Destructive** (deletes the worktree from disk) | `remove_worktree_prompt(run)`, `remove_worktree_command(run)` |
 | A8 | `agent_view.py` `_run_auto` L332 | Confirmation text and `agent run` argv | `auto_repair_prompt()`, `auto_repair_command()` |
 
-**Routing asymmetry: preserve it, do not "harmonize" it.** The three
-approval paths deliberately use different commands, and extraction tests
-must pin each argv exactly:
+**Approval routing: pin it exactly.** Every approval of an
+agent-originated change request goes through the revalidation gate,
+whichever surface triggers it (fixed 2026-09-22; before that the Center
+sent agent requests to plain `ai changes approve`, which skipped the
+re-check). Extraction tests must pin each argv:
 
-- agent_view approve: `["agent", "approve", run_id]`, routed through the
-  `revalidate_before_approval` gate (comment at agent_view.py L422-426).
+- agent_view approve: `["agent", "approve", run_id, "--cr-id", cr_id]`
+  (`view_models.agent_approve_args`), the `revalidate_before_approval` gate (comment at agent_view.py L422-426).
 - agent_view reject: `["ai", "changes", "reject", cr_id]`.
-- Change Request Center approve: `["ai", "changes", "approve", cr_id,
-  revision_hash]`; reject: `["ai", "changes", "reject", cr_id]`.
+- Change Request Center approve: `["agent", "approve", run_id, "--cr-id",
+  cr_id]` when a
+  repair run proposed the request, otherwise `["ai", "changes", "approve",
+  cr_id, revision_hash]`; built by `view_models.cr_approve_request`.
+  Center reject: `["ai", "changes", "reject", cr_id]`.
+- `secure ai changes approve` itself refuses agent-originated requests,
+  and `agent approve --cr-id` refuses if the run now links a different
+  request (a stale screen after a drift must not approve the replacement).
 
 ### Tier B: display logic, mostly duplicated
 

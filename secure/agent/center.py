@@ -61,9 +61,9 @@ from typing import Optional
 
 from secure.storage.models import (
     find_agent_repair_run,
+    find_agent_repair_run_for_change_request,
     find_ai_change_request,
     list_agent_actions,
-    list_agent_repair_runs,
     list_ai_change_requests,
 )
 
@@ -203,15 +203,11 @@ def _commands_for_run(conn: sqlite3.Connection, run_id: "Optional[str]") -> list
 
 
 def _run_for_change_request(conn: sqlite3.Connection, cr_id: str):
-    """Finds the repair run that proposed `cr_id`, if any. Looked up by
-    scanning recent runs rather than by a new index: the link is
-    already stored on the run (change_request_id), and adding a second
-    index for a screen a human opens a few times a day would be paying
-    schema cost for nothing."""
-    for run in list_agent_repair_runs(conn, limit=500):
-        if run.change_request_id == cr_id:
-            return run
-    return None
+    """Finds the repair run that proposed `cr_id`, if any: an exact match
+    on the link already stored on the run (change_request_id). It used to
+    scan the latest 500 runs, which silently missed older ones; run_id
+    now also decides which approval route the Center uses."""
+    return find_agent_repair_run_for_change_request(conn, cr_id)
 
 
 def build_change_request_view(conn: sqlite3.Connection, cr_id: str) -> "Optional[ChangeRequestView]":

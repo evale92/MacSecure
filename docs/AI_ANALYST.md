@@ -217,6 +217,11 @@ secure ai changes approve <cr-id> <revision-hash> [--approved-by NAME]
 secure ai changes reject <cr-id> [--approved-by NAME]
 ```
 
+`secure ai changes approve` refuses a change request that an agent repair
+run proposed, and names the command to use instead:
+`secure agent approve <run-id>`, which first re-checks that the repair
+worktree's diff still matches what was proposed.
+
 ## Configuration
 
 All new `AppConfig` fields default to disabled/empty — the AI analyst is

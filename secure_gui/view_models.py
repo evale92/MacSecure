@@ -134,3 +134,48 @@ def cr_approve_request(view) -> ApproveRequest:
         args=("ai", "changes", "approve", view.cr_id, view.revision_hash),
         label=f"secure ai changes approve {view.cr_id} {view.revision_hash}",
     )
+
+
+# ---------- command catalog (docs/GUI_ROADMAP.md) ----------
+
+# The GUI kills a job whose timeout expires. Every command not in the
+# catalog keeps this, which is what the GUI always used.
+DEFAULT_TIMEOUT_SECONDS = 60
+
+
+@dataclass(frozen=True)
+class CatalogCommand:
+    """One GUI button's contract with the CLI: its label, the argv after
+    `secure`, whether exit 1 means "found something" rather than
+    "failed", and how long the GUI waits before killing it.
+    tests/test_gui_command_catalog.py parses every entry with the real
+    CLI parser."""
+
+    label: str
+    args: Tuple[str, ...]
+    nonzero_is_finding: bool = False
+    timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS
+
+
+COMMAND_CATALOG: Tuple[CatalogCommand, ...] = (
+    # Read-only. Exit 1 means the quarantine history could not be read.
+    CatalogCommand("Download Provenance (last 30 days)", ("downloads",)),
+    CatalogCommand("Flagged Downloads Only", ("downloads", "--flagged")),
+    # Read-only. Exit 1/2 means a hunt failed. A default 24 h hunt took
+    # 51 s on the target Mac, so it needs more than the default.
+    CatalogCommand("Log Hunt (last 24 hours)", ("loghunt",), timeout_seconds=300),
+)
+
+
+PRUNE_CONFIRM_TITLE = "Prune junk inventory entries"
+PRUNE_CONFIRM_BODY = (
+    "Delete the inventory's junk device records (empty, broadcast and "
+    "multicast entries)?\n\nThis removes rows from the database and cannot "
+    "be undone from the GUI."
+)
+
+
+def confirmed_args(confirm, title: str, body: str, args):
+    """`args` if `confirm(title, body)` returns True, else None (the GUI
+    treats None from a button's argv builder as "cancelled")."""
+    return args if confirm(title, body) else None

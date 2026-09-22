@@ -99,7 +99,8 @@ clicked it versus when it started. Clicking a button while something
 else is running prompts you: stop the running command and run the new
 one immediately, queue the new one to run right after, or don't run
 it. Choosing "stop" sends the running process a terminate signal (no
-sudo, no force-kill unless it ignores that for 60s) rather than
+sudo, no force-kill unless it outlives the command's timeout, 60s by
+default) rather than
 silently letting two commands race each other.
 
 Two buttons touch the network beyond this Mac: the pending-updates
@@ -168,6 +169,13 @@ from secure_gui.performance_view import open_performance_window
 from secure_gui.agent_view import open_agent_window
 from secure_gui.change_requests_view import open_change_requests_window
 from secure_gui.components import confirm_action, mark_state_dialog, resolve_fonts
+from secure_gui.view_models import (
+    COMMAND_CATALOG,
+    DEFAULT_TIMEOUT_SECONDS,
+    PRUNE_CONFIRM_BODY,
+    PRUNE_CONFIRM_TITLE,
+    confirmed_args,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 
@@ -202,6 +210,10 @@ class Command:
     # failed, etc.) — see _execute()'s docstring for the exact
     # distinction.
     nonzero_is_finding: bool = False
+    # Seconds before _execute kills the job. Catalog entries override it
+    # (secure_gui/view_models.py COMMAND_CATALOG); everything else keeps
+    # the long-standing 60 s.
+    timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS
 
 
 @dataclass
@@ -225,7 +237,8 @@ class SecureGUI(tk.Tk):
         # after) can finish out of order and their output would land
         # in the console out of order too — confusing, since the
         # console is supposed to read like a real terminal session.
-        self._job_queue: "queue.Queue[tuple[str, List[str]]]" = queue.Queue()
+        # (label, argv, nonzero_is_finding, timeout_seconds)
+        self._job_queue: "queue.Queue[tuple[str, List[str], bool, int]]" = queue.Queue()
 
         # The worker thread only ever talks back to the GUI through
         # this queue — Tkinter widgets aren't thread-safe, so no
@@ -631,8 +644,14 @@ class SecureGUI(tk.Tk):
             identifier, status = result
             return [py(), "-m", "secure", "inventory", "mark", identifier, status]
 
-        def inventory_prune() -> List[str]:
-            return [py(), "-m", "secure", "inventory", "prune"]
+        def inventory_prune() -> Optional[List[str]]:
+            # It deletes rows, so it asks first (docs/GUI_ROADMAP.md, Q5).
+            return confirmed_args(
+                lambda title, body: confirm_action(self, title=title, body=body, destructive=True),
+                PRUNE_CONFIRM_TITLE,
+                PRUNE_CONFIRM_BODY,
+                [py(), "-m", "secure", "inventory", "prune"],
+            )
 
         def connections_scan() -> List[str]:
             return [py(), "-m", "secure", "connections", "scan"]
@@ -893,9 +912,6 @@ class SecureGUI(tk.Tk):
                 return None
             return [py(), "-m", "secure", "add-note", text]
 
-        def run_tests() -> List[str]:
-            return [py(), "-m", "pytest", "-v"]
-
         return [
             Category(
                 "Run Everything",
@@ -1029,12 +1045,20 @@ class SecureGUI(tk.Tk):
                 ],
             ),
             Category(
-                "Event Log",
-                [Command("Add Note…", add_note)],
+                "Downloads & Logs",
+                [
+                    Command(
+                        entry.label,
+                        (lambda entry=entry: [py(), "-m", "secure", *entry.args]),
+                        nonzero_is_finding=entry.nonzero_is_finding,
+                        timeout_seconds=entry.timeout_seconds,
+                    )
+                    for entry in COMMAND_CATALOG
+                ],
             ),
             Category(
-                "Diagnostics",
-                [Command("Run Test Suite (pytest)", run_tests)],
+                "Event Log",
+                [Command("Add Note…", add_note)],
             ),
         ]
 
@@ -1074,7 +1098,7 @@ class SecureGUI(tk.Tk):
         # buttons get clicked in a row, they'll show up in the console
         # one after another, in the order they were clicked, exactly
         # like typing them into Terminal yourself.
-        self._job_queue.put((cmd.label, args, cmd.nonzero_is_finding))
+        self._job_queue.put((cmd.label, args, cmd.nonzero_is_finding, cmd.timeout_seconds))
 
     def _prompt_busy_conflict(self, new_label: str) -> str:
         """Ask what to do when a command is clicked while another is running.
@@ -1127,12 +1151,18 @@ class SecureGUI(tk.Tk):
         since this thread is not the Tkinter main thread.
         """
         while True:
-            label, args, nonzero_is_finding = self._job_queue.get()
+            label, args, nonzero_is_finding, timeout_seconds = self._job_queue.get()
             self._queue.put(("busy", label))
-            self._execute(label, args, nonzero_is_finding)
+            self._execute(label, args, nonzero_is_finding, timeout_seconds)
             self._queue.put(("idle", ""))
 
-    def _execute(self, label: str, args: List[str], nonzero_is_finding: bool = False) -> None:
+    def _execute(
+        self,
+        label: str,
+        args: List[str],
+        nonzero_is_finding: bool = False,
+        timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
+    ) -> None:
         """Run one command's subprocess to completion and report how it
         went. The final line distinguishes three outcomes, not two:
 
@@ -1166,7 +1196,7 @@ class SecureGUI(tk.Tk):
             self._current_process = proc
 
         try:
-            stdout, stderr = proc.communicate(timeout=60)
+            stdout, stderr = proc.communicate(timeout=timeout_seconds)
         except subprocess.TimeoutExpired:
             proc.kill()
             stdout, stderr = proc.communicate()
@@ -1175,7 +1205,7 @@ class SecureGUI(tk.Tk):
                 (
                     "stderr",
                     f"[{label}] {tokens.run_outcome_text('timeout')} "
-                    f"after 60s — {finish_time}",
+                    f"after {timeout_seconds}s — {finish_time}",
                 )
             )
             with self._process_lock:

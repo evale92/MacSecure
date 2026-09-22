@@ -415,7 +415,10 @@ secure_gui/
     view_models.py      Pure, and guard-tested as such: no tkinter,
                        storage or subprocess. Decisions extracted from
                        the view closures (MarkRequest, mark requests;
-                       ApproveRequest, the Center's approval route).
+                       ApproveRequest, the Center's approval route;
+                       COMMAND_CATALOG, argv + exit contract + timeout
+                       per button, parsed against the real CLI in
+                       tests/test_gui_command_catalog.py).
     alerts_view.py      Tkinter. The Alerts DataTable + EvidencePanel.
 secure_gui.py            Entry-point script. Unchanged responsibilities;
                        now imports tokens/components/alerts_view and

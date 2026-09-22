@@ -147,7 +147,7 @@ def cmd_integrations_osquery_scan(args: argparse.Namespace) -> int:
         "Ran an osquery integration scan",
         extra={"event": "integrations_osquery_scan", "component": "cli"},
     )
-    return 1 if result.discrepancies else 0
+    return 1 if (result.discrepancies or result.failed_queries) else 0
 
 
 def cmd_integrations_osquery_observations(args: argparse.Namespace) -> int:

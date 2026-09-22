@@ -152,14 +152,24 @@ per-command timeout, and `_execute` honours it.
 
 | # | Step | Value / risk | Acceptance gate |
 |---|---|---|---|
-| **G1** | First step (G0 merged in). A Tk-free command catalog in `view_models.py` (label, argv, `nonzero_is_finding`, `timeout_seconds`, default 60). `_execute` honours the entry's timeout. New buttons: `downloads`, `downloads --flagged`, `loghunt`. "Prune Junk Entries" gets a confirmation (Q5). The "Run Test Suite (pytest)" button is removed (Q4). | High value, read-only; the timeout makes the new buttons reliable | New `tests/test_gui_command_catalog.py`: each catalog argv parses with `secure.cli.build_parser()` (catch `SystemExit`) and resolves to the expected handler by `func` identity; `nonzero_is_finding=False` for all three new commands (Invariant 5: exit 1 means the read failed); each timeout is pinned, loghunt's above its measured runtime. A test that `_execute` passes the entry's timeout. Prune: a declined confirm runs nothing, an accepted one runs the exact argv. Optional: pin the existing 66 argv leaves with the AST scan. |
-| **G2** | Integrations: `status`, scans, `alerts`, `rulesets/rules`. **No `mark-alert`** from here: a typed id through `mark_state_dialog` can mark another integration's alert (finding 2). | High (5 engines currently invisible) | G1 catalog tests, with each scan's measured runtime behind its timeout. Exit codes checked in `secure/cli/integrations.py` before choosing each flag, with the evidence cited in the test. |
-| **G2.5** SEC | **Done.** CLI hardening: each `integrations <x> mark-alert` refuses (exit 2) an alert whose integration is not `<x>` | Closes a review-suppression path | Test-first: marking another integration's alert id exits non-zero and leaves `known` unchanged; marking its own still works. Escalate. |
-| **G3** | **Done.** Alerts view coverage: add `integration_alerts` and `correlation_chain_alerts` to `list_all_alerts`, plus `correlate chains run/list` buttons. Marking integration alerts happens here, per row. | High (one review queue) | `data_access` test on a `tmp_path` DB returns both new sources with explanations. `alert_mark_request` tests pin the per-row argv. **Design point:** `ALERT_MARK_COMMANDS` is keyed by table, but `integration_alerts` needs `integrations <name> mark-alert` per row, and it must not rely on pre-G2.5 behaviour. Escalate the shape. |
-| **G4** | **Done** (`detect sync` left CLI-only: the lean choice, since it writes the rule registry). Catalog: `validate run/list`, `detect list`, `threatintel providers/history`, `dfir status/list`, `ai status/roles/history`, `diagnostics history`. `detect sync` only if its gate passes. | Medium, low risk | G1 catalog tests. `validate run` returns 1 exactly on a MISS (`return 0 if summary.count("MISS") == 0 else 1`), so `nonzero_is_finding=True`, but the test must first confirm 1 is never also an error. **`detect sync` is not read-only:** it writes the rule registry (`secure/cli/detect.py:28-45`). Include it only with a test that sync never re-enables a rule a human disabled and never disables one; otherwise it stays CLI-only. |
-| **G5** | **Done.** `investigate types` and `show` (type chooser plus key prompt) | Medium | A `view_models` builder returns argv or a refusal for an unknown type (test-first). |
+| **G1** | **Done** (b352193, docs 522264f). First step (G0 merged in). A Tk-free command catalog in `view_models.py` (label, argv, `nonzero_is_finding`, `timeout_seconds`, default 60). `_execute` honours the entry's timeout. New buttons: `downloads`, `downloads --flagged`, `loghunt`. "Prune Junk Entries" gets a confirmation (Q5). The "Run Test Suite (pytest)" button is removed (Q4). | High value, read-only; the timeout makes the new buttons reliable | New `tests/test_gui_command_catalog.py`: each catalog argv parses with `secure.cli.build_parser()` (catch `SystemExit`) and resolves to the expected handler by `func` identity; `nonzero_is_finding=False` for all three new commands (Invariant 5: exit 1 means the read failed); each timeout is pinned, loghunt's above its measured runtime. A test that `_execute` passes the entry's timeout. Prune: a declined confirm runs nothing, an accepted one runs the exact argv. Optional: pin the existing 66 argv leaves with the AST scan. |
+| **G2** | **Done** (yarax fix 1cb4487, scan exit codes 96d5704, GUI 97a7d1d). Integrations: `status`, scans, `alerts`, `rulesets/rules`. **No `mark-alert`** from here: a typed id through `mark_state_dialog` can mark another integration's alert (finding 2). | High (5 engines currently invisible) | G1 catalog tests, with each scan's measured runtime behind its timeout. Exit codes checked in `secure/cli/integrations.py` before choosing each flag, with the evidence cited in the test. |
+| **G2.5** SEC | **Done** (c50c0a1). CLI hardening: each `integrations <x> mark-alert` refuses (exit 2) an alert whose integration is not `<x>` | Closes a review-suppression path | Test-first: marking another integration's alert id exits non-zero and leaves `known` unchanged; marking its own still works. Escalate. |
+| **G3** | **Done** (c6c543f). Alerts view coverage: add `integration_alerts` and `correlation_chain_alerts` to `list_all_alerts`, plus `correlate chains run/list` buttons. Marking integration alerts happens here, per row. | High (one review queue) | `data_access` test on a `tmp_path` DB returns both new sources with explanations. `alert_mark_request` tests pin the per-row argv. **Design point:** `ALERT_MARK_COMMANDS` is keyed by table, but `integration_alerts` needs `integrations <name> mark-alert` per row, and it must not rely on pre-G2.5 behaviour. Escalate the shape. |
+| **G4** | **Done** (7a878f9, docs 8944cc6; `detect sync` left CLI-only: the lean choice, since it writes the rule registry). Catalog: `validate run/list`, `detect list`, `threatintel providers/history`, `dfir status/list`, `ai status/roles/history`, `diagnostics history`. `detect sync` only if its gate passes. | Medium, low risk | G1 catalog tests. `validate run` returns 1 exactly on a MISS (`return 0 if summary.count("MISS") == 0 else 1`), so `nonzero_is_finding=True`, but the test must first confirm 1 is never also an error. **`detect sync` is not read-only:** it writes the rule registry (`secure/cli/detect.py:28-45`). Include it only with a test that sync never re-enables a rule a human disabled and never disables one; otherwise it stays CLI-only. |
+| **G5** | **Done** (5da468f). `investigate types` and `show` (type chooser plus key prompt) | Medium | A `view_models` builder returns argv or a refusal for an unknown type (test-first). |
 | ~~G6a/b/c~~ | Dropped (Q6): `baseline exclude/include/freeze/unfreeze`, `fileintegrity watch-remove`, `detect enable/disable` stay CLI-only. | | |
 | **G7** | Investigate pivot view (new window). **Not planned.** | Higher effort | Only after G5 shows the operator wants it. |
+
+**Status (2026-09-22): roadmap complete.** Done: G1, G2, G2.5, G2.6
+(uncaught crashes exit 2, 911e66e; see §4 finding 6), G3, G4, G5.
+Dropped: G6 (Q6). Not planned: G7. All 8 originally unreachable modules
+(downloads, loghunt, integrations, threatintel, investigate, dfir, detect,
+validate) are now reachable from the GUI, except the leaves §2 keeps
+CLI-only on purpose: detection-reducing actions (Q6), `detect sync`,
+`threatintel lookup` (Q2), `dfir collect`, `yarax scan-file`, integration
+`observations`, and the expert/automation `agent`/`ai` commands. Open
+items: §4 findings 3 (cosmetic `secure/cli.py` docstrings), 5, 7 and 8.
 
 Order: G1 → G2 → G2.5 → G3 → G4 → G5. G1 comes first because every
 later step depends on argv that cannot silently drift and on a timeout
@@ -169,9 +179,10 @@ depends on the id-only lookup. Detection-reducing actions are out (Q6).
 Tier A of the extraction audit (A1/A4/A7: approvals and deletion) stays
 ahead of or apart from this roadmap and must not be mixed into it.
 
-## 4. Adjacent findings (not fixed, out of scope)
+## 4. Adjacent findings
 
-1. "Prune Junk Entries" runs `inventory prune` with no confirmation
+1. **Resolved (G1, b352193):** destructive confirmation; declining runs
+   nothing. Was: "Prune Junk Entries" ran `inventory prune` with no confirmation
    (`secure_gui.py:634`), and it deletes rows (`inventory.py:161`,
    `delete_junk_devices`). The scope is narrow (empty, broadcast and
    multicast records), but it is a delete. Q5.
@@ -181,7 +192,7 @@ ahead of or apart from this roadmap and must not be mixed into it.
    alert (confirmed in review: `find_integration_alert_by_id`, then
    `UPDATE integration_alerts SET known = ? WHERE id = ?`,
    storage/models/integrations.py:319). Marking known removes an alert
-   from review, so this is not cosmetic. Addressed by G2.5.
+   from review, so this is not cosmetic. **Resolved (G2.5, c50c0a1).**
 3. Docstrings in `data_access.py:44` and `secure_gui.py:5` still name
    `secure/cli.py`, which is now a package. Cosmetic.
 4. Resolved: the approval-route fix landed in `909e2fc`, and

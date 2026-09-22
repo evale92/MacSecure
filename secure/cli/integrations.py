@@ -193,6 +193,20 @@ def cmd_integrations_osquery_alerts(args: argparse.Namespace) -> int:
     return 0
 
 
+def _refuse_foreign_alert(alert, integration: str, args: argparse.Namespace) -> "int | None":
+    """Exit code 2 (after telling the operator which command to use) when
+    `alert` belongs to another integration, else None. The id is looked up
+    alone, so without this `osquery mark-alert <id>` could mark a Sigma
+    alert; marking known removes an alert from review."""
+    if alert.integration == integration:
+        return None
+    print(
+        f"Refusing: alert #{args.alert_id} belongs to {alert.integration}, not {integration}. "
+        f"Mark it with `secure integrations {alert.integration} mark-alert {args.alert_id} {args.status}`."
+    )
+    return 2
+
+
 def cmd_integrations_osquery_mark_alert(args: argparse.Namespace) -> int:
     cfg = _bootstrap()
     known = args.status == "known"
@@ -205,6 +219,9 @@ def cmd_integrations_osquery_mark_alert(args: argparse.Namespace) -> int:
                 "Run `secure integrations osquery alerts` to see recorded alerts."
             )
             return 1
+        refused = _refuse_foreign_alert(alert, "osquery", args)
+        if refused is not None:
+            return refused
         if alert.known != known:
             _record_alert_review_change(
                 db.conn, source_table="integration_alerts", alert_id=alert.id,
@@ -447,6 +464,9 @@ def cmd_integrations_yarax_mark_alert(args: argparse.Namespace) -> int:
                 "Run `secure integrations yarax alerts` to see recorded findings."
             )
             return 1
+        refused = _refuse_foreign_alert(alert, "yarax", args)
+        if refused is not None:
+            return refused
         if alert.known != known:
             _record_alert_review_change(
                 db.conn, source_table="integration_alerts", alert_id=alert.id,
@@ -664,6 +684,9 @@ def cmd_integrations_sigma_mark_alert(args: argparse.Namespace) -> int:
                 "Run `secure integrations sigma alerts` to see recorded matches."
             )
             return 1
+        refused = _refuse_foreign_alert(alert, "sigma", args)
+        if refused is not None:
+            return refused
         if alert.known != known:
             _record_alert_review_change(
                 db.conn, source_table="integration_alerts", alert_id=alert.id,
@@ -828,6 +851,9 @@ def cmd_integrations_suricata_mark_alert(args: argparse.Namespace) -> int:
                 "Run `secure integrations suricata alerts` to see recorded alerts."
             )
             return 1
+        refused = _refuse_foreign_alert(alert, "suricata", args)
+        if refused is not None:
+            return refused
         if alert.known != known:
             _record_alert_review_change(
                 db.conn, source_table="integration_alerts", alert_id=alert.id,

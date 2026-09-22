@@ -304,3 +304,28 @@ def test_marking_one_alert_leaves_its_siblings_untouched(
 
     assert _read_alert(cfg, first).known is True
     assert _read_alert(cfg, second).known is False
+
+
+# ---------- one integration cannot mark another's alert ----------
+
+
+@pytest.mark.parametrize("handler,integration,_notfound,_hint", CASES)
+def test_marking_another_integrations_alert_is_refused(
+    handler, integration, _notfound, _hint, tmp_path: Path, monkeypatch
+):
+    """The alert id is looked up alone, so `osquery mark-alert <id>` used
+    to mark a Sigma alert just as well. Marking known removes an alert
+    from review, so the wrong handler must refuse (exit 2, the error code
+    of the integrations CLI) and leave the alert and its history alone."""
+    cfg = _bootstrap_to_tmp(monkeypatch, tmp_path)
+    other = next(name for name in ("osquery", "yarax", "sigma", "suricata") if name != integration)
+    foreign_id = _seed_alert(cfg, other)
+
+    rc, stdout = _run(handler, alert_id=foreign_id, status="known")
+
+    assert rc == 2
+    assert f"belongs to {other}" in stdout
+    assert f"secure integrations {other} mark-alert {foreign_id}" in stdout
+    assert "Marked #" not in stdout
+    assert _read_alert(cfg, foreign_id).known is False
+    assert _read_events(cfg) == []

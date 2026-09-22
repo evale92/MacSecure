@@ -154,7 +154,7 @@ per-command timeout, and `_execute` honours it.
 |---|---|---|---|
 | **G1** | First step (G0 merged in). A Tk-free command catalog in `view_models.py` (label, argv, `nonzero_is_finding`, `timeout_seconds`, default 60). `_execute` honours the entry's timeout. New buttons: `downloads`, `downloads --flagged`, `loghunt`. "Prune Junk Entries" gets a confirmation (Q5). The "Run Test Suite (pytest)" button is removed (Q4). | High value, read-only; the timeout makes the new buttons reliable | New `tests/test_gui_command_catalog.py`: each catalog argv parses with `secure.cli.build_parser()` (catch `SystemExit`) and resolves to the expected handler by `func` identity; `nonzero_is_finding=False` for all three new commands (Invariant 5: exit 1 means the read failed); each timeout is pinned, loghunt's above its measured runtime. A test that `_execute` passes the entry's timeout. Prune: a declined confirm runs nothing, an accepted one runs the exact argv. Optional: pin the existing 66 argv leaves with the AST scan. |
 | **G2** | Integrations: `status`, scans, `alerts`, `rulesets/rules`. **No `mark-alert`** from here: a typed id through `mark_state_dialog` can mark another integration's alert (finding 2). | High (5 engines currently invisible) | G1 catalog tests, with each scan's measured runtime behind its timeout. Exit codes checked in `secure/cli/integrations.py` before choosing each flag, with the evidence cited in the test. |
-| **G2.5** SEC | CLI hardening: each `integrations <x> mark-alert` refuses an alert whose integration is not `<x>` | Closes a review-suppression path | Test-first: marking another integration's alert id exits non-zero and leaves `known` unchanged; marking its own still works. Escalate. |
+| **G2.5** SEC | **Done.** CLI hardening: each `integrations <x> mark-alert` refuses (exit 2) an alert whose integration is not `<x>` | Closes a review-suppression path | Test-first: marking another integration's alert id exits non-zero and leaves `known` unchanged; marking its own still works. Escalate. |
 | **G3** | Alerts view coverage: add `integration_alerts` and `correlation_chain_alerts` to `list_all_alerts`, plus `correlate chains run/list` buttons. Marking integration alerts happens here, per row. | High (one review queue) | `data_access` test on a `tmp_path` DB returns both new sources with explanations. `alert_mark_request` tests pin the per-row argv. **Design point:** `ALERT_MARK_COMMANDS` is keyed by table, but `integration_alerts` needs `integrations <name> mark-alert` per row, and it must not rely on pre-G2.5 behaviour. Escalate the shape. |
 | **G4** | Catalog: `validate run/list`, `detect list`, `threatintel providers/history`, `dfir status/list`, `ai status/roles/history`, `diagnostics history`. `detect sync` only if its gate passes. | Medium, low risk | G1 catalog tests. `validate run` returns 1 exactly on a MISS (`return 0 if summary.count("MISS") == 0 else 1`), so `nonzero_is_finding=True`, but the test must first confirm 1 is never also an error. **`detect sync` is not read-only:** it writes the rule registry (`secure/cli/detect.py:28-45`). Include it only with a test that sync never re-enables a rule a human disabled and never disables one; otherwise it stays CLI-only. |
 | **G5** | `investigate types` and `show` (type chooser plus key prompt) | Medium | A `view_models` builder returns argv or a refusal for an unknown type (test-first). |
@@ -191,6 +191,11 @@ ahead of or apart from this roadmap and must not be mixed into it.
    partly degraded pass reported as clean, against the spirit of
    Invariant 5. Found in G2 review; not changed. Needs a decision
    (exit 2, or a distinct "partial" signal).
+6. An uncaught exception in any command exits 1 (Python's default), so a
+   `nonzero_is_finding=True` button reports a crash as a finding. Found in
+   G2 review; pre-existing for every such button. Planned fix before G3:
+   a last `except Exception` in `secure.cli.main()` that prints the
+   traceback and exits 2.
 
 ## 5. Uncertainties
 

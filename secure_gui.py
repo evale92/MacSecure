@@ -71,8 +71,10 @@ Categories -> commands:
     Correlation        -> secure correlate run
                           secure correlate list
                           secure correlate mark-alert <id> known|unknown
+    Downloads & Logs   -> secure downloads
+                          secure downloads --flagged
+                          secure loghunt
     Event Log          -> secure add-note "..."
-    Diagnostics        -> pytest (the test suite)
 
     Run Everything      A single button (top of the category list) that
                         runs `secure run-all` — every scan above

@@ -368,10 +368,9 @@ doesn't override them (out of scope, no custom theming was added).
 `fetch_all_alerts()`'s exceptions are caught in `alerts_view.py` and
 shown as a message in the table area (using the `SENSOR_STATUS`
 `failed` glyph) plus a one-line status message — never a raw
-traceback in the window. Diagnostics (the existing "Run Test Suite"
-category, and the console's own stderr tag) remain the place for full
-detail; this phase didn't need to add anything new there since the
-Alerts pilot's only failure mode is a database read.
+traceback in the window. The console's own stderr output remains the
+place for full detail; this phase didn't need to add anything new there
+since the Alerts pilot's only failure mode is a database read.
 
 ## Accessibility
 

@@ -1476,8 +1476,7 @@ python3 secure_gui.py
 
 It uses `.venv/bin/python` automatically if a `.venv` exists next to
 it, so create the venv and install requirements first (see "How to
-run it" below) if you want the Diagnostics → Run Test Suite button to
-find `pytest`. Tkinter ships with the standard python.org macOS
+run it" below). Tkinter ships with the standard python.org macOS
 installer; if you installed Python via Homebrew and it's missing, run
 `brew install python-tk`.
 

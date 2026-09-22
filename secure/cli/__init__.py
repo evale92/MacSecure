@@ -405,6 +405,7 @@ import argparse
 import logging
 import sqlite3
 import sys
+import traceback
 from secure.baseline.constants import ANOMALY_TIERS
 from secure.baseline.entities import ENTITY_TYPES
 from secure.config import (
@@ -2482,6 +2483,24 @@ def main(argv: list[str] | None = None) -> None:
         # repository", a real precondition this app cannot silently
         # work around.
         print(f"Agent worktree error: {exc}", file=sys.stderr)
+        sys.exit(2)
+    except Exception as exc:  # noqa: BLE001 — last resort, reported, never swallowed
+        # Anything unmapped used to fall through to Python's default
+        # handler, which exits 1. Exit 1 is how scans say "found
+        # something" (the GUI's nonzero_is_finding, the supervisor), so a
+        # crash read as a finding. It exits 2, the error code, with the
+        # full traceback. SystemExit and KeyboardInterrupt are not
+        # Exceptions, so they still pass through untouched.
+        command = " ".join(w for w in (argv if argv is not None else sys.argv[1:])[:3] if not w.startswith("-"))
+        print(f"Unexpected error in 'secure {command}': {type(exc).__name__}: {exc}", file=sys.stderr)
+        traceback.print_exc()
+        try:
+            logger.exception(
+                "Unhandled exception in a CLI command",
+                extra={"event": "cli_unhandled_exception", "component": "cli"},
+            )
+        except Exception:  # noqa: BLE001 — a broken logger must not undo exit 2
+            pass
         sys.exit(2)
     else:
         sys.exit(exit_code)

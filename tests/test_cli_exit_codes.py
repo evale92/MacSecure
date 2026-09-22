@@ -249,3 +249,58 @@ def test_main_exits_zero_when_a_handler_returns_none(monkeypatch):
     with pytest.raises(SystemExit) as exc_info:
         cli.main([])
     assert exc_info.value.code is None
+
+
+# =====================================================================
+# Behavioral: an unexpected crash exits 2, not Python's default 1
+# =====================================================================
+
+
+def _parser_raising(exc):
+    def handler(args):
+        raise exc
+
+    parser = argparse.ArgumentParser(prog="secure-test")
+    parser.set_defaults(func=handler)
+    return parser
+
+
+def test_an_unexpected_exception_exits_2_with_its_traceback(monkeypatch, capsys):
+    """Exit 1 is how scans say "found something", so a crash that fell
+    through to Python's default handler (exit 1) read as a finding in the
+    GUI and the supervisor. Anything unmapped now exits 2, the error code,
+    and still prints the traceback."""
+    monkeypatch.setattr(cli, "build_parser", lambda: _parser_raising(RuntimeError("boom")))
+    with pytest.raises(SystemExit) as exc_info:
+        cli.main([])
+    assert exc_info.value.code == 2
+    err = capsys.readouterr().err
+    assert "RuntimeError: boom" in err
+    assert "Traceback" in err
+
+
+def test_a_handler_that_exits_on_purpose_keeps_its_code(monkeypatch):
+    monkeypatch.setattr(cli, "build_parser", lambda: _parser_raising(SystemExit(5)))
+    with pytest.raises(SystemExit) as exc_info:
+        cli.main([])
+    assert exc_info.value.code == 5
+
+
+def test_ctrl_c_still_propagates(monkeypatch):
+    monkeypatch.setattr(cli, "build_parser", lambda: _parser_raising(KeyboardInterrupt()))
+    with pytest.raises(KeyboardInterrupt):
+        cli.main([])
+
+
+def test_a_broken_logger_cannot_turn_the_crash_exit_back_into_a_crash(monkeypatch, capsys):
+    class ExplodingLogger:
+        def __getattr__(self, name):
+            def fail(*a, **k):
+                raise OSError("log file unwritable")
+            return fail
+
+    monkeypatch.setattr(cli, "logger", ExplodingLogger())
+    monkeypatch.setattr(cli, "build_parser", lambda: _parser_raising(RuntimeError("boom")))
+    with pytest.raises(SystemExit) as exc_info:
+        cli.main([])
+    assert exc_info.value.code == 2

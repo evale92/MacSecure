@@ -7133,6 +7133,7 @@ a reimplementation of any of them.
     recording/display logic that fires only when that parameter is
     actually supplied by `secure/agent/orchestrator.py`.
 - **Integration scan exit codes (2026-09-22)** — every `secure integrations <engine> scan*` command now exits 0 (clean), 1 (found something) or 2 (engine unavailable or errored); unavailable used to exit 1, the same as findings. `status`, `rules`, `rulesets` and `alerts` are unchanged. Scripts or cron jobs that treated exit 1 as "unavailable" must check for 2. See docs/INTEGRATIONS.md "Exit codes".
+- **Crashes exit 2 (2026-09-22)** — any `secure` command that crashes with an unexpected exception now exits 2 instead of Python's default 1, still printing the traceback and logging `cli_unhandled_exception`. Scripts, the GUI and the supervisor that treat 1 as "found something" are no longer misled by crashes.
 
 ## Phase 32 — Local Model Routing (Part 2, Supervised Agentic Development & Self-Healing)
 

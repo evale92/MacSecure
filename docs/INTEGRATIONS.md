@@ -1121,10 +1121,8 @@ mean either outcome. `status` (1 = unavailable), `rules` / `rulesets`
 (1 = a rule failed to load) and `alerts` (always 0) are unchanged. Pinned
 by `tests/test_cli_integrations_exit_codes.py`.
 
-Caveat: an unexpected crash (a Python traceback, outside a command's own
-unavailable/error handling) currently exits 1 through Python's default
-handler, so it can read as "found something". The traceback is still on
-stderr. Tracked in `docs/GUI_ROADMAP.md`.
+An unexpected crash (a Python traceback) also exits 2, never 1, like any
+`secure` command.
 
 `mark-alert` looks an alert up by id. Each engine's `mark-alert` refuses,
 with exit 2 and the command to use instead, an id that belongs to another

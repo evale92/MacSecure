@@ -191,11 +191,10 @@ ahead of or apart from this roadmap and must not be mixed into it.
    partly degraded pass reported as clean, against the spirit of
    Invariant 5. Found in G2 review; not changed. Needs a decision
    (exit 2, or a distinct "partial" signal).
-6. An uncaught exception in any command exits 1 (Python's default), so a
-   `nonzero_is_finding=True` button reports a crash as a finding. Found in
-   G2 review; pre-existing for every such button. Planned fix before G3:
-   a last `except Exception` in `secure.cli.main()` that prints the
-   traceback and exits 2.
+6. Resolved (G2.6): an uncaught exception in any command used to exit 1
+   (Python's default), so a `nonzero_is_finding=True` button reported a
+   crash as a finding. `secure.cli.main()` now ends with an
+   `except Exception` that prints the traceback, logs it and exits 2.
 
 ## 5. Uncertainties
 

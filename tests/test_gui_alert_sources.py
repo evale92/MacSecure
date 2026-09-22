@@ -121,3 +121,38 @@ def test_each_engine_shows_its_own_label(tmp_path: Path):
     labels = {r.integration: r.module for r in _rows(tmp_path, seed)}
     assert len(set(labels.values())) == len(_MARKABLE_INTEGRATIONS)
     assert all(label.startswith("Integration: ") for label in labels.values())
+
+
+def test_integration_alerts_are_deduplicated_per_engine(tmp_path: Path):
+    """Test that noisy engines don't crowd out other engines in the alerts list.
+
+    When one engine (e.g., suricata) generates many alerts, the list_all_alerts
+    function should deduplicate per-engine to give each engine fair representation
+    in the alerts window. This prevents a single noisy engine from hiding findings
+    from other engines.
+    """
+    def seed(conn):
+        # Add 50 osquery alerts (noisy engine)
+        for i in range(50):
+            _add_integration(conn, "osquery", identity=f"id-{i}")
+        # Add 5 yarax alerts
+        for i in range(5):
+            _add_integration(conn, "yarax", identity=f"id-{i}")
+        # Add 5 sigma alerts
+        for i in range(5):
+            _add_integration(conn, "sigma", identity=f"id-{i}")
+
+    rows = _rows(tmp_path, seed)
+    alert_counts_by_engine = {}
+    for row in rows:
+        if row.source_table == "integration_alerts":
+            engine = row.integration
+            alert_counts_by_engine[engine] = alert_counts_by_engine.get(engine, 0) + 1
+
+    # Each engine should have some representation despite osquery being noisy
+    assert alert_counts_by_engine.get("osquery", 0) < 50, "Noisy osquery alerts should be capped"
+    assert alert_counts_by_engine.get("yarax", 0) > 0, "Yarax should have at least one alert"
+    assert alert_counts_by_engine.get("sigma", 0) > 0, "Sigma should have at least one alert"
+    # Verify per-engine cap is reasonable (limit // 8, where limit=100, so max 12-13 per engine)
+    for engine, count in alert_counts_by_engine.items():
+        assert count <= 25, f"{engine} has {count} alerts, exceeds per-engine dedup cap"

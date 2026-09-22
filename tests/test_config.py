@@ -50,3 +50,62 @@ def test_load_config_creates_file_if_missing(tmp_path: Path):
     load_config(app_dir)
 
     assert (app_dir / "config.json").exists()
+
+
+def test_ollama_host_rejects_remote_addresses(tmp_path: Path):
+    from secure.config import AppConfig
+    import pytest
+
+    app_dir = tmp_path / "config_home"
+
+    invalid_hosts = [
+        "http://192.168.1.100:11434",
+        "https://api.example.com",
+        "http://ollama.internal:11434",
+        "http://10.0.0.1:8000",
+    ]
+
+    for host in invalid_hosts:
+        with pytest.raises(ValueError, match="ollama_host must be localhost only"):
+            cfg = default_config()
+            cfg.app_dir = str(app_dir)
+            cfg.ollama_host = host
+            cfg.__post_init__()
+
+
+def test_local_llm_host_rejects_remote_addresses(tmp_path: Path):
+    from secure.config import AppConfig
+    import pytest
+
+    app_dir = tmp_path / "config_home"
+
+    invalid_hosts = [
+        "http://192.168.1.100:8000",
+        "https://llm.example.com",
+    ]
+
+    for host in invalid_hosts:
+        with pytest.raises(ValueError, match="local_llm_host must be localhost only"):
+            cfg = default_config()
+            cfg.app_dir = str(app_dir)
+            cfg.local_llm_host = host
+            cfg.__post_init__()
+
+
+def test_localhost_addresses_accepted_for_ai_hosts(tmp_path: Path):
+    app_dir = tmp_path / "config_home"
+
+    valid_hosts = [
+        "http://127.0.0.1:11434",
+        "http://localhost:11434",
+        "https://localhost:8000",
+        "http://127.0.0.1:8000/v1",
+        "http://localhost:1234/v1",
+    ]
+
+    for host in valid_hosts:
+        cfg = default_config()
+        cfg.app_dir = str(app_dir)
+        cfg.ollama_host = host
+        cfg.__post_init__()  # Should not raise
+        assert cfg.ollama_host == host

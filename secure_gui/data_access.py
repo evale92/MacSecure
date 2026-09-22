@@ -42,7 +42,7 @@ from secure.storage.database import Database
 
 # Maps an AlertRow.source_table to the CLI subcommand argv (the parts
 # after `secure`) that marks one alert in that table known/unknown.
-# Verified directly against secure/cli.py's argparse wiring, and
+# Verified directly against secure.cli.integrations's argparse wiring, and
 # identical to what secure_gui.py's own per-domain "Mark Alert
 # Known/Unknown…" buttons already run — this module doesn't invent a
 # new action path, it reuses the existing one. arpwatch is the one

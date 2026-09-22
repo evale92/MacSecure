@@ -2,7 +2,7 @@
 secure_gui.py — a small desktop control panel for the Secure CLI.
 
 This is a thin GUI wrapper around the existing `secure` command-line
-tool (see secure/cli.py) — it doesn't add any new capability. Buttons
+tool (see secure.cli) — it doesn't add any new capability. Buttons
 are grouped into categories (the same categories the CLI already
 covers), and clicking one runs the exact same command you'd type
 yourself. The console pane on the right shows the command that ran
@@ -220,7 +220,7 @@ class Command:
     build_args: Callable[[], Optional[List[str]]]
     # True for commands whose CLI exit code deliberately doubles as a
     # "was there anything worth reviewing" signal — every `scan`
-    # (and `check`/`snapshot`/`state`) command in secure/cli.py returns
+    # (and `check`/`snapshot`/`state`) command in the CLI returns
     # exit 1 when it finds something new or notable, purely so it stays
     # scriptable (e.g. from cron). That's the right contract for a
     # command line, but a GUI user reading "exit code 1" naturally reads

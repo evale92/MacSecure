@@ -18,7 +18,7 @@ secure/storage/models.py). Every distinct remote destination
 separately in `remote_endpoints`, deduplicated, so a first-time
 destination can be flagged for review — the same "known/unknown +
 alert on new" pattern secure/inventory/ uses for local devices.
-`secure connections` in secure/cli.py (or the "Active Connections" GUI
+`secure connections` in secure.cli.connections (or the "Active Connections" GUI
 category) explains common ports in plain English via
 connections/port_info.py.
 

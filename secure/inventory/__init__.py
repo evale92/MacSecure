@@ -17,7 +17,7 @@ connected to, using only safe, read-only, no-sudo local methods:
 Every discovered device is stored (IP, MAC when available, hostname
 when available, vendor when recognized, first-seen/last-seen
 timestamps) and defaults to "unknown" until you mark it known — see
-`secure inventory` in secure/cli.py or the "Device Inventory" GUI
+`secure inventory` in secure.cli.inventory or the "Device Inventory" GUI
 category.
 
 What this deliberately does NOT do, and why:

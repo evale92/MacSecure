@@ -208,8 +208,12 @@ filter yet, so it hasn't needed all five.
 Tkinter-dependent — like `secure_gui.py`, this file can only be
 syntax-checked (`ast.parse`), not imported, in an environment without
 Tkinter (see `PROJECT_NOTES.md`). Keep it thin; anything that can be
-pure logic belongs in `tokens.py` or `data_access.py` instead, where
-it's actually unit-tested.
+pure logic belongs in `tokens.py` (display vocabulary), `data_access.py`
+(read-only display data) or `view_models.py` (the text a window shows and
+the argv a button sends) instead, where it's actually unit-tested.
+`view_models.py` is enforced Tk-free, storage-free and subprocess-free by
+`tests/test_gui_view_models.py`; see `docs/GUI_EXTRACTION_AUDIT.md` for
+what is queued to move there.
 
 - **`resolve_fonts()`** — see Typography above.
 - **`severity_badge(parent, severity)`** / **`status_badge(parent, status)`**
@@ -408,12 +412,18 @@ secure_gui/
     data_access.py      Pure. AlertRow, list_all_alerts/fetch_all_alerts,
                        ALERT_MARK_COMMANDS, MODULE_LABELS,
                        SIGNAL_MODULE_LABELS.
+    view_models.py      Pure, and guard-tested as such: no tkinter,
+                       storage or subprocess. Decisions extracted from
+                       the view closures (MarkRequest, mark requests).
     alerts_view.py      Tkinter. The Alerts DataTable + EvidencePanel.
 secure_gui.py            Entry-point script. Unchanged responsibilities;
                        now imports tokens/components/alerts_view and
                        uses them where it used to hardcode fonts/colors
                        or repeat dialog code inline.
 tests/test_gui_components.py   Tests for tokens.py + data_access.py.
+tests/test_gui_view_models.py  Tests for view_models.py, incl. its purity guard.
+tests/test_gui_baseline_window.py  Behavioural Tk tests of the Baseline
+                               window (skip without _tkinter).
 ```
 
 ## What's next (Phase 14–15, not this phase)

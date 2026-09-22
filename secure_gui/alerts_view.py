@@ -47,6 +47,7 @@ from typing import Callable, Dict, List, Optional
 from secure_gui import tokens
 from secure_gui.components import confirm_action, resolve_fonts
 from secure_gui.data_access import AlertRow, fetch_all_alerts
+from secure_gui.view_models import alert_mark_request
 
 # (label, argv, nonzero_is_finding) -> enqueue it exactly like any
 # other button in the main window, so it runs through the same
@@ -377,21 +378,13 @@ def open_alerts_window(parent: tk.Misc, *, run_command: RunCommand) -> tk.Toplev
         row = state["selected"]
         if row is None:
             return
-        command = row.mark_command
-        if command is None:
+        req = alert_mark_request(row)
+        if req is None:
             status_var.set(f"No mark action is defined for {row.source_table}.")
             return
-        new_status = "unknown" if row.known else "known"
-        proceed = confirm_action(
-            win,
-            title="Mark alert",
-            body=f"Mark this {row.module} alert as {new_status.upper()}?",
-        )
-        if not proceed:
+        if not confirm_action(win, title=req.confirm_title, body=req.confirm_body):
             return
-        args = [*command, str(row.source_id), new_status]
-        label = f"Mark Alert Known/Unknown… ({row.module}, via Alerts table)"
-        run_command(label, args, False)
+        run_command(req.label, list(req.args), False)
         status_var.set(
             "Sent — check Console in the main window for the result, then Refresh."
         )

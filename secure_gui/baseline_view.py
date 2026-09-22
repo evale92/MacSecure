@@ -49,6 +49,7 @@ from secure_gui.data_access import (
     format_anomaly_evidence_text,
     format_baseline_overview_text,
 )
+from secure_gui.view_models import anomaly_mark_request
 
 # Same shape as alerts_view.py's RunCommand — supplied by the caller
 # (secure_gui.py) rather than imported, so this module never needs to
@@ -319,18 +320,10 @@ def open_baseline_window(parent: tk.Misc, *, run_command: RunCommand) -> tk.Topl
         row = state["selected"]
         if row is None:
             return
-        new_status = "unknown" if row.known else "known"
-        proceed = confirm_action(
-            win,
-            title="Mark anomaly",
-            body=f"Mark anomaly #{row.id} ({row.entity_type}/{row.entity_key}, "
-            f"{row.feature_name}) as {new_status.upper()}?",
-        )
-        if not proceed:
+        req = anomaly_mark_request(row)
+        if not confirm_action(win, title=req.confirm_title, body=req.confirm_body):
             return
-        args = [*row.mark_command, str(row.id), new_status]
-        label = f"Mark Anomaly Known/Unknown… (#{row.id}, via Baseline & Anomalies table)"
-        run_command(label, args, False)
+        run_command(req.label, list(req.args), False)
         status_var.set(
             "Sent — check Console in the main window for the result, then Refresh."
         )

@@ -22,6 +22,11 @@ Module map:
                       secure.storage.models for display only. All
                       state-changing actions still go through the CLI
                       subprocess path in secure_gui.py, unchanged.
+    view_models.py    Pure functions (no tkinter, storage or
+                      subprocess; guard-tested). Decisions extracted
+                      from the view closures: what a window shows and
+                      the argv a button sends. See
+                      docs/GUI_EXTRACTION_AUDIT.md.
     alerts_view.py    Tkinter-dependent. The Alerts DataTable +
                       EvidencePanel pilot screen.
 

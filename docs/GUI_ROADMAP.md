@@ -111,7 +111,7 @@ deletes, suppresses detection, or changes posture: it needs an explicit
 | `baseline reset` | **CLI-only** | It clears learned state, and `--all/--yes` is a bulk destructive path. |
 | `diagnostics history` | GUI (low) | Read-only button in the Performance window. |
 | `diagnostics report` | CLI-only | Writes into `docs/generated/`. It is an artifact or scripting task. |
-| `ai status`, `ai roles`, `ai history` | **GUI** | Read-only. Inert when no host is configured (Invariant 11). |
+| `ai status`, `ai roles`, `ai history` | **GUI** | Read-only. Inert when no host is configured (Invariant 11). `ai status` sends a liveness GET (with the configured auth header, no user data) to each configured AI host, normally on this Mac: the one stated exception to Q2. |
 | `ai show`, `ai verify history/show/list-ops` | CLI-only for now | Need ids. Expert. |
 | `ai ask` | **User decision (Q3)** | Needs a configured local model and free text. Output has to show claim tags (Invariant 6), which a console dump does not present well. |
 | `ai verify run/suite` | CLI-only | The GUI's direct pytest button is removed (Q4). |
@@ -199,6 +199,10 @@ ahead of or apart from this roadmap and must not be mixed into it.
    `integration_alerts` is one table shared by four engines, so a noisy
    engine can crowd the others out within that table. Known limit (G3);
    not changed.
+8. No loopback enforcement on `ollama_host` / `local_llm_host`: they are
+   meant to be local, but pointing one at another machine makes `ai
+   status` (and the GUI button) contact it with the configured API key.
+   Found in G4 review; not changed.
 
 ## 5. Uncertainties
 
@@ -239,7 +243,10 @@ leanness and efficiency":
 
 - **Q1: module file (24).** Matches the handoff; progress is reported
   against the 8 unreachable modules.
-- **Q2: CLI-only.** No network egress from the GUI.
+- **Q2: CLI-only.** No threat-intel lookups or user data sent off the
+  machine from the GUI. The one stated exception is the AI Provider
+  Status button's liveness check to the user's own configured AI host
+  (scoped in G4 review, after it turned out to make that request).
 - **Q3: not now.**
 - **Q4: remove the button.** Re-decided after review: it runs
   `python -m pytest -v` (`secure_gui.py:896-897`), the full suite takes

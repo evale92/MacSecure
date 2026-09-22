@@ -119,10 +119,12 @@ sudo, no force-kill unless it outlives the command's timeout, 60s by
 default) rather than
 silently letting two commands race each other.
 
-Two buttons touch the network beyond this Mac: the pending-updates
-check (talks to Apple's servers) and "Scan Network" under Device
-Inventory (pings hosts on this Mac's own local subnet only — never
-anything outside it). Nothing here does anything the CLI itself
+Three buttons can touch the network: the pending-updates check (talks
+to Apple's servers), "Scan Network" under Device Inventory (pings hosts
+on this Mac's own local subnet only — never anything outside it), and
+"AI Provider Status", which sends a liveness GET (with the configured
+auth header, no user data) to each configured AI host, normally on this
+Mac, and does nothing when none is configured. Nothing here does anything the CLI itself
 couldn't already do — see PROJECT_NOTES.md ("What's deliberately NOT
 here yet") for what this project intentionally does not include yet.
 

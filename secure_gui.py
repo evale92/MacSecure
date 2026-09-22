@@ -82,6 +82,12 @@ Categories -> commands:
                           secure integrations zeek status|scan
     Correlation Chains -> secure correlate chains run
                           secure correlate chains list
+    Validation &       -> secure validate run|list
+      Detection           secure detect list
+    Threat Intel &     -> secure threatintel providers|history
+      DFIR                secure dfir status|list
+    AI & Performance   -> secure ai status|roles|history
+                          secure diagnostics history
     Event Log          -> secure add-note "..."
 
     Run Everything      A single button (top of the category list) that

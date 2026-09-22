@@ -23,7 +23,13 @@ from pathlib import Path
 import pytest
 
 from secure.cli import build_parser
+from secure.cli import ai as a
 from secure.cli import correlate as c
+from secure.cli import detect as d
+from secure.cli import dfir as f
+from secure.cli import diagnostics as g
+from secure.cli import threatintel as t
+from secure.cli import validate as v
 from secure.cli import integrations as i
 from secure.cli.downloads import cmd_downloads
 from secure.cli.loghunt import cmd_loghunt
@@ -40,6 +46,9 @@ _SCRIPT = Path(__file__).resolve().parent.parent / "secure_gui.py"
 _DL = "Downloads & Logs"
 _IN = "Integrations"
 _CH = "Correlation Chains"
+_VD = "Validation & Detection"
+_TD = "Threat Intel & DFIR"
+_AP = "AI & Performance"
 
 # Integration scans exit 0 clean / 1 findings / 2 unavailable or error
 # (docs/INTEGRATIONS.md "Exit codes"), so 1 is a finding. Zeek never exits 1.
@@ -81,7 +90,33 @@ _EXPECTED = {
     # always returns 0.
     "Find Correlation Chains": (_CH, ("correlate", "chains", "run"), c.cmd_correlate_chains_run, True, 300),
     "List Correlation Chains": (_CH, ("correlate", "chains", "list"), c.cmd_correlate_chains_list, False, 60),
+    # G4. `validate run` returns 1 exactly when a scenario is a MISS
+    # (`0 if summary.count("MISS") == 0 else 1`, no other 1 branch; crashes
+    # exit 2), so 1 is a detection gap to review. It records a run; its 21
+    # synthetic scenarios took 1.2 s in a temp app dir, so the default 60 s.
+    # Every other G4 command returns only 0. `detect sync` is left out on
+    # purpose: it writes the rule registry (docs/GUI_ROADMAP.md G4).
+    # threatintel providers/history make no network call (Q2).
+    "Run Validation Suite": (_VD, ("validate", "run"), v.cmd_validate_run, True, 60),
+    "List Validation Runs": (_VD, ("validate", "list"), v.cmd_validate_list, False, 60),
+    "List Detection Rules": (_VD, ("detect", "list"), d.cmd_detect_list, False, 60),
+    "Threat Intel Providers": (_TD, ("threatintel", "providers"), t.cmd_threatintel_providers, False, 60),
+    "Threat Intel Lookup History": (_TD, ("threatintel", "history"), t.cmd_threatintel_history, False, 60),
+    "DFIR Tool Status": (_TD, ("dfir", "status"), f.cmd_dfir_status, False, 60),
+    "List Forensic Collections": (_TD, ("dfir", "list"), f.cmd_dfir_list, False, 60),
+    "AI Provider Status": (_AP, ("ai", "status"), a.cmd_ai_status, False, 60),
+    "AI Role Assignments": (_AP, ("ai", "roles"), a.cmd_ai_roles, False, 60),
+    "AI Query History": (_AP, ("ai", "history"), a.cmd_ai_history, False, 60),
+    "Performance Milestones": (_AP, ("diagnostics", "history"), g.cmd_diagnostics_history, False, 60),
 }
+
+
+def test_the_catalog_never_writes_the_rule_registry_or_leaves_the_machine():
+    # detect sync writes the rule registry; threatintel lookup makes an
+    # outbound request (Q2). Neither is a GUI button.
+    commands = {entry.args[:2] for entry in COMMAND_CATALOG}
+    assert ("detect", "sync") not in commands
+    assert ("threatintel", "lookup") not in commands
 
 
 def _by_label():

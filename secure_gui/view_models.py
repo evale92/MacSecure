@@ -161,6 +161,9 @@ class CatalogCommand:
 _DOWNLOADS_LOGS = "Downloads & Logs"
 _INTEGRATIONS = "Integrations"
 _CORRELATION_CHAINS = "Correlation Chains"
+_VALIDATION_DETECTION = "Validation & Detection"
+_THREATINTEL_DFIR = "Threat Intel & DFIR"
+_AI_PERFORMANCE = "AI & Performance"
 
 # Integration scans exit 0 clean / 1 findings / 2 unavailable or error
 # (docs/INTEGRATIONS.md "Exit codes"); zeek never exits 1. Their runtimes
@@ -207,6 +210,21 @@ COMMAND_CATALOG: Tuple[CatalogCommand, ...] = (
     CatalogCommand("Find Correlation Chains", ("correlate", "chains", "run"), _CORRELATION_CHAINS,
                    nonzero_is_finding=True, timeout_seconds=_SCAN_TIMEOUT),
     CatalogCommand("List Correlation Chains", ("correlate", "chains", "list"), _CORRELATION_CHAINS),
+    # G4. validate run exits 1 exactly on a MISS (a detection gap to
+    # review); it records a run and took 1.2 s. Every other command here
+    # only reads and returns 0. Not here on purpose: `detect sync` (writes
+    # the rule registry) and `threatintel lookup` (network egress, Q2).
+    CatalogCommand("Run Validation Suite", ("validate", "run"), _VALIDATION_DETECTION, nonzero_is_finding=True),
+    CatalogCommand("List Validation Runs", ("validate", "list"), _VALIDATION_DETECTION),
+    CatalogCommand("List Detection Rules", ("detect", "list"), _VALIDATION_DETECTION),
+    CatalogCommand("Threat Intel Providers", ("threatintel", "providers"), _THREATINTEL_DFIR),
+    CatalogCommand("Threat Intel Lookup History", ("threatintel", "history"), _THREATINTEL_DFIR),
+    CatalogCommand("DFIR Tool Status", ("dfir", "status"), _THREATINTEL_DFIR),
+    CatalogCommand("List Forensic Collections", ("dfir", "list"), _THREATINTEL_DFIR),
+    CatalogCommand("AI Provider Status", ("ai", "status"), _AI_PERFORMANCE),
+    CatalogCommand("AI Role Assignments", ("ai", "roles"), _AI_PERFORMANCE),
+    CatalogCommand("AI Query History", ("ai", "history"), _AI_PERFORMANCE),
+    CatalogCommand("Performance Milestones", ("diagnostics", "history"), _AI_PERFORMANCE),
 )
 
 

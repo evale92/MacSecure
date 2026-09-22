@@ -186,6 +186,11 @@ ahead of or apart from this roadmap and must not be mixed into it.
    `secure/cli.py`, which is now a package. Cosmetic.
 4. Resolved: the approval-route fix landed in `909e2fc`, and
    `GUI_EXTRACTION_AUDIT.md`'s routing note was updated in the same commit.
+5. `integrations osquery scan` with some `failed_queries` and no
+   discrepancies exits 0 (`secure/cli/integrations.py` ~L128-150): a
+   partly degraded pass reported as clean, against the spirit of
+   Invariant 5. Found in G2 review; not changed. Needs a decision
+   (exit 2, or a distinct "partial" signal).
 
 ## 5. Uncertainties
 

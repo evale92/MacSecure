@@ -74,6 +74,12 @@ Categories -> commands:
     Downloads & Logs   -> secure downloads
                           secure downloads --flagged
                           secure loghunt
+    Integrations       -> secure integrations osquery status|scan|alerts
+                          secure integrations yarax status|rulesets|alerts
+                          secure integrations yarax scan-fim-alerts|scan-suspicious
+                          secure integrations sigma status|rules|scan|alerts
+                          secure integrations suricata status|scan|alerts
+                          secure integrations zeek status|scan
     Event Log          -> secure add-note "..."
 
     Run Everything      A single button (top of the category list) that
@@ -1046,18 +1052,23 @@ class SecureGUI(tk.Tk):
                     Command("Mark Alert Known/Unknown…", correlate_mark_alert),
                 ],
             ),
-            Category(
-                "Downloads & Logs",
-                [
-                    Command(
-                        entry.label,
-                        (lambda entry=entry: [py(), "-m", "secure", *entry.args]),
-                        nonzero_is_finding=entry.nonzero_is_finding,
-                        timeout_seconds=entry.timeout_seconds,
-                    )
-                    for entry in COMMAND_CATALOG
-                ],
-            ),
+            # One category per catalog category, in catalog order.
+            *[
+                Category(
+                    title,
+                    [
+                        Command(
+                            entry.label,
+                            (lambda entry=entry: [py(), "-m", "secure", *entry.args]),
+                            nonzero_is_finding=entry.nonzero_is_finding,
+                            timeout_seconds=entry.timeout_seconds,
+                        )
+                        for entry in COMMAND_CATALOG
+                        if entry.category == title
+                    ],
+                )
+                for title in dict.fromkeys(entry.category for entry in COMMAND_CATALOG)
+            ],
             Category(
                 "Event Log",
                 [Command("Add Note…", add_note)],

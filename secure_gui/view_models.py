@@ -153,17 +153,54 @@ class CatalogCommand:
 
     label: str
     args: Tuple[str, ...]
+    category: str
     nonzero_is_finding: bool = False
     timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS
 
 
+_DOWNLOADS_LOGS = "Downloads & Logs"
+_INTEGRATIONS = "Integrations"
+
+# Integration scans exit 0 clean / 1 findings / 2 unavailable or error
+# (docs/INTEGRATIONS.md "Exit codes"); zeek never exits 1. Their runtimes
+# are unmeasured on the target Mac, hence a conservative 300 s. status,
+# rules, rulesets and alerts only read: exit 1 there is a failure. No
+# mark-alert here: it looks alerts up by id alone (docs/GUI_ROADMAP.md G2.5).
+_SCAN_TIMEOUT = 300
+
+
+def _integration(label: str, *args: str, scan: bool = False, finding: bool = False) -> CatalogCommand:
+    return CatalogCommand(
+        label, ("integrations", *args), _INTEGRATIONS,
+        nonzero_is_finding=finding,
+        timeout_seconds=_SCAN_TIMEOUT if scan else DEFAULT_TIMEOUT_SECONDS,
+    )
+
+
 COMMAND_CATALOG: Tuple[CatalogCommand, ...] = (
     # Read-only. Exit 1 means the quarantine history could not be read.
-    CatalogCommand("Download Provenance (last 30 days)", ("downloads",)),
-    CatalogCommand("Flagged Downloads Only", ("downloads", "--flagged")),
+    CatalogCommand("Download Provenance (last 30 days)", ("downloads",), _DOWNLOADS_LOGS),
+    CatalogCommand("Flagged Downloads Only", ("downloads", "--flagged"), _DOWNLOADS_LOGS),
     # Read-only. Exit 1/2 means a hunt failed. A default 24 h hunt took
     # 51 s on the target Mac, so it needs more than the default.
-    CatalogCommand("Log Hunt (last 24 hours)", ("loghunt",), timeout_seconds=300),
+    CatalogCommand("Log Hunt (last 24 hours)", ("loghunt",), _DOWNLOADS_LOGS, timeout_seconds=300),
+    _integration("osquery Status", "osquery", "status"),
+    _integration("osquery Cross-Check Scan", "osquery", "scan", scan=True, finding=True),
+    _integration("osquery Alerts", "osquery", "alerts"),
+    _integration("YARA-X Status", "yarax", "status"),
+    _integration("YARA-X Rulesets", "yarax", "rulesets"),
+    _integration("YARA-X Scan File Integrity Alerts", "yarax", "scan-fim-alerts", scan=True, finding=True),
+    _integration("YARA-X Scan Suspicious Persistence", "yarax", "scan-suspicious", scan=True, finding=True),
+    _integration("YARA-X Alerts", "yarax", "alerts"),
+    _integration("Sigma Status", "sigma", "status"),
+    _integration("Sigma Rules", "sigma", "rules"),
+    _integration("Sigma Scan", "sigma", "scan", scan=True, finding=True),
+    _integration("Sigma Alerts", "sigma", "alerts"),
+    _integration("Suricata Status", "suricata", "status"),
+    _integration("Suricata Scan", "suricata", "scan", scan=True, finding=True),
+    _integration("Suricata Alerts", "suricata", "alerts"),
+    _integration("Zeek Status", "zeek", "status"),
+    _integration("Zeek Scan", "zeek", "scan", scan=True),
 )
 
 

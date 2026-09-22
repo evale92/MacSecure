@@ -23,6 +23,7 @@ from pathlib import Path
 import pytest
 
 from secure.cli import build_parser
+from secure.cli import integrations as i
 from secure.cli.downloads import cmd_downloads
 from secure.cli.loghunt import cmd_loghunt
 from secure_gui.view_models import (
@@ -35,14 +36,42 @@ from secure_gui.view_models import (
 
 _SCRIPT = Path(__file__).resolve().parent.parent / "secure_gui.py"
 
-# label -> (expected argv after `secure`, handler, nonzero_is_finding, timeout)
+_DL = "Downloads & Logs"
+_IN = "Integrations"
+
+# Integration scans exit 0 clean / 1 findings / 2 unavailable or error
+# (docs/INTEGRATIONS.md "Exit codes"), so 1 is a finding. Zeek never exits 1.
+# Their runtimes are unmeasured on the target Mac: osquery is not installed,
+# Suricata/Zeek are unconfigured, and a temp-app-dir run of sigma/yarax has no
+# data, so it says nothing about a real pass. 300 s is the conservative value;
+# revisit once an engine is configured. status/rules/rulesets/alerts only read
+# (exit 1 = unavailable or a rule failed to load, a failure, never a finding).
+
+# label -> (category, argv after `secure`, handler, nonzero_is_finding, timeout)
 _EXPECTED = {
-    "Download Provenance (last 30 days)": (("downloads",), cmd_downloads, False, 60),
-    "Flagged Downloads Only": (("downloads", "--flagged"), cmd_downloads, False, 60),
+    "Download Provenance (last 30 days)": (_DL, ("downloads",), cmd_downloads, False, 60),
+    "Flagged Downloads Only": (_DL, ("downloads", "--flagged"), cmd_downloads, False, 60),
     # A default 24 h hunt measured 51.35 s real on the target Mac
     # (2026-09-22), 9 s under the old fixed 60 s kill, and it scales with
     # --hours. 300 s leaves real headroom; the Stop button still works.
-    "Log Hunt (last 24 hours)": (("loghunt",), cmd_loghunt, False, 300),
+    "Log Hunt (last 24 hours)": (_DL, ("loghunt",), cmd_loghunt, False, 300),
+    "osquery Status": (_IN, ("integrations", "osquery", "status"), i.cmd_integrations_osquery_status, False, 60),
+    "osquery Cross-Check Scan": (_IN, ("integrations", "osquery", "scan"), i.cmd_integrations_osquery_scan, True, 300),
+    "osquery Alerts": (_IN, ("integrations", "osquery", "alerts"), i.cmd_integrations_osquery_alerts, False, 60),
+    "YARA-X Status": (_IN, ("integrations", "yarax", "status"), i.cmd_integrations_yarax_status, False, 60),
+    "YARA-X Rulesets": (_IN, ("integrations", "yarax", "rulesets"), i.cmd_integrations_yarax_rulesets, False, 60),
+    "YARA-X Scan File Integrity Alerts": (_IN, ("integrations", "yarax", "scan-fim-alerts"), i.cmd_integrations_yarax_scan_fim_alerts, True, 300),
+    "YARA-X Scan Suspicious Persistence": (_IN, ("integrations", "yarax", "scan-suspicious"), i.cmd_integrations_yarax_scan_suspicious, True, 300),
+    "YARA-X Alerts": (_IN, ("integrations", "yarax", "alerts"), i.cmd_integrations_yarax_alerts, False, 60),
+    "Sigma Status": (_IN, ("integrations", "sigma", "status"), i.cmd_integrations_sigma_status, False, 60),
+    "Sigma Rules": (_IN, ("integrations", "sigma", "rules"), i.cmd_integrations_sigma_rules, False, 60),
+    "Sigma Scan": (_IN, ("integrations", "sigma", "scan"), i.cmd_integrations_sigma_scan, True, 300),
+    "Sigma Alerts": (_IN, ("integrations", "sigma", "alerts"), i.cmd_integrations_sigma_alerts, False, 60),
+    "Suricata Status": (_IN, ("integrations", "suricata", "status"), i.cmd_integrations_suricata_status, False, 60),
+    "Suricata Scan": (_IN, ("integrations", "suricata", "scan"), i.cmd_integrations_suricata_scan, True, 300),
+    "Suricata Alerts": (_IN, ("integrations", "suricata", "alerts"), i.cmd_integrations_suricata_alerts, False, 60),
+    "Zeek Status": (_IN, ("integrations", "zeek", "status"), i.cmd_integrations_zeek_status, False, 60),
+    "Zeek Scan": (_IN, ("integrations", "zeek", "scan"), i.cmd_integrations_zeek_scan, False, 300),
 }
 
 
@@ -50,14 +79,23 @@ def _by_label():
     return {entry.label: entry for entry in COMMAND_CATALOG}
 
 
-def test_the_catalog_holds_exactly_the_g1_commands():
+def test_the_catalog_holds_exactly_the_expected_commands_in_their_categories():
     assert set(_by_label()) == set(_EXPECTED)
+    for label, entry in _by_label().items():
+        assert entry.category == _EXPECTED[label][0], label
+
+
+def test_no_catalog_command_marks_an_alert():
+    # Marking known removes an alert from review. Integration mark-alert
+    # looks the alert up by id alone, so it stays out of the catalog until
+    # it refuses another integration's alert (docs/GUI_ROADMAP.md G2.5).
+    assert not any("mark" in part for entry in COMMAND_CATALOG for part in entry.args)
 
 
 @pytest.mark.parametrize("label", sorted(_EXPECTED))
 def test_each_entry_parses_and_reaches_its_handler(label):
     entry = _by_label()[label]
-    argv, handler, _, _ = _EXPECTED[label]
+    _, argv, handler, _, _ = _EXPECTED[label]
     assert entry.args == argv
     try:
         ns = build_parser().parse_args(list(entry.args))
@@ -72,7 +110,7 @@ def test_each_entry_pins_its_exit_contract_and_timeout(label):
     # loghunt returns 1/2 when a hunt fails: a nonzero exit is a failure,
     # never "found something" (SECURITY_INVARIANTS 5, no silent clean pass).
     entry = _by_label()[label]
-    _, _, nonzero_is_finding, timeout = _EXPECTED[label]
+    _, _, _, nonzero_is_finding, timeout = _EXPECTED[label]
     assert entry.nonzero_is_finding is nonzero_is_finding
     assert entry.timeout_seconds == timeout
 

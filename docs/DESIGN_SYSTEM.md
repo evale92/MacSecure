@@ -258,12 +258,16 @@ view — this phase is additive, not a replacement.
 
 ### Where the data comes from
 
-`secure_gui/data_access.py`'s `AlertRow` normalizes all 7 existing
+`secure_gui/data_access.py`'s `AlertRow` normalizes all 9 existing
 alert tables (`arp_alerts`, `wifi_alerts`, `bluetooth_alerts`,
 `ble_alerts`, `persistence_alerts`, `file_integrity_alerts`,
-`correlation_alerts`) into one shape, via the existing
+`correlation_alerts`, `correlation_chain_alerts`, `integration_alerts`)
+into one shape, via the existing
 `secure.storage.models.list_*_alerts()` functions — no new tables, no
-schema change, no CLI change. `list_all_alerts()` is pure and
+schema change, no CLI change. Integration alerts share one table across engines,
+so each row's mark command comes from its engine through the
+`INTEGRATION_MARK_COMMANDS` allowlist, and its source column names the
+engine (`INTEGRATION_LABELS`). `list_all_alerts()` is pure and
 unit-tested against a real temp database
 (`tests/test_gui_components.py`); `fetch_all_alerts()` is the thin
 wrapper that opens the app's actual configured database

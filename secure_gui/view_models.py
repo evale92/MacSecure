@@ -160,6 +160,7 @@ class CatalogCommand:
 
 _DOWNLOADS_LOGS = "Downloads & Logs"
 _INTEGRATIONS = "Integrations"
+_CORRELATION_CHAINS = "Correlation Chains"
 
 # Integration scans exit 0 clean / 1 findings / 2 unavailable or error
 # (docs/INTEGRATIONS.md "Exit codes"); zeek never exits 1. Their runtimes
@@ -201,6 +202,11 @@ COMMAND_CATALOG: Tuple[CatalogCommand, ...] = (
     _integration("Suricata Alerts", "suricata", "alerts"),
     _integration("Zeek Status", "zeek", "status"),
     _integration("Zeek Scan", "zeek", "scan", scan=True),
+    # `chains run` exits 1 only when it records new chain alerts. It writes,
+    # and was not measured against the real database, so 300 s.
+    CatalogCommand("Find Correlation Chains", ("correlate", "chains", "run"), _CORRELATION_CHAINS,
+                   nonzero_is_finding=True, timeout_seconds=_SCAN_TIMEOUT),
+    CatalogCommand("List Correlation Chains", ("correlate", "chains", "list"), _CORRELATION_CHAINS),
 )
 
 

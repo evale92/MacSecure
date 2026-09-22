@@ -80,6 +80,8 @@ Categories -> commands:
                           secure integrations sigma status|rules|scan|alerts
                           secure integrations suricata status|scan|alerts
                           secure integrations zeek status|scan
+    Correlation Chains -> secure correlate chains run
+                          secure correlate chains list
     Event Log          -> secure add-note "..."
 
     Run Everything      A single button (top of the category list) that

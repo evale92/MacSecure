@@ -6,6 +6,12 @@ Inventory specifically because it exercises severity, multiple source
 modules, evidence, correlation findings, known/acknowledged state,
 timestamps, and progressive disclosure all at once.
 
+It lists every alert source data_access.list_all_alerts() merges: the
+seven native alert tables, correlation chains, and integration alerts
+(osquery, YARA-X, Sigma, Suricata). An integration alert is marked by its
+own engine's command; one whose engine has no mark command is shown but
+its Mark button stays disabled.
+
 This module is Tkinter-dependent and, like secure_gui.py itself, can
 only be syntax-checked (not executed) in an environment without
 Tkinter installed — see PROJECT_NOTES.md. Keep any genuinely testable

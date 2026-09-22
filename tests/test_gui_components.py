@@ -32,7 +32,9 @@ from secure.storage.models import (
     add_ble_alert,
     add_bluetooth_alert,
     add_correlation_alert,
+    add_correlation_chain_alert,
     add_file_integrity_alert,
+    add_integration_alert,
     add_persistence_alert,
     add_wifi_alert,
     get_or_create_baseline_entity,
@@ -41,6 +43,8 @@ from secure.storage.models import (
 from secure_gui import tokens
 from secure_gui.data_access import (
     ALERT_MARK_COMMANDS,
+    INTEGRATION_LABELS,
+    INTEGRATION_MARK_COMMANDS,
     MODULE_LABELS,
     SIGNAL_MODULE_LABELS,
     AlertRow,
@@ -152,20 +156,49 @@ def _seed_one_of_each(conn) -> None:
              "source_table": "wifi_alerts", "source_id": 1, "timestamp": "2026-08-19T00:01:00"},
         ],
     )
+    add_integration_alert(
+        conn, run_id="run1", integration="sigma", kind="sigma_match", discrepancy="rule_match",
+        severity="medium", identity_key="rule-1", label="Suspicious launchctl",
+        message="Sigma rule matched a local observation",
+    )
+    _add_chain_alert(conn)
 
 
-def test_list_all_alerts_normalizes_all_seven_tables(tmp_path: Path):
+def _add_chain_alert(conn, fingerprint: str = "chain-fp1") -> None:
+    add_correlation_chain_alert(
+        conn, "run1", fingerprint, "arp_alerts", 1, 3, 2, 2, 2, 1, 0.5, 40, 40, "high", "medium",
+        [], None, "A chain of related observations across two modules",
+        [{"module": "arpwatch", "source_table": "arp_alerts", "source_id": 1}], [],
+    )
+
+
+# The nine alert sources the Alerts window merges (G3 added the last two).
+_SOURCE_TABLES = {
+    "arp_alerts", "wifi_alerts", "bluetooth_alerts", "ble_alerts", "persistence_alerts",
+    "file_integrity_alerts", "correlation_alerts", "correlation_chain_alerts", "integration_alerts",
+}
+
+
+def test_list_all_alerts_normalizes_all_nine_source_tables(tmp_path: Path):
+    # Was "all seven tables" before G3 added integration and chain alerts.
+    # Deliberately extended (AGENTS.md rule 3): the explicit set replaces
+    # "== ALERT_MARK_COMMANDS keys", because integration alerts are marked
+    # per row (INTEGRATION_MARK_COMMANDS), not per table.
     db_path = tmp_path / "test.db"
     with Database(db_path) as db:
         _seed_one_of_each(db.conn)
         rows = list_all_alerts(db.conn, limit=50)
 
-    assert len(rows) == 7
-    assert {r.source_table for r in rows} == set(ALERT_MARK_COMMANDS.keys())
+    assert len(rows) == 9
+    assert {r.source_table for r in rows} == _SOURCE_TABLES
+    assert set(ALERT_MARK_COMMANDS) == _SOURCE_TABLES - {"integration_alerts"}
     for row in rows:
         assert isinstance(row, AlertRow)
         assert row.summary, f"{row.source_table} row has no summary"
-        assert row.module == MODULE_LABELS[row.source_table]
+        if row.source_table == "integration_alerts":
+            assert row.module == INTEGRATION_LABELS[row.integration]
+        else:
+            assert row.module == MODULE_LABELS[row.source_table]
         assert isinstance(row.raw, dict) and row.raw, f"{row.source_table} row has empty raw"
 
 
@@ -203,7 +236,10 @@ def test_every_alert_row_has_a_working_mark_command(tmp_path: Path):
 
     for row in rows:
         assert row.mark_command is not None, f"{row.source_table} has no mark command"
-        assert row.mark_command == ALERT_MARK_COMMANDS[row.source_table]
+        if row.source_table == "integration_alerts":
+            assert row.mark_command == INTEGRATION_MARK_COMMANDS[row.integration]
+        else:
+            assert row.mark_command == ALERT_MARK_COMMANDS[row.source_table]
 
 
 def test_arpwatch_mark_command_has_no_alert_suffix(tmp_path: Path):

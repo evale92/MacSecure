@@ -16,7 +16,8 @@ an action taken from the Alerts pilot narrates into the same console
 transcript as everything else in the app.
 
 This module deliberately stays small and single-purpose (normalizing
-7 existing alert tables into one shape for one screen) rather than
+9 existing alert tables, the 7 native ones plus correlation chains and
+integration alerts, into one shape for one screen) rather than
 becoming a general repository/service layer — see the "Do not create
 a large repository/service abstraction yet" instruction in
 docs/DESIGN_SYSTEM.md. If a future screen needs read-only access to
@@ -46,8 +47,10 @@ from secure.storage.database import Database
 # Known/Unknown…" buttons already run — this module doesn't invent a
 # new action path, it reuses the existing one. arpwatch is the one
 # exception in shape: its only markable alert entity is arp_alerts,
-# exposed as `arpwatch mark` (no "-alert" suffix, unlike the other
-# six, which all use "mark-alert").
+# exposed as `arpwatch mark` (no "-alert" suffix, unlike the others,
+# which all use "mark-alert"). integration_alerts is deliberately absent:
+# one table holds every engine's alerts, so its command is chosen per row
+# (INTEGRATION_MARK_COMMANDS below).
 ALERT_MARK_COMMANDS: Dict[str, Tuple[str, ...]] = {
     "arp_alerts": ("arpwatch", "mark"),
     "wifi_alerts": ("wifi", "mark-alert"),
@@ -56,6 +59,25 @@ ALERT_MARK_COMMANDS: Dict[str, Tuple[str, ...]] = {
     "persistence_alerts": ("persistence", "mark-alert"),
     "file_integrity_alerts": ("fileintegrity", "mark-alert"),
     "correlation_alerts": ("correlate", "mark-alert"),
+    "correlation_chain_alerts": ("correlate", "chains", "mark-alert"),
+}
+
+# integration_alerts rows are marked by their own engine's command. An
+# allowlist, never the stored integration string put into argv: an engine
+# without mark-alert (zeek) or an unexpected value gives no command, so the
+# row is shown but cannot be marked. The CLI also refuses another engine's
+# alert (secure/cli/integrations.py _refuse_foreign_alert).
+INTEGRATION_MARK_COMMANDS: Dict[str, Tuple[str, ...]] = {
+    name: ("integrations", name, "mark-alert") for name in ("osquery", "yarax", "sigma", "suricata")
+}
+
+# So the operator always sees which engine an integration alert came from.
+INTEGRATION_LABELS: Dict[str, str] = {
+    "osquery": "Integration: osquery",
+    "yarax": "Integration: YARA-X",
+    "sigma": "Integration: Sigma",
+    "suricata": "Integration: Suricata",
+    "zeek": "Integration: Zeek",
 }
 
 # Display name for each source table's owning module — used for the
@@ -68,6 +90,7 @@ MODULE_LABELS: Dict[str, str] = {
     "persistence_alerts": "Process & Persistence",
     "file_integrity_alerts": "File Integrity",
     "correlation_alerts": "Correlation",
+    "correlation_chain_alerts": "Correlation Chains",
 }
 
 # secure/correlate/signals.py uses its own short "module" keys when it
@@ -129,14 +152,18 @@ class AlertRow:
     known: bool
     raw: dict
     explanation: Explanation
+    # Which engine an integration_alerts row came from; None for every
+    # other source table.
+    integration: "str | None" = None
 
     @property
     def mark_command(self) -> "Tuple[str, ...] | None":
         """CLI subcommand argv (after `secure`) that marks this alert
-        known/unknown, or None if this source table isn't in
-        ALERT_MARK_COMMANDS (shouldn't happen for any of the 7 tables
-        this module knows about, but callers should check rather than
-        assume)."""
+        known/unknown, or None when there is none: an integration whose
+        engine has no mark-alert (or an unexpected stored value), or a
+        source table not in ALERT_MARK_COMMANDS. Callers must check."""
+        if self.source_table == "integration_alerts":
+            return INTEGRATION_MARK_COMMANDS.get(self.integration or "")
         return ALERT_MARK_COMMANDS.get(self.source_table)
 
 
@@ -292,10 +319,56 @@ def _from_correlation(rec) -> AlertRow:
     )
 
 
-def list_all_alerts(conn: sqlite3.Connection, limit: int = 200) -> List[AlertRow]:
-    """All alerts across all 7 source tables, normalized and merged.
+def _from_integration(rec) -> AlertRow:
+    label = INTEGRATION_LABELS.get(rec.integration, f"Integration: {rec.integration}")
+    return AlertRow(
+        source_table="integration_alerts",
+        source_id=rec.id,
+        module=label,
+        created_at=rec.created_at,
+        severity=rec.severity,
+        kind=rec.kind,
+        subject=rec.label or rec.identity_key,
+        summary=rec.message,
+        backend_text=rec.message,
+        contributing_modules=(label,),
+        evidence_count=1,
+        known=rec.known,
+        raw=asdict(rec),
+        explanation=_explain(rec, "integration_alerts"),
+        integration=rec.integration,
+    )
 
-    Fetches up to `limit` rows from each of the 7 underlying tables
+
+def _from_correlation_chain(rec) -> AlertRow:
+    member_modules = _dedupe_preserve_order(
+        [SIGNAL_MODULE_LABELS.get(m.get("module"), m.get("module") or "?") for m in rec.members]
+    ) or (MODULE_LABELS["correlation_chain_alerts"],)
+    first_line = rec.explanation.splitlines()[0] if rec.explanation else rec.fingerprint
+    summary = first_line if len(first_line) <= 160 else first_line[:157] + "..."
+    return AlertRow(
+        source_table="correlation_chain_alerts",
+        source_id=rec.id,
+        module=MODULE_LABELS["correlation_chain_alerts"],
+        created_at=rec.created_at,
+        severity=rec.severity,
+        kind="correlation_chain",
+        subject=f"{rec.module_count} module(s), {rec.independent_fact_count} fact(s)",
+        summary=summary,
+        backend_text=rec.explanation,
+        contributing_modules=member_modules,
+        evidence_count=rec.independent_fact_count,
+        known=rec.known,
+        raw=asdict(rec),
+        explanation=_explain(rec, "correlation_chain_alerts"),
+    )
+
+
+def list_all_alerts(conn: sqlite3.Connection, limit: int = 200) -> List[AlertRow]:
+    """All alerts across the 9 source tables (the 7 native alert tables,
+    correlation chains and integration alerts), normalized and merged.
+
+    Fetches up to `limit` rows from each of the 9 underlying tables
     (so a single very active table can't crowd out the others before
     sorting), then returns the `limit` most recent overall, newest
     first. Read-only: this never writes to the database — see this
@@ -311,6 +384,12 @@ def list_all_alerts(conn: sqlite3.Connection, limit: int = 200) -> List[AlertRow
         _from_file_integrity(r) for r in models.list_file_integrity_alerts(conn, limit=limit)
     )
     rows.extend(_from_correlation(r) for r in models.list_correlation_alerts(conn, limit=limit))
+    rows.extend(
+        _from_correlation_chain(r) for r in models.list_correlation_chain_alerts(conn, limit=limit)
+    )
+    # One table holds every engine's alerts, so a noisy engine can crowd the
+    # others out within this `limit` (docs/GUI_ROADMAP.md).
+    rows.extend(_from_integration(r) for r in models.list_integration_alerts(conn, limit=limit))
 
     rows.sort(key=lambda r: r.created_at, reverse=True)
     return rows[:limit]

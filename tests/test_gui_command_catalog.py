@@ -23,6 +23,7 @@ from pathlib import Path
 import pytest
 
 from secure.cli import build_parser
+from secure.cli import correlate as c
 from secure.cli import integrations as i
 from secure.cli.downloads import cmd_downloads
 from secure.cli.loghunt import cmd_loghunt
@@ -38,6 +39,7 @@ _SCRIPT = Path(__file__).resolve().parent.parent / "secure_gui.py"
 
 _DL = "Downloads & Logs"
 _IN = "Integrations"
+_CH = "Correlation Chains"
 
 # Integration scans exit 0 clean / 1 findings / 2 unavailable or error
 # (docs/INTEGRATIONS.md "Exit codes"), so 1 is a finding. Zeek never exits 1.
@@ -72,6 +74,13 @@ _EXPECTED = {
     "Suricata Alerts": (_IN, ("integrations", "suricata", "alerts"), i.cmd_integrations_suricata_alerts, False, 60),
     "Zeek Status": (_IN, ("integrations", "zeek", "status"), i.cmd_integrations_zeek_status, False, 60),
     "Zeek Scan": (_IN, ("integrations", "zeek", "scan"), i.cmd_integrations_zeek_scan, False, 300),
+    # `correlate chains run` returns 1 exactly when it records new chain
+    # alerts (secure/cli/correlate.py, `1 if result.new_alerts else 0`); a
+    # crash exits 2 (secure.cli.main). It writes chain alerts, so it was not
+    # measured against the real database: conservative 300 s. `chains list`
+    # always returns 0.
+    "Find Correlation Chains": (_CH, ("correlate", "chains", "run"), c.cmd_correlate_chains_run, True, 300),
+    "List Correlation Chains": (_CH, ("correlate", "chains", "list"), c.cmd_correlate_chains_list, False, 60),
 }
 
 

@@ -24,7 +24,7 @@ from secure.cli import build_parser
 _ROOT_DIR = Path(__file__).resolve().parent.parent
 _SOURCES = [_ROOT_DIR / "secure_gui.py", *sorted((_ROOT_DIR / "secure_gui").glob("*.py"))]
 
-# 66 leaves as of 2026-09-22 (G2).
+# 67 leaves as of 2026-09-22 (G3 added correlate chains mark-alert).
 _PINNED = {
     "add-note",
     "agent approve",
@@ -56,6 +56,7 @@ _PINNED = {
     "connections mark",
     "connections scan",
     "correlate list",
+    "correlate chains mark-alert",  # G3: Alerts window marks chain alerts
     "correlate mark-alert",
     "correlate run",
     "diagnostics milestone record",

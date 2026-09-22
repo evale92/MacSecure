@@ -24,7 +24,7 @@ from secure.cli import build_parser
 _ROOT_DIR = Path(__file__).resolve().parent.parent
 _SOURCES = [_ROOT_DIR / "secure_gui.py", *sorted((_ROOT_DIR / "secure_gui").glob("*.py"))]
 
-# 67 leaves as of 2026-09-22 (G3 added correlate chains mark-alert).
+# 68 leaves as of 2026-09-22 (G3 added correlate chains mark-alert; G5 investigate show).
 _PINNED = {
     "add-note",
     "agent approve",
@@ -73,6 +73,7 @@ _PINNED = {
     "inventory mark",
     "inventory name",
     "inventory prune",
+    "investigate show",  # G5: built per click by investigate_show_request
     "inventory scan",
     "listening list",
     "listening mark",
@@ -94,6 +95,9 @@ _PINNED = {
     "wifi mark-alert",
     "wifi scan",
 }
+
+
+_NOT_ARGV = {"COMMAND_CATALOG", "INVESTIGATE_ENTITY_TYPES"}
 
 
 def _subparsers(parser):
@@ -120,7 +124,9 @@ def _argv_literals(path: Path, top_level):
     for node in ast.walk(tree):
         if isinstance(node, (ast.Assign, ast.AnnAssign)):
             targets = node.targets if isinstance(node, ast.Assign) else [node.target]
-            if any(isinstance(t, ast.Name) and t.id == "COMMAND_CATALOG" for t in targets):
+            # COMMAND_CATALOG has its own parse test. INVESTIGATE_ENTITY_TYPES
+            # is data, not argv, though it starts with "inventory".
+            if any(isinstance(t, ast.Name) and t.id in _NOT_ARGV for t in targets):
                 skip |= {id(x) for x in ast.walk(node)}
     for node in ast.walk(tree):
         if id(node) in skip or not isinstance(node, (ast.List, ast.Tuple)) or not node.elts:

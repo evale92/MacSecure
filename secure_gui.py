@@ -88,6 +88,8 @@ Categories -> commands:
       DFIR                secure dfir status|list
     AI & Performance   -> secure ai status|roles|history
                           secure diagnostics history
+    Investigate        -> secure investigate types
+                          secure investigate show <type> <key>
     Event Log          -> secure add-note "..."
 
     Run Everything      A single button (top of the category list) that
@@ -190,9 +192,12 @@ from secure_gui.components import confirm_action, mark_state_dialog, resolve_fon
 from secure_gui.view_models import (
     COMMAND_CATALOG,
     DEFAULT_TIMEOUT_SECONDS,
+    INVESTIGATE,
+    INVESTIGATE_ENTITY_TYPES,
     PRUNE_CONFIRM_BODY,
     PRUNE_CONFIRM_TITLE,
     confirmed_args,
+    investigate_show_request,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -930,6 +935,32 @@ class SecureGUI(tk.Tk):
                 return None
             return [py(), "-m", "secure", "add-note", text]
 
+        def investigate_show() -> Optional[List[str]]:
+            # investigate_show_request() is the enforcement point: it
+            # refuses an unknown type, an empty key, or a key starting with
+            # "-". A refusal goes to the console and nothing runs.
+            entity_type = simpledialog.askstring(
+                "Investigate entity",
+                "Entity type — one of:\n" + ", ".join(INVESTIGATE_ENTITY_TYPES),
+                parent=self,
+            )
+            if entity_type is None:
+                return None
+            key = simpledialog.askstring(
+                "Investigate entity", f"Key for {entity_type.strip()!r}:", parent=self
+            )
+            if key is None:
+                return None
+            args, refusal = investigate_show_request(entity_type.strip(), key)
+            if refusal:
+                self._log(f"  -> not run: {refusal}", "stderr")
+                return None
+            return [py(), "-m", "secure", *args]
+
+        # Hand-built commands that join a catalog category (they need a
+        # prompt, so they cannot be static catalog entries).
+        catalog_extras = {INVESTIGATE: [Command("Investigate Entity…", investigate_show)]}
+
         return [
             Category(
                 "Run Everything",
@@ -1075,7 +1106,8 @@ class SecureGUI(tk.Tk):
                         )
                         for entry in COMMAND_CATALOG
                         if entry.category == title
-                    ],
+                    ]
+                    + catalog_extras.get(title, []),
                 )
                 for title in dict.fromkeys(entry.category for entry in COMMAND_CATALOG)
             ],

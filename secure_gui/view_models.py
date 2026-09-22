@@ -164,6 +164,7 @@ _CORRELATION_CHAINS = "Correlation Chains"
 _VALIDATION_DETECTION = "Validation & Detection"
 _THREATINTEL_DFIR = "Threat Intel & DFIR"
 _AI_PERFORMANCE = "AI & Performance"
+INVESTIGATE = "Investigate"
 
 # Integration scans exit 0 clean / 1 findings / 2 unavailable or error
 # (docs/INTEGRATIONS.md "Exit codes"); zeek never exits 1. Their runtimes
@@ -225,6 +226,9 @@ COMMAND_CATALOG: Tuple[CatalogCommand, ...] = (
     CatalogCommand("AI Role Assignments", ("ai", "roles"), _AI_PERFORMANCE),
     CatalogCommand("AI Query History", ("ai", "history"), _AI_PERFORMANCE),
     CatalogCommand("Performance Milestones", ("diagnostics", "history"), _AI_PERFORMANCE),
+    # G5. Read-only, returns 0. "Investigate Entity…" is built per click by
+    # investigate_show_request() below, not listed here.
+    CatalogCommand("Investigation Entity Types", ("investigate", "types"), INVESTIGATE),
 )
 
 
@@ -240,3 +244,35 @@ def confirmed_args(confirm, title: str, body: str, args):
     """`args` if `confirm(title, body)` returns True, else None (the GUI
     treats None from a button's argv builder as "cancelled")."""
     return args if confirm(title, body) else None
+
+
+# ---------- investigate (docs/GUI_ROADMAP.md G5) ----------
+
+# Exactly the parser's choices for `investigate show <entity_type>`;
+# tests/test_gui_investigate.py fails if the two drift apart.
+INVESTIGATE_ENTITY_TYPES: Tuple[str, ...] = (
+    "inventory", "process", "process_destination", "listening", "wifi",
+    "bluetooth", "ble", "persistence", "file_watch_path", "dns_query",
+    "tls_sni", "destination", "file", "indicator",
+)
+
+
+def investigate_show_request(entity_type, key) -> "Tuple[Optional[Tuple[str, ...]], Optional[str]]":
+    """(argv after `secure`, None) for `investigate show`, or (None, why).
+
+    The enforcement point for the GUI's investigate prompt: the type must
+    be one the CLI accepts, and the key is stripped, must not be empty and
+    must not start with "-", which argparse would read as an option (e.g.
+    `--max-hops`) rather than the key. Spaces are fine: argv is a list and
+    no shell is involved. `investigate show` only reads; exit 1 means the
+    key was invalid or no such entity exists."""
+    if entity_type not in INVESTIGATE_ENTITY_TYPES:
+        return None, (
+            f"Unknown entity type {entity_type!r}. Choose one of: {', '.join(INVESTIGATE_ENTITY_TYPES)}."
+        )
+    key = (key or "").strip()
+    if not key:
+        return None, "Enter the entity's key (see Investigation Entity Types for each format)."
+    if key.startswith("-"):
+        return None, f"A key cannot start with '-' ({key!r} would be read as a command option)."
+    return ("investigate", "show", entity_type, key), None

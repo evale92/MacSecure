@@ -31,6 +31,7 @@ from secure.cli import diagnostics as g
 from secure.cli import threatintel as t
 from secure.cli import validate as v
 from secure.cli import integrations as i
+from secure.cli import investigate as inv
 from secure.cli.downloads import cmd_downloads
 from secure.cli.loghunt import cmd_loghunt
 from secure_gui.view_models import (
@@ -108,6 +109,8 @@ _EXPECTED = {
     "AI Role Assignments": (_AP, ("ai", "roles"), a.cmd_ai_roles, False, 60),
     "AI Query History": (_AP, ("ai", "history"), a.cmd_ai_history, False, 60),
     "Performance Milestones": (_AP, ("diagnostics", "history"), g.cmd_diagnostics_history, False, 60),
+    # G5. `investigate types` only reads and returns 0.
+    "Investigation Entity Types": ("Investigate", ("investigate", "types"), inv.cmd_investigate_types, False, 60),
 }
 
 

@@ -99,6 +99,7 @@ class PromotionGate:
     for why the polarity matters."""
 
     refusals: "tuple[str, ...]" = field(default_factory=tuple)
+    diff_bytes: "Optional[bytes]" = None
 
     @property
     def allowed(self) -> bool:
@@ -141,6 +142,7 @@ def _git(
     mutating: bool = False,
     action: str = "",
     timeout: float = _GIT_TIMEOUT_SECONDS,
+    input: "Optional[bytes]" = None,
 ) -> "subprocess.CompletedProcess":
     """The one seam every git call in this module goes through, so that
     requirement 4 ("record every filesystem/Git action through the
@@ -158,7 +160,8 @@ def _git(
     started = _monotonic()
     try:
         proc = subprocess.run(
-            argv, cwd=str(cwd), capture_output=True, text=True, timeout=timeout, shell=False
+            argv, cwd=str(cwd), capture_output=True, text=True, timeout=timeout, shell=False,
+            input=input.decode('utf-8') if input else None
         )
     except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
         record_action(
@@ -229,6 +232,7 @@ def evaluate_promotion_gate(
     manufactured.
     """
     refusals: "list[str]" = []
+    diff_bytes: "Optional[bytes]" = None
 
     # --- Phase 44: every applicable criterion satisfied, none UNKNOWN.
     if assessment is None:
@@ -281,20 +285,25 @@ def evaluate_promotion_gate(
     diff_hash = getattr(record, "diff_hash", None)
     if not diff_path or not diff_hash:
         refusals.append("no diff path or diff hash was recorded — the exact patch is not identifiable")
+        diff_bytes = None
     else:
         path = Path(diff_path)
         if not path.is_file():
             refusals.append(f"the recorded diff file no longer exists at {diff_path}")
+            diff_bytes = None
         else:
             try:
-                current = hashlib.sha256(path.read_bytes()).hexdigest()
+                diff_bytes = path.read_bytes()
+                current = hashlib.sha256(diff_bytes).hexdigest()
             except OSError as exc:
                 refusals.append(f"the recorded diff could not be read: {exc}")
+                diff_bytes = None
             else:
                 if current != diff_hash:
                     refusals.append(
                         f"the diff has changed since verification (recorded {diff_hash}, found {current})"
                     )
+                    diff_bytes = None
 
     # --- Changed files must be known.
     changed_files = list(getattr(record, "changed_files", []) or [])
@@ -335,7 +344,7 @@ def evaluate_promotion_gate(
             + ("..." if len(dirty) > 5 else "")
         )
 
-    return PromotionGate(refusals=tuple(refusals))
+    return PromotionGate(refusals=tuple(refusals), diff_bytes=diff_bytes if not refusals else None)
 
 
 # ---------------------------------------------------------------------
@@ -482,12 +491,11 @@ def promote(
             changed_files=changed_files, base_commit=base, diff_hash=diff_hash,
         )
 
-    diff_path = Path(record.diff_path)
-
     # Step 3 — apply ONLY the exact verified patch, dry-run first.
+    # Use stdin to ensure the bytes we hashed are the bytes we apply, eliminating TOCTOU.
     check = _git(
-        ["apply", "--check", str(diff_path)], cwd=root, audit_trail=audit_trail,
-        action="apply --check", mutating=False,
+        ["apply", "--check", "-"], cwd=root, audit_trail=audit_trail,
+        action="apply --check", mutating=False, input=gate.diff_bytes,
     )
     if check.returncode != 0:
         return PromotionResult(
@@ -498,8 +506,8 @@ def promote(
         )
 
     applied = _git(
-        ["apply", str(diff_path)], cwd=root, audit_trail=audit_trail,
-        action="apply (PROMOTION)", mutating=True,
+        ["apply", "-"], cwd=root, audit_trail=audit_trail,
+        action="apply (PROMOTION)", mutating=True, input=gate.diff_bytes,
     )
     if applied.returncode != 0:
         return PromotionResult(
@@ -532,14 +540,14 @@ def promote(
                 "Post-promotion verification FAILED and rollback could not be proven safe "
                 f"({why}). The patch is still applied. Nothing was reverted, deliberately — "
                 "a rollback that might destroy unrelated work is worse than leaving this for you. "
-                f"Revert by hand with: git apply -R {diff_path}"
+                f"Inspect the changes and revert by hand."
             ),
             changed_files=changed_files, base_commit=base, diff_hash=diff_hash, post_verification=notes,
         )
 
     reverted = _git(
-        ["apply", "-R", str(diff_path)], cwd=root, audit_trail=audit_trail,
-        action="apply -R (ROLLBACK)", mutating=True,
+        ["apply", "-R", "-"], cwd=root, audit_trail=audit_trail,
+        action="apply -R (ROLLBACK)", mutating=True, input=gate.diff_bytes,
     )
     if reverted.returncode != 0:
         return PromotionResult(
@@ -547,7 +555,7 @@ def promote(
             detail=(
                 "Post-promotion verification FAILED and the rollback itself failed "
                 f"({reverted.stderr.strip()}). The live checkout may still contain the patch — "
-                f"inspect it now. Revert by hand with: git apply -R {diff_path}"
+                f"inspect it now. Revert by hand with: git apply -R (reading from stdin) or git checkout ."
             ),
             changed_files=changed_files, base_commit=base, diff_hash=diff_hash, post_verification=notes,
         )

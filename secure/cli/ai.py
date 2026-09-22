@@ -470,6 +470,22 @@ def cmd_ai_changes_approve(args: argparse.Namespace) -> int:
                 "the worktree diff before approving."
             )
             return 1
+
+        # Backstop: if the CR carries a "Repair run:" marker but we can't find the
+        # run link, refuse it. This guards against orphaned CRs from crash windows
+        # between CR creation and link commit. The marker is part of proposed_change
+        # which is covered by revision_hash, so refusing here doesn't bypass verification.
+        cr = find_ai_change_request(db.conn, args.cr_id)
+        if cr and hasattr(cr, 'proposed_change') and cr.proposed_change:
+            proposed_text = str(cr.proposed_change) if not isinstance(cr.proposed_change, str) else cr.proposed_change
+            if "Repair run:" in proposed_text:
+                print(
+                    f"REFUSED: {args.cr_id} carries an agent repair marker but no run link exists. "
+                    f"This may indicate a crash during repair proposal. "
+                    f"Manual verification required; contact the agent maintainer."
+                )
+                return 1
+
         try:
             cr = approve_change(db.conn, args.cr_id, revision_hash=args.revision_hash, approved_by=approved_by)
         except RevisionMismatchError as exc:

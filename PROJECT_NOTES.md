@@ -7132,6 +7132,7 @@ a reimplementation of any of them.
     default-`None`, backward-compatible parameter, or new read-only
     recording/display logic that fires only when that parameter is
     actually supplied by `secure/agent/orchestrator.py`.
+- **Integration scan exit codes (2026-09-22)** — every `secure integrations <engine> scan*` command now exits 0 (clean), 1 (found something) or 2 (engine unavailable or errored); unavailable used to exit 1, the same as findings. `status`, `rules`, `rulesets` and `alerts` are unchanged. Scripts or cron jobs that treated exit 1 as "unavailable" must check for 2. See docs/INTEGRATIONS.md "Exit codes".
 
 ## Phase 32 — Local Model Routing (Part 2, Supervised Agentic Development & Self-Healing)
 

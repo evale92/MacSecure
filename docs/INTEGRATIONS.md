@@ -1102,3 +1102,22 @@ nothing for it to show.
 These remain natural next steps, not oversights — Phase 19's own
 instruction was to "begin with the highest-value structured logs," not
 to build exhaustive Zeek log coverage in one pass.
+
+## Exit codes
+
+Every `secure integrations <engine> scan*` command (osquery `scan`, yarax
+`scan-file` / `scan-fim-alerts` / `scan-suspicious`, sigma `scan`, suricata
+`scan`, zeek `scan`) follows one contract:
+
+| Exit | Meaning |
+|---|---|
+| 0 | Ran; nothing to review. |
+| 1 | Ran; found something to review (discrepancies, matches, findings). |
+| 2 | The engine was unavailable or errored this pass; nothing was checked. |
+
+Zeek never uses 1: it records behavioural telemetry, not alerts. Before
+2026-09-22 the unavailable/error branch also exited 1, so exit 1 could
+mean either outcome. `status` (1 = unavailable), `rules` / `rulesets`
+(1 = a rule failed to load) and `alerts` (always 0) are unchanged. Pinned
+by `tests/test_cli_integrations_exit_codes.py`.
+

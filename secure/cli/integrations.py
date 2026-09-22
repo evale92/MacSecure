@@ -122,7 +122,7 @@ def cmd_integrations_osquery_scan(args: argparse.Namespace) -> int:
             "osquery scan unavailable/error",
             extra={"event": "integrations_osquery_scan_unavailable", "component": "cli"},
         )
-        return 1
+        return 2  # unavailable/error: see docs/INTEGRATIONS.md "Exit codes"
 
     print(f"Observations collected: {len(result.observations)}")
     if result.failed_queries:
@@ -329,7 +329,7 @@ def cmd_integrations_yarax_scan_file(args: argparse.Namespace) -> int:
         extra={"event": "integrations_yarax_scan_file", "component": "cli"},
     )
     if not result.available:
-        return 1
+        return 2  # unavailable/error: see docs/INTEGRATIONS.md "Exit codes"
     return 1 if result.findings else 0
 
 
@@ -351,7 +351,7 @@ def cmd_integrations_yarax_scan_fim_alerts(args: argparse.Namespace) -> int:
         extra={"event": "integrations_yarax_scan_fim_alerts", "component": "cli"},
     )
     if not result.available:
-        return 1
+        return 2  # unavailable/error: see docs/INTEGRATIONS.md "Exit codes"
     return 1 if result.findings else 0
 
 
@@ -373,7 +373,7 @@ def cmd_integrations_yarax_scan_suspicious(args: argparse.Namespace) -> int:
         extra={"event": "integrations_yarax_scan_suspicious", "component": "cli"},
     )
     if not result.available:
-        return 1
+        return 2  # unavailable/error: see docs/INTEGRATIONS.md "Exit codes"
     return 1 if result.findings else 0
 
 
@@ -563,7 +563,7 @@ def cmd_integrations_sigma_scan(args: argparse.Namespace) -> int:
             "sigma scan unavailable/error",
             extra={"event": "integrations_sigma_scan_unavailable", "component": "cli"},
         )
-        return 1
+        return 2  # unavailable/error: see docs/INTEGRATIONS.md "Exit codes"
 
     print(f"Rules loaded: {len(result.rules_loaded)}")
     if result.rule_load_errors:
@@ -744,7 +744,7 @@ def cmd_integrations_suricata_scan(args: argparse.Namespace) -> int:
             "suricata scan unavailable/error",
             extra={"event": "integrations_suricata_scan_unavailable", "component": "cli"},
         )
-        return 1
+        return 2  # unavailable/error: see docs/INTEGRATIONS.md "Exit codes"
 
     if result.health.status == "degraded":
         print(
@@ -910,7 +910,7 @@ def cmd_integrations_zeek_scan(args: argparse.Namespace) -> int:
             "zeek scan unavailable/error",
             extra={"event": "integrations_zeek_scan_unavailable", "component": "cli"},
         )
-        return 1
+        return 2  # unavailable/error: see docs/INTEGRATIONS.md "Exit codes"
 
     counts = result.counts_by_kind
     print(

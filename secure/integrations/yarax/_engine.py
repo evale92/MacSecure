@@ -22,6 +22,8 @@ match means anything — this file only runs the engine.
 
 from __future__ import annotations
 
+import math
+
 
 def engine_version() -> "str | None":
     """The installed yara_x library's own version string, or None if it
@@ -66,5 +68,8 @@ def scan_bytes(rules, data: bytes, timeout_seconds: float):
     scanner = yara_x.Scanner(rules)
     set_timeout = getattr(scanner, "set_timeout", None)
     if callable(set_timeout):
-        set_timeout(timeout_seconds)
+        # yara_x takes whole seconds and raises TypeError for a float.
+        # Round up so the guard is never shorter than asked, and never
+        # pass 0, which may mean "no limit".
+        set_timeout(max(1, math.ceil(timeout_seconds)))
     return scanner.scan(data)

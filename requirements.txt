@@ -32,9 +32,10 @@ pyobjc-framework-CoreBluetooth>=12.2.2
 # or version-confirmed in the sandbox this phase was built in (no
 # network access) — the exact minimum version below is the package's
 # current stable release as of this phase, not independently verified
-# against a real install the way bleak's version above was; confirm
-# on the actual target Mac before relying on it, the same "step-zero
-# proof-of-concept first" discipline BLE's own rollout used.
+# against a real install at the time. Verified 2026-09-22 on the target
+# Mac with yara-x 1.20.0: compile + scan work once _engine.scan_bytes()
+# passes set_timeout() whole seconds (it raises TypeError for a float);
+# tests/test_integrations_yarax_engine.py makes one real call to keep it so.
 yara-x>=0.13.0
 
 # secure/integrations/sigma/ (Phase 17 — Sigma detection-rule

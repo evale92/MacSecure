@@ -362,6 +362,19 @@ class AppConfig:
     # which only bounds the tool's own run.
     agent_verify_timeout_seconds: float = 300.0
 
+    def __post_init__(self) -> None:
+        """Validate that AI model hosts are only localhost, never remote."""
+        for field_name, host in [("ollama_host", self.ollama_host), ("local_llm_host", self.local_llm_host)]:
+            if not host:
+                continue
+            host_lower = host.lower().strip()
+            if not any(host_lower.startswith(prefix) for prefix in ("localhost:", "127.0.0.1:", "http://127.0.0.1", "http://localhost", "https://127.0.0.1", "https://localhost")):
+                raise ValueError(
+                    f"{field_name} must be localhost only (127.0.0.1 or localhost), "
+                    f"not {host!r}. AI analysis runs on your Mac with access to "
+                    f"sensitive data; remote model hosts are not supported."
+                )
+
     def app_dir_path(self) -> Path:
         return Path(self.app_dir).expanduser()
 

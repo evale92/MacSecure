@@ -387,9 +387,22 @@ def list_all_alerts(conn: sqlite3.Connection, limit: int = 200) -> List[AlertRow
     rows.extend(
         _from_correlation_chain(r) for r in models.list_correlation_chain_alerts(conn, limit=limit)
     )
-    # One table holds every engine's alerts, so a noisy engine can crowd the
-    # others out within this `limit` (docs/GUI_ROADMAP.md).
-    rows.extend(_from_integration(r) for r in models.list_integration_alerts(conn, limit=limit))
+    # integration_alerts holds every engine in one table. Fetch with a larger
+    # limit, then cap per-engine to prevent a noisy engine (e.g. suricata IDS)
+    # from crowding out the others in the final sorted results.
+    integration_rows = [
+        _from_integration(r)
+        for r in models.list_integration_alerts(conn, limit=limit * 2)
+    ]
+    # Deduplicate per-engine: keep at most (limit // 8) rows per engine to
+    # ensure fair representation alongside the 7 native alert tables.
+    max_per_engine = max(1, limit // 8)
+    engine_counts: Dict[str, int] = {}
+    for row in integration_rows:
+        engine = row.integration or "unknown"
+        if engine_counts.get(engine, 0) < max_per_engine:
+            rows.append(row)
+            engine_counts[engine] = engine_counts.get(engine, 0) + 1
 
     rows.sort(key=lambda r: r.created_at, reverse=True)
     return rows[:limit]

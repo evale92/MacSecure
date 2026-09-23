@@ -13,6 +13,7 @@ from secure.multi_device.device_registry import (
     DeviceRegistry,
     EnrolledDevice,
     DeviceStatus,
+    DeviceRole,
 )
 from secure.multi_device.cross_device import (
     CrossDeviceFindingCorrelator,
@@ -25,6 +26,7 @@ __all__ = [
     "DeviceRegistry",
     "EnrolledDevice",
     "DeviceStatus",
+    "DeviceRole",
     "CrossDeviceFindingCorrelator",
     "CorrelatedFinding",
 ]

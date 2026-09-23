@@ -604,6 +604,7 @@ from secure.cli.threatintel import (
     cmd_threatintel_providers,
 )
 from secure.remediation.cli import RemediationCLI
+from secure.cli.detection_pipeline import DetectionPipelineCLI
 from .fileintegrity import (
     cmd_fileintegrity_scan,
     cmd_fileintegrity_watch_add,
@@ -827,6 +828,18 @@ def cmd_remediation_playbooks(args):
         _remediation_cli.cmd_playbooks(
             enabled_only=getattr(args, 'enabled_only', True),
         )
+
+
+# Phase 54: Detection Pipeline CLI wrappers
+_detection_pipeline_cli = DetectionPipelineCLI()
+
+
+def cmd_detection_pipeline_run(args):
+    """secure detection-pipeline run [--lookback-minutes 5]"""
+    return _detection_pipeline_cli.cmd_run(
+        lookback_minutes=getattr(args, 'lookback_minutes', 5),
+        json_output=getattr(args, 'json', False),
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -2631,6 +2644,27 @@ def build_parser() -> argparse.ArgumentParser:
         "--json", action="store_true", help="Output as JSON."
     )
     remediation_playbooks_parser.set_defaults(func=cmd_remediation_playbooks)
+
+    # Phase 54 — Detection Pipeline
+    detection_pipeline_parser = subparsers.add_parser(
+        "detection-pipeline",
+        help="Detection pipeline: baseline → correlation → alert decision (Phase 54).",
+    )
+    detection_pipeline_subparsers = detection_pipeline_parser.add_subparsers(
+        dest="detection_pipeline_command", required=True
+    )
+
+    detection_pipeline_run_parser = detection_pipeline_subparsers.add_parser(
+        "run", help="Run detection pipeline on recent anomalies."
+    )
+    detection_pipeline_run_parser.add_argument(
+        "--lookback-minutes", dest="lookback_minutes", type=int, default=5,
+        help="How far back to fetch anomalies (default: 5)."
+    )
+    detection_pipeline_run_parser.add_argument(
+        "--json", action="store_true", help="Output as JSON."
+    )
+    detection_pipeline_run_parser.set_defaults(func=cmd_detection_pipeline_run)
 
     return parser
 

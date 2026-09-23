@@ -73,15 +73,32 @@ class RemediationCLI:
         self._print_execution_summary(result)
         return result
 
+    def get_status(self, execution_id: str):
+        """Get execution status data (no printing)."""
+        return self.executor.get_execution(execution_id)
+
     def cmd_status(self, execution_id: str):
         """Get execution status: secure remediation status <execution-id>"""
-        result = self.executor.get_execution(execution_id)
+        result = self.get_status(execution_id)
 
         if result is None:
             return self._print_error(f"Execution {execution_id} not found")
 
         self._print_execution_detail(result)
         return result
+
+    def get_history(
+        self,
+        action_id: str = "",
+        status: str = "",
+        limit: int = 20,
+    ):
+        """Get execution history data (no printing)."""
+        return self.executor.list_executions(
+            action_id=action_id,
+            status=status,
+            limit=limit,
+        )
 
     def cmd_history(
         self,
@@ -90,7 +107,7 @@ class RemediationCLI:
         limit: int = 20,
     ):
         """List execution history: secure remediation history [--action-id <id>] [--limit 20]"""
-        results = self.executor.list_executions(
+        results = self.get_history(
             action_id=action_id,
             status=status,
             limit=limit,
@@ -115,17 +132,25 @@ class RemediationCLI:
 
         return results
 
+    def get_catalog(
+        self,
+        risk_level: str = "",
+        action_type: str = "",
+    ):
+        """Get remediation catalog data (no printing)."""
+        return list_actions(
+            risk_level=risk_level,
+            action_type=action_type,
+            enabled_only=True,
+        )
+
     def cmd_catalog(
         self,
         risk_level: str = "",
         action_type: str = "",
     ):
         """List remediation catalog: secure remediation catalog [--risk-level <low|medium|high>]"""
-        actions = list_actions(
-            risk_level=risk_level,
-            action_type=action_type,
-            enabled_only=True,
-        )
+        actions = self.get_catalog(risk_level=risk_level, action_type=action_type)
 
         if not actions:
             print("No actions found")
@@ -172,9 +197,13 @@ class RemediationCLI:
 
         return action
 
+    def get_playbooks(self, enabled_only: bool = True):
+        """Get playbooks data (no printing)."""
+        return self.playbook_engine.list_playbooks(enabled_only=enabled_only)
+
     def cmd_playbooks(self, enabled_only: bool = True):
         """List playbooks: secure remediation playbooks [--enabled-only]"""
-        playbooks = self.playbook_engine.list_playbooks(enabled_only=enabled_only)
+        playbooks = self.get_playbooks(enabled_only=enabled_only)
 
         if not playbooks:
             print("No playbooks found")

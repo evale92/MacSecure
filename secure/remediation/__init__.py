@@ -26,7 +26,6 @@ from secure.remediation.executor import (
     ExecutionStatus,
 )
 from secure.remediation.cli import RemediationCLI
-from secure.remediation.api import RemediationAPIServer
 
 __all__ = [
     "RemediationAction",
@@ -43,5 +42,4 @@ __all__ = [
     "ExecutionResult",
     "ExecutionStatus",
     "RemediationCLI",
-    "RemediationAPIServer",
 ]

@@ -603,6 +603,7 @@ from secure.cli.threatintel import (
     cmd_threatintel_history,
     cmd_threatintel_providers,
 )
+from secure.remediation.cli import RemediationCLI
 from .fileintegrity import (
     cmd_fileintegrity_scan,
     cmd_fileintegrity_watch_add,
@@ -718,6 +719,114 @@ from .diagnostics import (
     cmd_diagnostics_milestone_record,
     cmd_diagnostics_report,
 )
+
+
+# Phase 52: Remediation CLI wrappers
+_remediation_cli = RemediationCLI()
+
+
+def cmd_remediation_run(args):
+    """secure remediation run <action-id> --triggered-by <ref>"""
+    import json
+    result = _remediation_cli.cmd_run(
+        action_id=args.action_id,
+        triggered_by=args.triggered_by,
+        triggered_by_ref=args.triggered_by_ref,
+    )
+    if args.json and result:
+        print(json.dumps({
+            "execution_id": result.execution_id,
+            "action_id": result.action_id,
+            "status": result.status.value if hasattr(result.status, 'value') else str(result.status),
+        }))
+
+
+def cmd_remediation_approve(args):
+    """secure remediation approve <execution-id> --approved-by <user>"""
+    import json
+    result = _remediation_cli.cmd_approve(
+        execution_id=args.execution_id,
+        approved_by=args.approved_by,
+        reason=getattr(args, 'reason', ''),
+    )
+    if args.json and result:
+        print(json.dumps({
+            "execution_id": result.execution_id,
+            "status": result.status.value if hasattr(result.status, 'value') else str(result.status),
+        }))
+
+
+def cmd_remediation_status(args):
+    """secure remediation status <execution-id>"""
+    import json
+    if args.json:
+        result = _remediation_cli.get_status(args.execution_id)
+        if result:
+            print(json.dumps({
+                "execution_id": result.execution_id,
+                "action_id": result.action_id,
+                "status": result.status.value if hasattr(result.status, 'value') else str(result.status),
+            }))
+    else:
+        _remediation_cli.cmd_status(args.execution_id)
+
+
+def cmd_remediation_history(args):
+    """secure remediation history [--action-id <id>] [--limit 20]"""
+    import json
+    if args.json:
+        results = _remediation_cli.get_history(
+            action_id=getattr(args, 'action_id', ''),
+            status=getattr(args, 'status', ''),
+            limit=getattr(args, 'limit', 20),
+        )
+        print(json.dumps([{
+            "execution_id": r.execution_id,
+            "action_id": r.action_id,
+            "status": r.status.value if hasattr(r.status, 'value') else str(r.status),
+        } for r in results]))
+    else:
+        _remediation_cli.cmd_history(
+            action_id=getattr(args, 'action_id', ''),
+            status=getattr(args, 'status', ''),
+            limit=getattr(args, 'limit', 20),
+        )
+
+
+def cmd_remediation_catalog(args):
+    """secure remediation catalog [--risk-level <low|medium|high>]"""
+    import json
+    if args.json:
+        actions = _remediation_cli.get_catalog(
+            risk_level=getattr(args, 'risk_level', ''),
+        )
+        print(json.dumps([{
+            "id": a.id,
+            "name": a.name,
+            "risk_level": a.risk_level.value if hasattr(a.risk_level, 'value') else str(a.risk_level),
+        } for a in actions]))
+    else:
+        _remediation_cli.cmd_catalog(
+            risk_level=getattr(args, 'risk_level', ''),
+        )
+
+
+def cmd_remediation_playbooks(args):
+    """secure remediation playbooks [--enabled-only]"""
+    import json
+    if args.json:
+        playbooks = _remediation_cli.get_playbooks(
+            enabled_only=getattr(args, 'enabled_only', True),
+        )
+        print(json.dumps([{
+            "id": pb.id,
+            "name": pb.name,
+            "severity": pb.severity.value if hasattr(pb.severity, 'value') else str(pb.severity),
+        } for pb in playbooks]))
+    else:
+        _remediation_cli.cmd_playbooks(
+            enabled_only=getattr(args, 'enabled_only', True),
+        )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -2435,6 +2544,93 @@ def build_parser() -> argparse.ArgumentParser:
         "the tier criteria read UNKNOWN and promotion is refused.",
     )
     agent_promote_parser.set_defaults(func=cmd_agent_promote)
+
+    # Phase 52 — Remediation and response
+    remediation_parser = subparsers.add_parser(
+        "remediation",
+        help="Automated remediation and response (run/approve/status/history/catalog/playbooks).",
+    )
+    remediation_subparsers = remediation_parser.add_subparsers(
+        dest="remediation_command", required=True
+    )
+
+    remediation_run_parser = remediation_subparsers.add_parser(
+        "run", help="Run a remediation action: secure remediation run <action-id> --triggered-by <ref>"
+    )
+    remediation_run_parser.add_argument("action_id", help="Action ID to execute.")
+    remediation_run_parser.add_argument(
+        "--triggered-by", dest="triggered_by", default="cli", help="Trigger source (default: cli)."
+    )
+    remediation_run_parser.add_argument(
+        "--triggered-by-ref", dest="triggered_by_ref", default="user", help="Trigger reference."
+    )
+    remediation_run_parser.add_argument(
+        "--json", action="store_true", help="Output as JSON."
+    )
+    remediation_run_parser.set_defaults(func=cmd_remediation_run)
+
+    remediation_approve_parser = remediation_subparsers.add_parser(
+        "approve", help="Approve and execute a pending remediation."
+    )
+    remediation_approve_parser.add_argument("execution_id", help="Execution ID to approve.")
+    remediation_approve_parser.add_argument(
+        "--approved-by", dest="approved_by", default="cli", help="Approver ID (default: cli)."
+    )
+    remediation_approve_parser.add_argument(
+        "--reason", help="Approval reason."
+    )
+    remediation_approve_parser.add_argument(
+        "--json", action="store_true", help="Output as JSON."
+    )
+    remediation_approve_parser.set_defaults(func=cmd_remediation_approve)
+
+    remediation_status_parser = remediation_subparsers.add_parser(
+        "status", help="Get execution status."
+    )
+    remediation_status_parser.add_argument("execution_id", help="Execution ID.")
+    remediation_status_parser.add_argument(
+        "--json", action="store_true", help="Output as JSON."
+    )
+    remediation_status_parser.set_defaults(func=cmd_remediation_status)
+
+    remediation_history_parser = remediation_subparsers.add_parser(
+        "history", help="List execution history."
+    )
+    remediation_history_parser.add_argument(
+        "--action-id", dest="action_id", default="", help="Filter by action ID."
+    )
+    remediation_history_parser.add_argument(
+        "--status", default="", help="Filter by status."
+    )
+    remediation_history_parser.add_argument(
+        "--limit", type=int, default=20, help="Maximum results (default: 20)."
+    )
+    remediation_history_parser.add_argument(
+        "--json", action="store_true", help="Output as JSON."
+    )
+    remediation_history_parser.set_defaults(func=cmd_remediation_history)
+
+    remediation_catalog_parser = remediation_subparsers.add_parser(
+        "catalog", help="List remediation catalog."
+    )
+    remediation_catalog_parser.add_argument(
+        "--risk-level", dest="risk_level", default="", help="Filter by risk level (low/medium/high)."
+    )
+    remediation_catalog_parser.add_argument(
+        "--json", action="store_true", help="Output as JSON."
+    )
+    remediation_catalog_parser.set_defaults(func=cmd_remediation_catalog)
+
+    remediation_playbooks_parser = remediation_subparsers.add_parser(
+        "playbooks", help="List incident response playbooks."
+    )
+    remediation_playbooks_parser.add_argument(
+        "--enabled-only", dest="enabled_only", action="store_true", default=True, help="Show only enabled playbooks."
+    )
+    remediation_playbooks_parser.add_argument(
+        "--json", action="store_true", help="Output as JSON."
+    )
+    remediation_playbooks_parser.set_defaults(func=cmd_remediation_playbooks)
 
     return parser
 

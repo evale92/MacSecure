@@ -8,5 +8,7 @@ Enrichment only — never ground truth for Secure's severity/confidence.
 """
 
 from secure.intelligence.models import CveMatch, CvssScore, MitreMapping
+from secure.intelligence.cve_integrator import CveIntegrator
+from secure.intelligence.mitre_mapper import MitreMapper
 
-__all__ = ["CveMatch", "CvssScore", "MitreMapping"]
+__all__ = ["CveMatch", "CvssScore", "MitreMapping", "CveIntegrator", "MitreMapper"]

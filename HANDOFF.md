@@ -96,35 +96,45 @@ python3 -m unittest discover tests/ -v
 3. **Flexible roles:** PRIMARY/SECONDARY/SHARED/ADMIN for different approval levels
 4. **Non-destructive isolation:** Network routing, not destructive blocking
 
-## Phase 52 Progress (In Progress)
+## Phase 52: GUI Panel & CLI Wiring — COMPLETE ✅
 
-✅ **Part 1: CLI Wiring Complete**
+**Part 1: CLI Wiring** ✅
 - Remediation subparser wired into main CLI (`secure/cli/__init__.py`)
 - Commands: run, approve, status, history, catalog, playbooks
 - `--json` flag implemented for all read-only commands
 - Split RemediationCLI: get_* methods (data only), cmd_* methods (print + return)
 - Removed non-existent api.py import per architecture rules
 
-⏳ **Part 2: Remaining Work**
-1. Create GUI panel (`secure_gui/remediation_view.py`)
-   - Formatters mirroring alerts_view.py / agent_view.py style
-   - Dashboard stats: pending/successful/failed actions
-   - Running playbooks list
-   - Phase 49 multi-device incidents
-   - Approval queue display
+**Part 2: GUI Panel** ✅
+- Created `secure_gui/remediation_view.py` — execution monitor dashboard
+  * Level 1: execution history table with status coloring
+  * Level 2: detail panel for selected execution
+  * Dashboard stats: pending/successful/failed counts
+  * Refresh button to reload real-time state
+  * Follows alerts_view.py pattern (display/action separation)
 
-2. Extend `secure_gui/data_access.py`
-   - Direct remediation storage reads (no HTTP)
-   - Query: pending approvals, execution history, playbook status
+- Extended `secure_gui/data_access.py`
+  * RemediationDashboard dataclass (stats + recent executions)
+  * RemediationExecution dataclass (normalized display row)
+  * fetch_remediation_dashboard_now() reads executor state
 
-3. Wire approvals via CLI subprocess
-   - GUI calls: `py -m secure remediation approve --approved-by <user> <execution-id>`
-   - Preserves audit trail through Phase 47 safe-code path
+- Wired into `secure_gui.py`
+  * Added remediation launcher button frame
+  * Callback routes approvals through run_command → CLI subprocess
+  * Preserves audit trail (Phase 47 safe-code path)
 
-**Test Progress:**
-- `secure remediation catalog --json` → pure JSON, no prints ✅
-- `secure remediation playbooks` → formatted table output ✅
-- `secure remediation history --json` → JSON history array ✅
+**Approval Flow:**
+- GUI: user clicks action in remediation_view.py
+- GUI calls: run_command("Approve remediation", ["remediation", "approve", execution_id, ...])
+- secure_gui.py enqueues: `secure remediation approve <execution-id> --approved-by cli`
+- CLI routes through RemediationExecutor → safe-code infrastructure → audit log
+- Result narrates to console transcript (same as all other GUI actions)
+
+**Verified Tests:**
+- `secure remediation catalog --json` → pure JSON ✅
+- `secure remediation playbooks` → table output ✅
+- `secure remediation history --json` → JSON array ✅
+- CLI still works after GUI wiring ✅
 
 ---
 

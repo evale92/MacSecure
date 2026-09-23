@@ -4,7 +4,8 @@
 # Runs baseline scanners and detection pipeline, logs results
 #
 # Usage: ./secure_monitor.sh [--json] [--log-only]
-# Cron:   0 */4 * * * /Users/erickvale/Desktop/secure-resource/secure_monitor.sh >> /var/log/secure_monitor.log 2>&1
+# Optional: add to crontab for automated runs (e.g., every 4 hours)
+#   0 */4 * * * /Users/erickvale/Desktop/secure-resource/secure_monitor.sh >> /var/log/secure_monitor.log 2>&1
 
 set -e
 

@@ -244,16 +244,16 @@ def load_catalog() -> dict[str, RemediationAction]:
     return _CATALOG.copy()
 
 
-def get_action(action_id: str) -> RemediationAction | None:
+def get_action(action_id: str):
     """Get a single action by ID."""
     return _CATALOG.get(action_id)
 
 
 def list_actions(
-    risk_level: str | None = None,
-    action_type: str | None = None,
-    enabled_only: bool = True,
-) -> list[RemediationAction]:
+    risk_level=None,
+    action_type=None,
+    enabled_only=True,
+):
     """List actions, optionally filtered."""
     result = list(_CATALOG.values())
 

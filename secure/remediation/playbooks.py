@@ -76,7 +76,7 @@ class PlaybookRun:
 class PlaybookEngine:
     """Orchestrates playbook execution with condition evaluation and branching."""
 
-    def __init__(self, playbooks: dict[str, Playbook] | None = None):
+    def __init__(self, playbooks=None):
         """Initialize with playbooks (use defaults if None)."""
         self.playbooks = playbooks or self._default_playbooks()
         self.runs: dict[str, PlaybookRun] = {}
@@ -235,11 +235,11 @@ class PlaybookEngine:
             ),
         }
 
-    def get_playbook(self, playbook_id: str) -> Playbook | None:
+    def get_playbook(self, playbook_id: str):
         """Get a playbook by ID."""
         return self.playbooks.get(playbook_id)
 
-    def list_playbooks(self, enabled_only: bool = True) -> list[Playbook]:
+    def list_playbooks(self, enabled_only=True):
         """List all playbooks."""
         result = list(self.playbooks.values())
         if enabled_only:
@@ -248,9 +248,9 @@ class PlaybookEngine:
 
     def find_applicable_playbooks(
         self,
-        finding_types: list[str],
-        anomaly_score: float = 0.0,
-    ) -> list[Playbook]:
+        finding_types,
+        anomaly_score=0.0,
+    ):
         """Find playbooks that match the given findings and anomaly score."""
         applicable = []
 
@@ -264,8 +264,14 @@ class PlaybookEngine:
             # Check anomaly score threshold if applicable
             score_match = True
             if "anomaly_score >" in playbook.trigger.condition:
-                threshold = int(playbook.trigger.condition.split(">")[1].strip())
-                score_match = anomaly_score >= threshold
+                try:
+                    # Extract threshold: "anomaly_score > 80 AND ..." → 80
+                    parts = playbook.trigger.condition.split(">")[1].split()[0]
+                    threshold = int(parts)
+                    score_match = anomaly_score >= threshold
+                except (IndexError, ValueError):
+                    # If parsing fails, assume match
+                    score_match = True
 
             if finding_match and score_match:
                 applicable.append(playbook)
@@ -277,8 +283,8 @@ class PlaybookEngine:
         playbook_id: str,
         trigger_finding: str,
         trigger_anomaly_score: float,
-        run_id: str | None = None,
-    ) -> PlaybookRun | None:
+        run_id=None,
+    ):
         """Create a new playbook run."""
         playbook = self.get_playbook(playbook_id)
         if playbook is None:
@@ -294,7 +300,7 @@ class PlaybookEngine:
         self.runs[run_id] = run
         return run
 
-    def get_run(self, run_id: str) -> PlaybookRun | None:
+    def get_run(self, run_id: str):
         """Get a playbook run by ID."""
         return self.runs.get(run_id)
 
@@ -309,7 +315,7 @@ class PlaybookEngine:
         run: PlaybookRun,
         step_index: int,
         approval_request: Optional[ApprovalRequest] = None,
-    ) -> StepExecution | None:
+    ):
         """Execute a single step in a playbook run."""
         playbook = self.get_playbook(run.playbook_id)
         if playbook is None or step_index >= len(playbook.steps):
@@ -347,7 +353,7 @@ class PlaybookEngine:
         self,
         run: PlaybookRun,
         current_result: str = "success",
-    ) -> int | None:
+    ):
         """Get the next step to execute based on current result."""
         playbook = self.get_playbook(run.playbook_id)
         if playbook is None or run.current_step_index >= len(playbook.steps):

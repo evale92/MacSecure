@@ -80,7 +80,7 @@ class ApprovalPolicy:
 class ApprovalEngine:
     """Routes remediation actions to appropriate approval workflows."""
 
-    def __init__(self, policies: dict[str, ApprovalPolicy] | None = None):
+    def __init__(self, policies=None):
         """Initialize approval engine with optional custom policies."""
         self.policies = policies or self._default_policies()
 
@@ -154,7 +154,7 @@ class ApprovalEngine:
             ),
         }
 
-    def get_policy(self, action_id: str) -> ApprovalPolicy | None:
+    def get_policy(self, action_id: str):
         """Get the approval policy for an action."""
         return self.policies.get(action_id)
 
@@ -163,8 +163,8 @@ class ApprovalEngine:
         action_id: str,
         triggered_by: str,
         triggered_by_ref: str,
-        request_id: str | None = None,
-    ) -> ApprovalRequest | None:
+        request_id=None,
+    ):
         """Create an approval request for an action.
 
         Returns None if action is not in policy (unknown action).

@@ -262,15 +262,30 @@ def score_time_deviation(
     return 0
 
 
-def tier_for_score(raw_score: int) -> str:
-    """Map a 0-100 raw score to a named tier via plain numeric bounds."""
-    if raw_score <= SCORE_TIER_NONE_MAX:
+def tier_for_score(raw_score: int, overrides: "Optional[Dict[str, int]]" = None) -> str:
+    """Map a 0-100 raw score to a named tier via plain numeric bounds.
+
+    Args:
+        raw_score: anomaly score (0-100).
+        overrides: optional tier boundary overrides from Phase 50 learning.
+                   keys: "NONE_MAX", "LOW_MAX", "MEDIUM_MAX", "HIGH_MAX".
+                   if None, uses configured constants (preserves existing behavior).
+
+    Returns:
+        Tier string (NONE, LOW, MEDIUM, HIGH, CRITICAL).
+    """
+    none_max = overrides.get("NONE_MAX", SCORE_TIER_NONE_MAX) if overrides else SCORE_TIER_NONE_MAX
+    low_max = overrides.get("LOW_MAX", SCORE_TIER_LOW_MAX) if overrides else SCORE_TIER_LOW_MAX
+    medium_max = overrides.get("MEDIUM_MAX", SCORE_TIER_MEDIUM_MAX) if overrides else SCORE_TIER_MEDIUM_MAX
+    high_max = overrides.get("HIGH_MAX", SCORE_TIER_HIGH_MAX) if overrides else SCORE_TIER_HIGH_MAX
+
+    if raw_score <= none_max:
         return ANOMALY_TIER_NONE
-    if raw_score <= SCORE_TIER_LOW_MAX:
+    if raw_score <= low_max:
         return ANOMALY_TIER_LOW
-    if raw_score <= SCORE_TIER_MEDIUM_MAX:
+    if raw_score <= medium_max:
         return ANOMALY_TIER_MEDIUM
-    if raw_score <= SCORE_TIER_HIGH_MAX:
+    if raw_score <= high_max:
         return ANOMALY_TIER_HIGH
     return ANOMALY_TIER_CRITICAL
 

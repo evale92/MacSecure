@@ -1,0 +1,83 @@
+"""Alert decision orchestration — combines suppression and escalation.
+
+PURE function. No I/O, no imports from remediation/multi_device/intelligence.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime
+from typing import List, Optional
+
+from secure.alerting.context import AlertContext
+from secure.alerting.suppression import classify as classify_suppression, SuppressionVerdict
+from secure.alerting.escalation import weigh
+
+
+@dataclass(frozen=True)
+class AlertDecision:
+    """Result of alert decision logic."""
+    source_table: str                  # anomaly_events | correlation_alerts | correlation_chain_alerts
+    source_id: int
+    base_severity: str
+    verdict: str                       # ACTIVE | SUPPRESSED_EXPECTED | DOWNGRADED_EXPECTED
+    final_severity: str
+    reasoning: List[str]               # component-by-component reasons
+
+
+def decide_alert(
+    source_table: str,
+    source_id: int,
+    entity_type: str,
+    entity_path: Optional[str],
+    base_severity: str,
+    event_timestamp: datetime,
+    context: AlertContext,
+) -> AlertDecision:
+    """
+    Make an alert decision: suppress, downgrade, or escalate.
+
+    Process:
+    1. Suppress? (expected changes)
+    2. If not suppressed, escalate? (context weighting)
+    3. Build reasoning record
+    """
+    reasoning = []
+
+    # Step 1: Suppression
+    suppression = classify_suppression(
+        event_severity=base_severity,
+        entity_type=entity_type,
+        entity_path=entity_path,
+        event_timestamp=event_timestamp,
+        context=context,
+    )
+
+    if suppression.reason:
+        reasoning.append(f"Suppression: {suppression.reason}")
+
+    # Step 2: Escalation (only if not suppressed; if downgraded, escalate from DOWNGRADED tier)
+    if suppression.category == "SUPPRESSED_EXPECTED":
+        final_severity = base_severity
+        reasoning.append("Escalation: skipped (event suppressed)")
+    else:
+        # If downgraded, we still escalate from the downgraded level
+        escalation_base = base_severity
+        if suppression.category == "DOWNGRADED_EXPECTED":
+            # Downgrading happens in suppression, but escalation evaluates against base
+            # and produces its own final tier. Keep base for escalation input.
+            pass
+
+        final_severity, escalation_reasons = weigh(escalation_base, context)
+        if escalation_reasons:
+            for reason in escalation_reasons:
+                reasoning.append(f"Escalation: {reason}")
+
+    return AlertDecision(
+        source_table=source_table,
+        source_id=source_id,
+        base_severity=base_severity,
+        verdict=suppression.category,
+        final_severity=final_severity,
+        reasoning=reasoning,
+    )

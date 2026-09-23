@@ -62,12 +62,13 @@ def weigh(base_severity: str, context: AlertContext) -> Tuple[str, List[str]]:
             steps += 1
             reasons.append("matching critical-severity playbook (Phase 51)")
 
-    # Clamp to ±2 tiers
-    final_idx = max(0, min(len(_TIERS) - 1, base_idx + steps))
+    # Clamp step count to ±2 tiers per design spec
+    original_steps = steps
+    steps = max(-2, min(2, steps))
+    if steps != original_steps:
+        reasons.append("step count clamped to ±2 tiers")
 
-    # If clamped, note it
-    if final_idx != base_idx + steps:
-        reasons.append(f"escalation clamped to ±2 tier bounds")
+    final_idx = max(0, min(len(_TIERS) - 1, base_idx + steps))
 
     final_severity = _TIERS[final_idx]
     return (final_severity, reasons)

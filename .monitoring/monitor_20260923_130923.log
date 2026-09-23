@@ -1,13 +1,13 @@
-[2026-09-23 08:58:02] === Secure Monitor Start ===
-[2026-09-23 08:58:02] Running detection pipeline...
+[2026-09-23 13:09:23] === Secure Monitor Start ===
+[2026-09-23 13:09:23] Running detection pipeline...
 {
   "total": 0,
   "processed": 0,
   "errors": 0,
   "events": []
 }
-[2026-09-23 08:58:02] ✓ Detection pipeline completed
-[2026-09-23 08:58:02] Baseline status:
+[2026-09-23 13:09:23] ✓ Detection pipeline completed
+[2026-09-23 13:09:23] Baseline status:
 Baseline status
 Total entities: 0
 
@@ -28,5 +28,5 @@ Per entity_type cap usage:
   file_watch_path           0 / 500
   dns_query                 0 / 5000
   tls_sni                   0 / 5000
-[2026-09-23 08:58:02] === Secure Monitor Complete ===
-[2026-09-23 08:58:02] Results logged to: /Users/erickvale/Desktop/secure-resource/.monitoring/monitor_20260923_085802.log
+[2026-09-23 13:09:23] === Secure Monitor Complete ===
+[2026-09-23 13:09:23] Results logged to: /Users/erickvale/Desktop/secure-resource/.monitoring/monitor_20260923_130923.log

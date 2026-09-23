@@ -1,8 +1,13 @@
-[2026-09-23 08:06:06] === Secure Monitor Start ===
-[2026-09-23 08:06:06] Running detection pipeline...
-Error running detection pipeline: 'NoneType' object has no attribute 'execute'
-[2026-09-23 08:06:06] ✗ Detection pipeline failed (exit code: 2)
-[2026-09-23 08:06:06] Baseline status:
+[2026-09-23 12:02:17] === Secure Monitor Start ===
+[2026-09-23 12:02:17] Running detection pipeline...
+{
+  "total": 0,
+  "processed": 0,
+  "errors": 0,
+  "events": []
+}
+[2026-09-23 12:02:17] ✓ Detection pipeline completed
+[2026-09-23 12:02:17] Baseline status:
 Baseline status
 Total entities: 0
 
@@ -23,5 +28,5 @@ Per entity_type cap usage:
   file_watch_path           0 / 500
   dns_query                 0 / 5000
   tls_sni                   0 / 5000
-[2026-09-23 08:06:06] === Secure Monitor Complete ===
-[2026-09-23 08:06:06] Results logged to: /Users/erickvale/Desktop/secure-resource/.monitoring/monitor_20260923_080606.log
+[2026-09-23 12:02:17] === Secure Monitor Complete ===
+[2026-09-23 12:02:17] Results logged to: /Users/erickvale/Desktop/secure-resource/.monitoring/monitor_20260923_120217.log

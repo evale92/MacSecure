@@ -135,12 +135,14 @@ class DetectionPipeline:
             # Get correlation data if available
             finding_type = f"{anomaly.entity_type}.{anomaly.feature_name}"
             correlated = correlated_findings.get(finding_type)
+            peer_count = None
             if correlated:
                 event.correlation_id = correlated.correlation_id
                 event.correlated_finding = correlated
+                peer_count = correlated.device_count - 1 if correlated.device_count > 0 else 0
 
-            # Compose alert context from Phase 48/49/50
-            alert_context = compose(use_defaults=True)
+            # Compose alert context from Phase 48/49/50 with peer count from correlation
+            alert_context = compose(use_defaults=True, peer_device_count=peer_count)
 
             # Make alert decision
             decision = decide_alert(

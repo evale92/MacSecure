@@ -67,10 +67,10 @@ def decide_alert(
         reasoning.append(f"Suppression: {suppression.reason}")
 
     # Final decision: determine severity based on suppression + escalation
-    # - SUPPRESSED: use base_severity (event is in expected-change window)
-    # - DOWNGRADED: use base_severity (downgrade was already decided by suppression)
-    # - ACTIVE: use escalated_severity (no suppression, so escalation applies)
-    if suppression.category in ("SUPPRESSED_EXPECTED", "DOWNGRADED_EXPECTED"):
+    # Escalation signals override suppression (never drop escalation)
+    if escalation_reasons:
+        final_severity = escalated_severity
+    elif suppression.category in ("SUPPRESSED_EXPECTED", "DOWNGRADED_EXPECTED"):
         final_severity = base_severity
     else:  # ACTIVE
         final_severity = escalated_severity

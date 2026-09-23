@@ -21,9 +21,12 @@ from secure.alerting.context import (
 )
 
 
-def compose_device_context() -> Optional[DeviceContext]:
+def compose_device_context(peer_device_count: Optional[int] = None) -> Optional[DeviceContext]:
     """
     Read Phase 49 multi-device state.
+
+    Args:
+        peer_device_count: if provided, use this (from correlation data); else count active devices.
 
     Returns:
         DeviceContext or None if multi_device is unavailable.
@@ -35,18 +38,25 @@ def compose_device_context() -> Optional[DeviceContext]:
         cfg = load_config()
         registry = DeviceRegistry()
 
-        # Get current device (for now, use first ACTIVE device)
+        # Get current device: try local device_id from config, fall back to first ACTIVE device
+        # (Note: device_id not yet defined in AppConfig; this is a placeholder for future enhancement)
+        local_device_id = getattr(cfg, "device_id", None)
         active_devices = registry.get_active_devices()
         if not active_devices:
             return None
 
-        device_info = active_devices[0]
+        device_info = None
+        if local_device_id:
+            device_info = next((d for d in active_devices if d.device_id == local_device_id), None)
+        if device_info is None:
+            device_info = active_devices[0]
 
         # Extract role as uppercase string (escalation.py expects "ADMIN", "SHARED", etc.)
         role_str = device_info.role.value.upper() if hasattr(device_info.role, 'value') else str(device_info.role).upper()
 
-        # Compute peer_device_count (all active devices except self)
-        peer_count = len([d for d in active_devices if d.device_id != device_info.device_id])
+        # Use provided peer_device_count, or count active devices except self
+        if peer_device_count is None:
+            peer_device_count = len([d for d in active_devices if d.device_id != device_info.device_id])
 
         # Map internal device structure to DeviceContext
         return DeviceContext(
@@ -54,9 +64,9 @@ def compose_device_context() -> Optional[DeviceContext]:
             role=role_str,
             health="healthy" if all([device_info.cpu_ok, device_info.disk_ok, device_info.memory_ok, device_info.network_ok]) else "degraded",
             sync_state="synced" if device_info.last_sync else "unknown",
-            peer_device_count=peer_count,
+            peer_device_count=peer_device_count,
         )
-    except (ImportError, Exception):
+    except ImportError:
         return None
 
 
@@ -185,19 +195,20 @@ def compose_expected_changes() -> tuple:
         return ()
 
 
-def compose(use_defaults: bool = True) -> AlertContext:
+def compose(use_defaults: bool = True, peer_device_count: Optional[int] = None) -> AlertContext:
     """
     Assemble a complete AlertContext from all Phase 48-51 sources.
 
     Args:
         use_defaults: if True, missing sources return None/empty (safe defaults).
                      if False, raises on missing sources.
+        peer_device_count: if provided, use this (from correlation data); else count active devices.
 
     Returns:
         AlertContext ready for decision functions.
     """
     try:
-        device = compose_device_context()
+        device = compose_device_context(peer_device_count=peer_device_count)
         response = compose_response_context()
         learning = compose_learning_context()
         expected_changes = compose_expected_changes()

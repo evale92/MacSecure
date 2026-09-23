@@ -1,0 +1,46 @@
+[2026-09-23 12:02:04] === Secure Monitor Start ===
+[2026-09-23 12:02:04] Running detection pipeline...
+Traceback (most recent call last):
+  File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/erickvale/Desktop/secure-resource/secure/__main__.py", line 11, in <module>
+    from secure.cli import main
+  File "/Users/erickvale/Desktop/secure-resource/secure/cli/__init__.py", line 689, in <module>
+    from .agent import (
+    ...<21 lines>...
+    )
+  File "/Users/erickvale/Desktop/secure-resource/secure/cli/agent.py", line 34, in <module>
+    from secure.agent.orchestrator import attempt_repair, resume_repair_run, revalidate_before_approval
+  File "/Users/erickvale/Desktop/secure-resource/secure/agent/orchestrator.py", line 29, in <module>
+    from secure.agent.changes import (
+    ...<4 lines>...
+    )
+  File "/Users/erickvale/Desktop/secure-resource/secure/agent/changes.py", line 52, in <module>
+    from secure.agent.runner import MiniRunResult
+  File "/Users/erickvale/Desktop/secure-resource/secure/agent/runner.py", line 62, in <module>
+    import yaml
+ModuleNotFoundError: No module named 'yaml'
+[2026-09-23 12:02:04] ✗ Detection pipeline failed (exit code: 1)
+[2026-09-23 12:02:04] Baseline status:
+Traceback (most recent call last):
+  File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/erickvale/Desktop/secure-resource/secure/__main__.py", line 11, in <module>
+    from secure.cli import main
+  File "/Users/erickvale/Desktop/secure-resource/secure/cli/__init__.py", line 689, in <module>
+    from .agent import (
+    ...<21 lines>...
+    )
+  File "/Users/erickvale/Desktop/secure-resource/secure/cli/agent.py", line 34, in <module>
+    from secure.agent.orchestrator import attempt_repair, resume_repair_run, revalidate_before_approval
+  File "/Users/erickvale/Desktop/secure-resource/secure/agent/orchestrator.py", line 29, in <module>
+    from secure.agent.changes import (
+    ...<4 lines>...
+    )
+  File "/Users/erickvale/Desktop/secure-resource/secure/agent/changes.py", line 52, in <module>
+    from secure.agent.runner import MiniRunResult
+  File "/Users/erickvale/Desktop/secure-resource/secure/agent/runner.py", line 62, in <module>
+    import yaml
+ModuleNotFoundError: No module named 'yaml'
+[2026-09-23 12:02:04] === Secure Monitor Complete ===
+[2026-09-23 12:02:04] Results logged to: /Users/erickvale/Desktop/secure-resource/.monitoring/monitor_20260923_120204.log

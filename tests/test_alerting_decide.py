@@ -14,8 +14,8 @@ from secure.alerting.context import (
 from secure.alerting.decide import decide_alert
 
 
-def test_suppressed_event_not_escalated():
-    """If event is suppressed, escalation is skipped."""
+def test_suppressed_event_escalated():
+    """Escalation signals override suppression (escalation before suppression)."""
     now = datetime.now(timezone.utc)
     change = ExpectedChange(
         kind="os_update",
@@ -35,7 +35,7 @@ def test_suppressed_event_not_escalated():
     ctx = AlertContext(device=device, expected_changes=(change,))
 
     # LOW event in suppression window with ADMIN device
-    # Should be suppressed (not escalated to MEDIUM)
+    # Verdict is SUPPRESSED_EXPECTED (suppression applies), but escalation overrides severity
     decision = decide_alert(
         source_table="anomaly_events",
         source_id=123,
@@ -47,10 +47,10 @@ def test_suppressed_event_not_escalated():
     )
 
     assert decision.verdict == "SUPPRESSED_EXPECTED"
-    assert decision.final_severity == "LOW"  # Not escalated (even though ADMIN role detected)
-    # Verify escalation signals were computed but not applied due to suppression
+    assert decision.final_severity == "MEDIUM"  # Escalated (ADMIN role overrides suppression)
+    # Verify both escalation and suppression were computed
     assert any("ADMIN" in r for r in decision.reasoning)  # Escalation detected
-    assert any("Suppression" in r for r in decision.reasoning)  # Suppression applied
+    assert any("Suppression" in r for r in decision.reasoning)  # Suppression computed
 
 
 def test_downgraded_event_still_escalated():

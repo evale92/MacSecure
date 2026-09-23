@@ -8900,3 +8900,47 @@ Implemented:
 
 **Status:** Phase 48.1 complete. Proceeding to Phase 48.2 (Approval Workflows).
 
+
+### Phase 48.2 — Approval Workflows
+
+Implemented:
+
+- **ApprovalEngine** (`secure/remediation/approval.py`): Routes actions through risk-stratified approval workflows
+  - LOW-risk: auto-execute immediately (`ApprovalStatus.AUTO_APPROVED`), user notified after
+  - MEDIUM-risk: human review required (default 1-hour timeout via EscalationPath.HUMAN_REVIEW)
+  - HIGH-risk: full Phase 47 review + security team approval (24-hour timeout via EscalationPath.SECURITY_TEAM)
+- **ApprovalRequest**: Immutable approval tracking with status, expiration, approval metadata
+- **ApprovalPolicy**: Configurable per-action approval requirements, timeouts, rollback windows
+- **50+ comprehensive tests** (`tests/test_remediation_approval.py`):
+  - Low-risk auto-approval + no expiration
+  - Medium-risk pending + 1-hour timeout + escalation
+  - High-risk full review + 24-hour timeout + no auto-rollback
+  - Approval/rejection workflows with reason tracking
+  - Custom policy overrides
+  - Expiration checking
+
+**Default approval policies:**
+- AUTO_APPROVED (LOW): firewall.enable, ssh.disable-root-login, ssh.disable-password-auth, config.harden-umask, process.alert-on-relaunch, credential.recommend-rotation, threat-hunt.priority-flag
+- HUMAN_REVIEW (MEDIUM): firewall.block-inbound, service.disable-launchagent, service.disable-launchdaemon, endpoint.mdm-notify
+- SECURITY_TEAM (HIGH): network.isolate-destination
+
+**Design:**
+- Every ApprovalRequest has a unique request_id, created_at, expires_at (for PENDING)
+- Auto-approved requests bypass escalation entirely (immediate execution post-notification)
+- Pending requests must be explicitly approved or rejected before execution
+- Expiration status checked on `can_execute()` call (lazy evaluation)
+- Custom policies can override defaults (e.g., force human approval on LOW-risk)
+- Rollback window configurable per policy (HIGH-risk network isolation = no rollback)
+
+**What remains:**
+- Executor integration: wrap approvals + actions → Phase 47 change requests
+- Database persistence: save approval requests/policies to schema
+- CLI integration: `secure remediation approve/reject/status` commands
+- Notification system: alert user when action is pending/approved/executed
+- Learning loop: track outcome (success/failure) and reason
+
+**Git commits:**
+- `e484a4d`: Phase 48.2: Approval workflows
+
+**Status:** Phase 48.1–48.2 complete (80+ tests, ~1300 LOC). Proceeding to Phase 48.3 (Incident Orchestration / Playbooks).
+

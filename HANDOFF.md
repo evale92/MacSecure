@@ -96,9 +96,41 @@ python3 -m unittest discover tests/ -v
 3. **Flexible roles:** PRIMARY/SECONDARY/SHARED/ADMIN for different approval levels
 4. **Non-destructive isolation:** Network routing, not destructive blocking
 
+## Phase 52 Progress (In Progress)
+
+✅ **Part 1: CLI Wiring Complete**
+- Remediation subparser wired into main CLI (`secure/cli/__init__.py`)
+- Commands: run, approve, status, history, catalog, playbooks
+- `--json` flag implemented for all read-only commands
+- Split RemediationCLI: get_* methods (data only), cmd_* methods (print + return)
+- Removed non-existent api.py import per architecture rules
+
+⏳ **Part 2: Remaining Work**
+1. Create GUI panel (`secure_gui/remediation_view.py`)
+   - Formatters mirroring alerts_view.py / agent_view.py style
+   - Dashboard stats: pending/successful/failed actions
+   - Running playbooks list
+   - Phase 49 multi-device incidents
+   - Approval queue display
+
+2. Extend `secure_gui/data_access.py`
+   - Direct remediation storage reads (no HTTP)
+   - Query: pending approvals, execution history, playbook status
+
+3. Wire approvals via CLI subprocess
+   - GUI calls: `py -m secure remediation approve --approved-by <user> <execution-id>`
+   - Preserves audit trail through Phase 47 safe-code path
+
+**Test Progress:**
+- `secure remediation catalog --json` → pure JSON, no prints ✅
+- `secure remediation playbooks` → formatted table output ✅
+- `secure remediation history --json` → JSON history array ✅
+
+---
+
 ## Immediate Next Steps (Priority Order)
 
-### Phase 50: Threat Intelligence Integration (RECOMMENDED NEXT)
+### Phase 50: Threat Intelligence Integration (COMPLETED)
 **Why:** Integrates with Phase 48.4 (outcomes) to learn and improve detection quality
 
 **Components (~500 LOC, 50+ tests):**

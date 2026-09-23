@@ -1,0 +1,132 @@
+"""
+Remediation schema — Phase 48 database additions.
+
+Adds tables for remediation executions, approvals, and playbook runs.
+Call init_remediation_schema(conn) during database initialization.
+"""
+
+REMEDIATION_SCHEMA = """
+CREATE TABLE IF NOT EXISTS remediation_actions_meta (
+    id                      TEXT PRIMARY KEY,
+    name                    TEXT NOT NULL,
+    description             TEXT NOT NULL,
+    risk_level              TEXT NOT NULL CHECK(risk_level IN ('low', 'medium', 'high')),
+    action_type             TEXT NOT NULL,
+    verification_type       TEXT,
+    first_shipped_in        TEXT NOT NULL,
+    examples_json           TEXT DEFAULT '[]',
+    references_json         TEXT DEFAULT '[]',
+    enabled                 INTEGER NOT NULL DEFAULT 1,
+    created_at              TEXT NOT NULL,
+    updated_at              TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS remediation_approval_requests (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    request_id          TEXT NOT NULL UNIQUE,
+    action_id           TEXT NOT NULL REFERENCES remediation_actions_meta(id),
+    triggered_by        TEXT NOT NULL,
+    triggered_by_ref    TEXT NOT NULL,
+    risk_level          TEXT NOT NULL CHECK(risk_level IN ('low', 'medium', 'high')),
+
+    created_at          TEXT NOT NULL,
+    expires_at          TEXT,
+
+    status              TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected', 'expired', 'auto_approved')),
+    approved_at         TEXT,
+    approved_by         TEXT,
+    approval_reason     TEXT,
+
+    escalation_path     TEXT,
+    escalation_sent_at  TEXT,
+
+    change_request_id   TEXT REFERENCES ai_change_requests(cr_id),
+    repair_run_id       TEXT REFERENCES agent_repair_runs(run_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_remediation_approval_requests_status
+    ON remediation_approval_requests(status);
+CREATE INDEX IF NOT EXISTS idx_remediation_approval_requests_action
+    ON remediation_approval_requests(action_id);
+
+CREATE TABLE IF NOT EXISTS remediation_executions (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    execution_id        TEXT NOT NULL UNIQUE,
+    created_at          TEXT NOT NULL,
+    action_id           TEXT NOT NULL REFERENCES remediation_actions_meta(id),
+    triggered_by        TEXT NOT NULL,
+    triggered_by_ref    TEXT NOT NULL,
+
+    approval_request_id TEXT REFERENCES remediation_approval_requests(request_id),
+
+    executed_at         TEXT,
+    execution_status    TEXT NOT NULL DEFAULT 'pending' CHECK(execution_status IN ('pending', 'approved', 'executed', 'rolled_back', 'failed')),
+
+    change_request_id   TEXT REFERENCES ai_change_requests(cr_id),
+    repair_run_id       TEXT REFERENCES agent_repair_runs(run_id),
+
+    outcome             TEXT,
+    verification_result TEXT,
+    notes               TEXT DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_remediation_executions_status
+    ON remediation_executions(execution_status);
+CREATE INDEX IF NOT EXISTS idx_remediation_executions_action
+    ON remediation_executions(action_id);
+
+CREATE TABLE IF NOT EXISTS playbook_runs (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id          TEXT NOT NULL UNIQUE,
+    created_at      TEXT NOT NULL,
+    completed_at    TEXT,
+
+    playbook_id     TEXT NOT NULL,
+    trigger_finding TEXT NOT NULL,
+    trigger_anomaly_score REAL NOT NULL DEFAULT 0.0,
+
+    status          TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'running', 'completed', 'failed', 'stopped', 'waiting_approval')),
+    final_result    TEXT,
+
+    steps_json      TEXT DEFAULT '[]',
+    current_step_index INTEGER DEFAULT 0,
+
+    notes           TEXT DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_playbook_runs_status
+    ON playbook_runs(status);
+CREATE INDEX IF NOT EXISTS idx_playbook_runs_playbook
+    ON playbook_runs(playbook_id);
+
+CREATE TABLE IF NOT EXISTS playbook_step_executions (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    step_execution_id TEXT NOT NULL UNIQUE,
+    playbook_run_id TEXT NOT NULL REFERENCES playbook_runs(run_id),
+
+    step_id         TEXT NOT NULL,
+    remediation_id  TEXT NOT NULL REFERENCES remediation_actions_meta(id),
+
+    status          TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'running', 'completed', 'skipped', 'failed', 'waiting_approval')),
+
+    started_at      TEXT,
+    completed_at    TEXT,
+
+    approval_request_id TEXT REFERENCES remediation_approval_requests(request_id),
+
+    result          TEXT,
+    error           TEXT,
+    notes           TEXT DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_playbook_step_executions_playbook_run
+    ON playbook_step_executions(playbook_run_id);
+CREATE INDEX IF NOT EXISTS idx_playbook_step_executions_remediation
+    ON playbook_step_executions(remediation_id);
+"""
+
+
+def init_remediation_schema(conn) -> None:
+    """Create remediation tables if they don't already exist."""
+    conn.executescript(REMEDIATION_SCHEMA)
+    conn.commit()

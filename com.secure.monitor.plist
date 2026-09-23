@@ -24,16 +24,16 @@
 	<key>StartInterval</key>
 	<integer>14400</integer>
 	<key>StandardOutPath</key>
-	<string>/var/log/secure_monitor.log</string>
+	<string>/Users/erickvale/Desktop/secure-resource/.monitoring/monitor_stdout.log</string>
 	<key>StandardErrorPath</key>
-	<string>/var/log/secure_monitor_error.log</string>
+	<string>/Users/erickvale/Desktop/secure-resource/.monitoring/monitor_stderr.log</string>
 	<key>EnvironmentVariables</key>
 	<dict>
 		<key>PATH</key>
 		<string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
 	</dict>
 	<key>RunAtLoad</key>
-	<false/>
+	<true/>
 	<key>KeepAlive</key>
 	<false/>
 </dict>

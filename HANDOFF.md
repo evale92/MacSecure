@@ -303,22 +303,22 @@ python3 -m pytest tests/ -q
 ✅ **Phase 53:** Detection Intelligence — suppression/escalation rules, pure decision functions
 ✅ **Phase 54:** Detection Pipeline Integration — baseline → correlation → alert → store
 
-## Baseline Collection (24-48h active)
+## Baseline Collection — NOT RUNNING (corrected 2026-09-23)
 
-**Status:** ✅ STARTED 2026-09-23 09:59 EDT
+**Status:** ❌ NOT STARTED. Nothing is scheduled; no baseline data exists.
 
-**Automation:** Baseline monitor running every 4 hours (0 */4 * * * EST)
-- Executes: `secure_monitor.sh --log-only`
-- Logs to: `.monitoring/monitor_YYYYMMDD_HHMMSS.log`
-- Collects: Process baselines, network patterns, file system state
-- Stores to: `anomaly_events` table (Phase 14 storage)
+An earlier version of this section claimed baseline collection was "✅ STARTED"
+and "running every 4 hours". That was wrong. Verified on 2026-09-23:
+`launchctl list`, `~/Library/LaunchAgents/` and `crontab -l` are all empty of
+this job, and every run log reports `Total entities: 0`.
 
-**Collection data informs:**
-1. Phase 50 learning loop (normal behavior thresholds)
-2. Phase 54 detection pipeline (correlation patterns)
-3. Suppression rules (expected-change windows)
+Three defects block it, and the documented command (`secure_monitor.sh
+--log-only`) skips every collector by design. **See `MONITOR-HANDOFF.md`** for
+the evidence, the three fixes, and the Invariant 12 question that must go to the
+user (or `deep`) before anything is installed.
 
-**Next deep review:** After 24-48h baseline collection, escalate to deep agent for security review with real threat data.
+Do not treat "awaiting baseline data" as a reason to wait. As configured,
+no data will ever arrive.
 
 ---
 

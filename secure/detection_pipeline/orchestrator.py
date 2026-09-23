@@ -161,7 +161,13 @@ class DetectionPipeline:
                 "base_severity": decision.base_severity,
             }
 
-            self.alert_store.store_decision(decision)
+            self.alert_store.store_decision(
+                decision,
+                entity_type=anomaly.entity_type,
+                entity_path=anomaly.entity_path,
+                correlation_id=event.correlation_id,
+                device_count=len(event.correlated_finding.device_ids) if event.correlated_finding else 1,
+            )
 
         except Exception as e:
             event.error = str(e)

@@ -2192,6 +2192,21 @@ def init_schema(conn: sqlite3.Connection) -> None:
     for table, column, ddl in _COLUMN_MIGRATIONS:
         _ensure_column(conn, table, column, ddl)
     _ensure_evidence_links_dedup_index(conn)
+
+    # Phase 48: Remediation schema
+    try:
+        from secure.storage.remediation_schema import init_remediation_schema
+        init_remediation_schema(conn)
+    except Exception:
+        pass  # Schema optional; will be initialized if remediation is used
+
+    # Phase 53/54: Alerting schema
+    try:
+        from secure.storage.alerting_schema import init_alerting_schema
+        init_alerting_schema(conn)
+    except Exception:
+        pass  # Schema optional; will be initialized if alerting is used
+
     conn.commit()
 
 

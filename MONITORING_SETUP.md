@@ -1,33 +1,29 @@
 # Secure Monitoring Setup (Phase 14 + Phase 54)
 
-Continuous threat detection pipeline monitoring on macOS.
+Threat detection pipeline monitoring on macOS (manual/on-demand).
 
 ## Quick Start
 
-### One-shot test:
+### One-shot scan:
 ```bash
 ./secure_monitor.sh --log-only
 ```
 
-### Setup continuous monitoring (every 4 hours):
+### Output only (no LaunchAgent persistence):
+Results logged to `.monitoring/monitor_YYYYMMDD_HHMMSS.log` (local file only).
+
+### Optional: Schedule with cron (if desired):
 ```bash
-# Copy LaunchAgent to system
-cp com.secure.monitor.plist ~/Library/LaunchAgents/
+# Edit crontab
+crontab -e
 
-# Load and start
-launchctl load ~/Library/LaunchAgents/com.secure.monitor.plist
-
-# Check status
-launchctl list | grep com.secure.monitor
-
-# View logs
-tail -f /var/log/secure_monitor.log
+# Add line to run every 4 hours:
+0 */4 * * * cd /Users/erickvale/Desktop/secure-resource && ./secure_monitor.sh --log-only >> .monitoring/cron.log 2>&1
 ```
 
-### Stop monitoring:
-```bash
-launchctl unload ~/Library/LaunchAgents/com.secure.monitor.plist
-```
+**Note:** LaunchAgent plist is NOT loaded by default (Invariant 12: full uninstall reversibility).
+To load manually: `launchctl load ~/Library/LaunchAgents/com.secure.monitor.plist`
+To remove: `launchctl unload ~/Library/LaunchAgents/com.secure.monitor.plist && rm ~/Library/LaunchAgents/com.secure.monitor.plist`
 
 ## What It Does
 

@@ -80,9 +80,10 @@ class ApprovalPolicy:
 class ApprovalEngine:
     """Routes remediation actions to appropriate approval workflows."""
 
-    def __init__(self, policies=None):
-        """Initialize approval engine with optional custom policies."""
+    def __init__(self, policies=None, db_conn=None):
+        """Initialize approval engine with optional custom policies and database connection."""
         self.policies = policies or self._default_policies()
+        self.db_conn = db_conn
 
     @staticmethod
     def _default_policies() -> dict[str, ApprovalPolicy]:
@@ -350,3 +351,81 @@ class ApprovalEngine:
         """Check if an action can execute (approved and not expired)."""
         request = self.check_expiration(request)
         return self.is_approved(request)
+
+    def log_approval_decision(
+        self,
+        request: ApprovalRequest,
+        decision_type: str,
+        decided_by: Optional[str] = None,
+    ) -> bool:
+        """
+        Log an approval decision to the request log table for audit trail.
+
+        Args:
+            request: The approval request
+            decision_type: "created", "approved", "rejected", "expired"
+            decided_by: User ID, device ID, or "system"
+
+        Returns:
+            True if logged successfully, False if logging unavailable
+        """
+        if not self.db_conn:
+            return False
+
+        try:
+            import json
+            import hashlib
+            from datetime import datetime
+
+            log_entry_id = f"log_{request.request_id}_{decision_type}_{datetime.utcnow().timestamp()}"
+            request_summary = json.dumps({
+                "request_id": request.request_id,
+                "action_id": request.action_id,
+                "risk_level": request.risk_level.value,
+                "status": request.status.value,
+            })
+
+            decision_summary = json.dumps({
+                "decision_type": decision_type,
+                "approved_by": request.approved_by,
+                "approval_reason": request.approval_reason,
+                "approved_at": request.approved_at.isoformat() if request.approved_at else None,
+            })
+
+            # For simplicity, use SHA256 of entry content (prior_hash from prior entry would be added in production)
+            entry_content = f"{log_entry_id}{request_summary}{decision_summary}{datetime.utcnow().isoformat()}"
+            entry_hash = hashlib.sha256(entry_content.encode()).hexdigest()
+
+            cursor = self.db_conn.cursor()
+            cursor.execute("""
+                INSERT INTO remediation_request_log (
+                    log_entry_id,
+                    request_id,
+                    action_id,
+                    decision_type,
+                    decision_at,
+                    decided_by,
+                    request_summary,
+                    decision_summary,
+                    entry_hash,
+                    created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                log_entry_id,
+                request.request_id,
+                request.action_id,
+                decision_type,
+                datetime.utcnow().isoformat(),
+                decided_by or request.approved_by or "unknown",
+                request_summary,
+                decision_summary,
+                entry_hash,
+                datetime.utcnow().isoformat(),
+            ))
+            self.db_conn.commit()
+            return True
+
+        except Exception as e:
+            # Log failures to stderr but don't raise; approval decisions should not be blocked by logging
+            print(f"Error logging approval decision: {e}", flush=True)
+            return False

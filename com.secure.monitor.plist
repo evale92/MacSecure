@@ -2,6 +2,19 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!--
+	OPTIONAL LaunchAgent for continuous monitoring.
+	NOT LOADED BY DEFAULT (Invariant 12: full uninstall reversibility).
+
+	To enable:
+		launchctl load ~/Library/LaunchAgents/com.secure.monitor.plist
+	To disable:
+		launchctl unload ~/Library/LaunchAgents/com.secure.monitor.plist
+	To remove:
+		rm ~/Library/LaunchAgents/com.secure.monitor.plist
+
+	When loaded: runs every 4 hours (14400 seconds)
+	-->
 	<key>Label</key>
 	<string>com.secure.monitor</string>
 	<key>ProgramArguments</key>
@@ -20,7 +33,7 @@
 		<string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
 	</dict>
 	<key>RunAtLoad</key>
-	<true/>
+	<false/>
 	<key>KeepAlive</key>
 	<false/>
 </dict>

@@ -23,32 +23,81 @@ class AlertDecisionStore:
         """
         self.connection = connection
 
-    def store_decision(self, decision: AlertDecision, stored_at: Optional[datetime] = None) -> int:
+    def store_decision(
+        self,
+        decision: AlertDecision,
+        entity_type: Optional[str] = None,
+        entity_path: Optional[str] = None,
+        correlation_id: Optional[str] = None,
+        device_count: int = 1,
+        stored_at: Optional[datetime] = None,
+    ) -> int:
         """
         Write alert decision to storage.
 
         Args:
             decision: AlertDecision instance.
+            entity_type: Type of entity affected (process, file, network).
+            entity_path: Path to entity (pid, file path, ip:port).
+            correlation_id: Link to Phase 49 correlated finding.
+            device_count: Number of devices with this finding.
             stored_at: timestamp (if None, uses now).
 
         Returns:
             Row id of inserted record.
         """
         try:
-            from secure.storage import get_connection
-            conn = self.connection or get_connection()
+            conn = self.connection
+            if not conn:
+                from secure.storage import get_connection
+                conn = get_connection()
 
             if stored_at is None:
                 stored_at = datetime.utcnow()
 
-            # TODO: implement schema and insert query
-            # INSERT INTO alert_decisions
-            # (source_table, source_id, base_severity, verdict, final_severity, reasoning, stored_at)
-            # VALUES (...)
+            now_iso = datetime.utcnow().isoformat() + 'Z'
+            stored_iso = stored_at.isoformat() + 'Z' if isinstance(stored_at, datetime) else str(stored_at)
 
-            # Stub: return dummy ID
-            return 1
-        except Exception:
+            # Convert reasoning list to JSON array
+            import json
+            reasoning_json = json.dumps(decision.reasoning or [])
+
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO alert_decisions (
+                    source_table,
+                    source_id,
+                    entity_type,
+                    entity_path,
+                    base_severity,
+                    verdict,
+                    final_severity,
+                    reasoning_json,
+                    correlation_id,
+                    device_count,
+                    created_at,
+                    evaluated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                decision.source_table,
+                decision.source_id,
+                entity_type or 'unknown',
+                entity_path or '',
+                decision.base_severity,
+                decision.verdict,
+                decision.final_severity,
+                reasoning_json,
+                correlation_id,
+                device_count,
+                now_iso,
+                stored_iso,
+            ))
+            conn.commit()
+            return cursor.lastrowid
+
+        except Exception as e:
+            # Log without re-raising; store failures are non-fatal
+            print(f"Error storing alert decision: {e}")
             return -1
 
     def get_recent_decisions(self, limit: int = 100) -> List[AlertDecision]:

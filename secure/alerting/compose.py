@@ -29,22 +29,32 @@ def compose_device_context() -> Optional[DeviceContext]:
         DeviceContext or None if multi_device is unavailable.
     """
     try:
-        from secure.multi_device.device_registry import get_device_info
+        from secure.multi_device.device_registry import DeviceRegistry, DeviceStatus
         from secure.config import load_config
 
         cfg = load_config()
-        device_info = get_device_info(cfg)
+        registry = DeviceRegistry()
 
-        if device_info is None:
+        # Get current device (for now, use first ACTIVE device)
+        active_devices = registry.get_active_devices()
+        if not active_devices:
             return None
+
+        device_info = active_devices[0]
+
+        # Extract role as uppercase string (escalation.py expects "ADMIN", "SHARED", etc.)
+        role_str = device_info.role.value.upper() if hasattr(device_info.role, 'value') else str(device_info.role).upper()
+
+        # Compute peer_device_count (all active devices except self)
+        peer_count = len([d for d in active_devices if d.device_id != device_info.device_id])
 
         # Map internal device structure to DeviceContext
         return DeviceContext(
             device_id=device_info.device_id,
-            role=device_info.role.value if hasattr(device_info.role, 'value') else str(device_info.role),
-            health=device_info.health if hasattr(device_info, 'health') else "unknown",
-            sync_state=device_info.sync_state if hasattr(device_info, 'sync_state') else "unknown",
-            peer_device_count=0,  # TODO: query cross_device.py
+            role=role_str,
+            health="healthy" if all([device_info.cpu_ok, device_info.disk_ok, device_info.memory_ok, device_info.network_ok]) else "degraded",
+            sync_state="synced" if device_info.last_sync else "unknown",
+            peer_device_count=peer_count,
         )
     except (ImportError, Exception):
         return None
@@ -66,8 +76,11 @@ def compose_response_context() -> Optional[ResponseContext]:
         if not recent_executions:
             return None
 
-        # Find max risk level from recent actions
+        # Ordinal mapping for risk levels (escalation.py expects uppercase)
+        _RISK_ORDER = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
+
         max_risk = "LOW"
+        max_risk_idx = 0
         max_playbook_id = None
         max_playbook_severity = None
 
@@ -77,8 +90,13 @@ def compose_response_context() -> Optional[ResponseContext]:
                 try:
                     from secure.remediation.catalog import get_action
                     action = get_action(execution.action_id)
-                    if action and action.risk_level.value > max_risk:
-                        max_risk = action.risk_level.value
+                    if action:
+                        # Extract risk level as uppercase string
+                        action_risk_str = action.risk_level.value.upper() if hasattr(action.risk_level, 'value') else str(action.risk_level).upper()
+                        action_risk_idx = _RISK_ORDER.get(action_risk_str, 0)
+                        if action_risk_idx > max_risk_idx:
+                            max_risk = action_risk_str
+                            max_risk_idx = action_risk_idx
                 except (ImportError, Exception):
                     pass
 

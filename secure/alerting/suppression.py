@@ -33,8 +33,10 @@ def classify(
 
     Rules:
     1. CRITICAL events are never suppressed (cap only, never full suppression).
-    2. Match requires entity-type AND path-prefix agreement, plus timestamp inside window.
-    3. Record the matching ExpectedChange.source (audit trail).
+    2. Multi-device findings (peer_device_count >= 2) are never fully suppressed — only downgraded.
+       This prevents timing attacks where attacker waits for expected-change window to exploit.
+    3. Match requires entity-type AND path-prefix agreement, plus timestamp inside window.
+    4. Record the matching ExpectedChange.source (audit trail).
 
     Returns:
         SuppressionVerdict with category and optionally matching source.
@@ -44,6 +46,9 @@ def classify(
             category="ACTIVE",
             reason="CRITICAL severity never suppressed per policy"
         )
+
+    # Check for multi-device findings (supply-chain indicator)
+    multi_device = context.device and context.device.peer_device_count >= 2
 
     if not context.expected_changes:
         return SuppressionVerdict(category="ACTIVE")
@@ -63,7 +68,7 @@ def classify(
         elif change.path_prefixes and not entity_path:
             continue  # Window requires path but event has none
 
-        # Match! Apply suppression rules based on severity
+        # Match! Apply suppression rules based on severity and multi-device status
         if event_severity in ("HIGH", "MEDIUM"):
             # Cap only — downgrade one tier, never full suppression
             return SuppressionVerdict(
@@ -71,8 +76,16 @@ def classify(
                 matching_expected_change=change,
                 reason=f"Expected change '{change.kind}' from {change.source} — capped severity"
             )
+        elif multi_device:
+            # Multi-device finding: never fully suppress (prevents timing attack)
+            # Downgrade instead to keep on radar for correlation analysis
+            return SuppressionVerdict(
+                category="DOWNGRADED_EXPECTED",
+                matching_expected_change=change,
+                reason=f"Expected change '{change.kind}' from {change.source} — but multi-device finding, downgraded not suppressed"
+            )
         else:
-            # LOW / INFORMATIONAL — full suppression allowed
+            # Single-device LOW / INFORMATIONAL — full suppression allowed
             return SuppressionVerdict(
                 category="SUPPRESSED_EXPECTED",
                 matching_expected_change=change,

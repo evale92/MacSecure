@@ -155,6 +155,37 @@ CREATE INDEX IF NOT EXISTS idx_remediation_outcomes_status
     ON remediation_outcomes(status);
 CREATE INDEX IF NOT EXISTS idx_remediation_outcomes_execution
     ON remediation_outcomes(execution_id);
+
+CREATE TABLE IF NOT EXISTS remediation_request_log (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    log_entry_id        TEXT NOT NULL UNIQUE,
+
+    request_id          TEXT NOT NULL REFERENCES remediation_approval_requests(request_id),
+    action_id           TEXT NOT NULL,
+
+    decision_type       TEXT NOT NULL CHECK(decision_type IN ('created', 'approved', 'rejected', 'expired')),
+    decision_at         TEXT NOT NULL,
+    decided_by          TEXT,                          -- User ID, "system", or device ID
+
+    request_summary     TEXT NOT NULL,                 -- JSON snapshot of request state
+    decision_summary    TEXT,                          -- JSON of decision details
+
+    -- Audit trail integrity
+    entry_hash          TEXT,                          -- SHA256 of this log entry (for tampering detection)
+    prior_hash          TEXT,                          -- SHA256 of previous entry (chain integrity)
+
+    -- Metadata
+    created_at          TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_remediation_request_log_request
+    ON remediation_request_log(request_id);
+CREATE INDEX IF NOT EXISTS idx_remediation_request_log_action
+    ON remediation_request_log(action_id);
+CREATE INDEX IF NOT EXISTS idx_remediation_request_log_decided_by
+    ON remediation_request_log(decided_by);
+CREATE INDEX IF NOT EXISTS idx_remediation_request_log_created
+    ON remediation_request_log(created_at DESC);
 """
 
 

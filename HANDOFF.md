@@ -222,7 +222,10 @@ python3 -m unittest discover tests/ -v
 - ❌ `secure/remediation/api.py` (violates architecture)
 - ❌ HTTP server endpoints (use CLI + GUI, not HTTP)
 
-### Phase 53: Detection Intelligence (AI/ML)
+### Phase 53: Detection Intelligence (AI/ML) — ⏳ ARCHITECTURE DESIGN IN PROGRESS
+
+**Escalated to deep agent 2026-09-23 06:24 EDT**
+
 **Original feature list priority:** "biggest leverage from AI anomaly detection + cross-engine correlation"
 
 **1. Anomaly Detection Engine**
@@ -248,13 +251,14 @@ python3 -m unittest discover tests/ -v
 - Use Phase 50's learning loop to tune thresholds per environment
 - Preserve audit trail: every alert decision is logged with reasoning
 - No external ML dependencies (sklearn/torch) — use stdlib statistics
+- Integrate with existing: secure/baseline/ (30KB), secure/ai/ (40KB)
 
-**Files to create:**
-- `secure/ai/anomaly.py` — baseline calculation, anomaly scoring
-- `secure/ai/correlation.py` — multi-engine join, pattern detection
-- `secure/ai/alerting.py` — context-aware alert generation
-- `tests/test_ai_anomaly.py` — baseline and scoring tests
-- `tests/test_ai_correlation.py` — multi-engine tests
+**Deep agent is designing:**
+- How to integrate with existing baseline/ and ai/ infrastructure
+- Data flow: findings → anomaly scores → correlations → alerts
+- How Phase 50/49/48/51 context feeds into alerting
+- Specific file changes and algorithm sketches
+- Test strategy for stateless detection + correlation
 
 ## How to Resume Phase 52 or Beyond
 

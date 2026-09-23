@@ -195,6 +195,28 @@ class RemediationExecutor:
         self._persist_execution(result)
         return result
 
+    def reject_execution(
+        self,
+        execution_id: str,
+        rejected_by: str,
+        reason: str = "",
+    ) -> ExecutionResult:
+        """Reject a pending execution."""
+        result = self.executions.get(execution_id)
+        if result is None:
+            return None
+
+        if result.status != ExecutionStatus.PENDING:
+            return result  # Can only reject pending actions
+
+        result.status = ExecutionStatus.FAILED
+        result.stderr = f"Rejected by {rejected_by}: {reason}"
+        result.completed_at = datetime.utcnow()
+
+        self.executions[execution_id] = result
+        self._persist_execution(result)
+        return result
+
     def rollback_execution(
         self,
         execution_id: str,

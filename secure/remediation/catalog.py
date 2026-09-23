@@ -263,6 +263,121 @@ _CATALOG = {
             "https://attack.mitre.org/tactics/TA0043/",
         ],
     ),
+
+    # Phase 51: Extended Playbooks (5 new incident types)
+    "registry.clear-persistence": RemediationAction(
+        id="registry.clear-persistence",
+        name="Clear registry persistence entries",
+        description="Remove suspicious registry keys and values used for persistence (Windows Run, RunOnce, etc).",
+        risk_level=RiskLevel.HIGH,
+        action_type="registry",
+        change_request_template="templates/registry_clear_persistence.jinja2",
+        verification=RemediationVerification(
+            type=VerificationType.SCAN_COMPARISON,
+            description="Re-run registry scan; verify persistence entries removed",
+            timeout_seconds=60,
+        ),
+        examples=[
+            "persistence.registry-run-key",
+            "malware.registry-autorun",
+        ],
+        references=[
+            "https://attack.mitre.org/techniques/T1547/001/",
+            "https://attack.mitre.org/techniques/T1112/",
+        ],
+        first_shipped_in="51",
+    ),
+
+    "process.kill-suspicious": RemediationAction(
+        id="process.kill-suspicious",
+        name="Kill suspicious process",
+        description="Terminate a process identified as suspicious or malicious.",
+        risk_level=RiskLevel.HIGH,
+        action_type="process",
+        change_request_template="templates/process_kill_suspicious.jinja2",
+        verification=RemediationVerification(
+            type=VerificationType.PROCESS_CHECK,
+            description="Verify process no longer running",
+            timeout_seconds=15,
+        ),
+        examples=[
+            "process.suspicious-lsass-access",
+            "malware.credential-dumper",
+        ],
+        references=[
+            "https://attack.mitre.org/techniques/T1110/",
+            "https://attack.mitre.org/techniques/T1003/001/",
+        ],
+        first_shipped_in="51",
+    ),
+
+    "process.block-dcom": RemediationAction(
+        id="process.block-dcom",
+        name="Block DCOM lateral movement",
+        description="Disable DCOM execution via WMI or disable WMI service to prevent lateral movement.",
+        risk_level=RiskLevel.HIGH,
+        action_type="process",
+        change_request_template="templates/process_block_dcom.jinja2",
+        verification=RemediationVerification(
+            type=VerificationType.CONFIG_CHECK,
+            description="Verify DCOM/WMI disabled or restricted",
+            timeout_seconds=30,
+        ),
+        examples=[
+            "network.dcom-lateral-movement",
+            "attacker.wmi-lateral-movement",
+        ],
+        references=[
+            "https://attack.mitre.org/techniques/T1021/003/",
+        ],
+        first_shipped_in="51",
+    ),
+
+    "file.quarantine-webshell": RemediationAction(
+        id="file.quarantine-webshell",
+        name="Quarantine webshell file",
+        description="Move suspected webshell to quarantine directory and restrict permissions.",
+        risk_level=RiskLevel.HIGH,
+        action_type="file",
+        change_request_template="templates/file_quarantine_webshell.jinja2",
+        verification=RemediationVerification(
+            type=VerificationType.FILE_CHECK,
+            description="Verify file moved to quarantine and web server cannot access",
+            timeout_seconds=20,
+        ),
+        examples=[
+            "file.webshell-execution",
+            "web.suspicious-upload-executed",
+        ],
+        references=[
+            "https://attack.mitre.org/techniques/T1190/",
+            "https://attack.mitre.org/techniques/T1505/004/",
+        ],
+        first_shipped_in="51",
+    ),
+
+    "network.block-exfil-destinations": RemediationAction(
+        id="network.block-exfil-destinations",
+        name="Block data exfiltration destinations",
+        description="Add firewall rules to block outbound connections to known or suspected data staging/exfiltration destinations.",
+        risk_level=RiskLevel.HIGH,
+        action_type="network",
+        change_request_template="templates/network_block_exfil_destinations.jinja2",
+        verification=RemediationVerification(
+            type=VerificationType.PROCESS_CHECK,
+            description="Verify firewall rules exist and block connections",
+            timeout_seconds=25,
+        ),
+        examples=[
+            "network.data-staging",
+            "attacker.mass-exfiltration-prepare",
+        ],
+        references=[
+            "https://attack.mitre.org/techniques/T1537/",
+            "https://attack.mitre.org/techniques/T1020/",
+        ],
+        first_shipped_in="51",
+    ),
 }
 
 

@@ -233,6 +233,172 @@ class PlaybookEngine:
                 ],
                 severity=RiskLevel.HIGH,
             ),
+
+            # Phase 51: Extended Playbooks (5 new incident types)
+            "incident.persistence-registry": Playbook(
+                id="incident.persistence-registry",
+                name="Windows Registry Persistence Response",
+                description="Respond to suspicious registry modifications used for persistence (Run, RunOnce, etc).",
+                trigger=PlaybookTrigger(
+                    trigger_type="finding_pattern",
+                    condition="persistence AND registry",
+                    finding_types=["persistence.registry-run-key", "persistence.registry-runonce", "file_change.registry"],
+                    anomaly_threshold=65.0,
+                ),
+                steps=[
+                    PlaybookStep(
+                        remediation_id="registry.clear-persistence",
+                        condition=None,
+                        on_success="step_2",
+                    ),
+                    PlaybookStep(
+                        remediation_id="process.alert-on-relaunch",
+                        condition=None,
+                        on_success="step_3",
+                    ),
+                    PlaybookStep(
+                        remediation_id="threat-hunt.priority-flag",
+                        condition=None,
+                    ),
+                ],
+                severity=RiskLevel.HIGH,
+                first_shipped_in="51",
+            ),
+
+            "incident.lsass-dump": Playbook(
+                id="incident.lsass-dump",
+                name="LSASS Memory Dump Attack Response",
+                description="Respond to attempts to access LSASS process for credential extraction.",
+                trigger=PlaybookTrigger(
+                    trigger_type="finding_pattern",
+                    condition="process AND lsass_access",
+                    finding_types=["process.suspicious-lsass-access", "process.credential-dump-attempt"],
+                    anomaly_threshold=75.0,
+                ),
+                steps=[
+                    PlaybookStep(
+                        remediation_id="process.kill-suspicious",
+                        condition=None,
+                        on_success="step_2",
+                    ),
+                    PlaybookStep(
+                        remediation_id="firewall.enable",
+                        condition=None,
+                        on_success="step_3",
+                    ),
+                    PlaybookStep(
+                        remediation_id="credential.recommend-rotation",
+                        condition=None,
+                        on_success="step_4",
+                    ),
+                    PlaybookStep(
+                        remediation_id="threat-hunt.priority-flag",
+                        condition=None,
+                    ),
+                ],
+                severity=RiskLevel.HIGH,
+                first_shipped_in="51",
+            ),
+
+            "incident.dcom-lateral-movement": Playbook(
+                id="incident.dcom-lateral-movement",
+                name="DCOM Lateral Movement Response",
+                description="Respond to DCOM or WMI exploitation for lateral movement.",
+                trigger=PlaybookTrigger(
+                    trigger_type="correlation_match",
+                    condition="network AND dcom OR wmi",
+                    finding_types=["network.dcom-lateral-movement", "network.wmi-lateral-movement", "connection.new_remote"],
+                    anomaly_threshold=70.0,
+                ),
+                steps=[
+                    PlaybookStep(
+                        remediation_id="process.block-dcom",
+                        condition=None,
+                        on_success="step_2",
+                    ),
+                    PlaybookStep(
+                        remediation_id="ssh.disable-password-auth",
+                        condition=None,
+                        on_success="step_3",
+                    ),
+                    PlaybookStep(
+                        remediation_id="network.isolate-destination",
+                        condition="if_remote_lateral_movement",
+                        on_success="step_4",
+                    ),
+                    PlaybookStep(
+                        remediation_id="endpoint.mdm-notify",
+                        condition=None,
+                    ),
+                ],
+                severity=RiskLevel.HIGH,
+                first_shipped_in="51",
+            ),
+
+            "incident.webshell-execution": Playbook(
+                id="incident.webshell-execution",
+                name="Webshell Execution Response",
+                description="Respond to suspected webshell upload and execution on web server.",
+                trigger=PlaybookTrigger(
+                    trigger_type="finding_pattern",
+                    condition="web AND execution",
+                    finding_types=["file.webshell-execution", "web.suspicious-upload-executed"],
+                    anomaly_threshold=80.0,
+                ),
+                steps=[
+                    PlaybookStep(
+                        remediation_id="file.quarantine-webshell",
+                        condition=None,
+                        on_success="step_2",
+                    ),
+                    PlaybookStep(
+                        remediation_id="firewall.block-inbound",
+                        condition=None,
+                        on_success="step_3",
+                    ),
+                    PlaybookStep(
+                        remediation_id="threat-hunt.priority-flag",
+                        condition=None,
+                    ),
+                ],
+                severity=RiskLevel.HIGH,
+                first_shipped_in="51",
+            ),
+
+            "incident.data-staging": Playbook(
+                id="incident.data-staging",
+                name="Data Staging and Exfiltration Response",
+                description="Respond to suspicious file gathering and staging for data exfiltration.",
+                trigger=PlaybookTrigger(
+                    trigger_type="correlation_match",
+                    condition="file_activity AND network_connection",
+                    finding_types=["network.data-staging", "file.bulk-archive-creation", "connection.exfiltration-destination"],
+                    anomaly_threshold=75.0,
+                ),
+                steps=[
+                    PlaybookStep(
+                        remediation_id="network.block-exfil-destinations",
+                        condition=None,
+                        on_success="step_2",
+                    ),
+                    PlaybookStep(
+                        remediation_id="firewall.block-inbound",
+                        condition=None,
+                        on_success="step_3",
+                    ),
+                    PlaybookStep(
+                        remediation_id="endpoint.mdm-notify",
+                        condition=None,
+                        on_success="step_4",
+                    ),
+                    PlaybookStep(
+                        remediation_id="threat-hunt.priority-flag",
+                        condition=None,
+                    ),
+                ],
+                severity=RiskLevel.HIGH,
+                first_shipped_in="51",
+            ),
         }
 
     def get_playbook(self, playbook_id: str):

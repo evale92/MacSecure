@@ -63,7 +63,50 @@ T1562_001 = Technique(
     reference_note="Used here to model a sensor/tool becoming unavailable, not an attack payload.",
 )
 
+# Phase 51: Extended Playbooks techniques
+T1112 = Technique(
+    technique_id="T1112",
+    name="Modify Registry",
+    tactic="Defense Evasion",
+    reference_note="Registry entries modified for persistence or to disable defenses.",
+)
+
+T1003_001 = Technique(
+    technique_id="T1003.001",
+    name="OS Credential Dumping: LSASS Memory",
+    tactic="Credential Access",
+    reference_note="Process attempts to access LSASS memory for credential extraction.",
+)
+
+T1021_003 = Technique(
+    technique_id="T1021.003",
+    name="Remote Services: Distributed Component Object Model",
+    tactic="Lateral Movement",
+    reference_note="DCOM exploitation for lateral movement across network.",
+)
+
+T1505_004 = Technique(
+    technique_id="T1505.004",
+    name="Server Software Component: IIS Components",
+    tactic="Persistence",
+    reference_note="Webshell uploaded and executed on web server.",
+)
+
+T1074 = Technique(
+    technique_id="T1074",
+    name="Data Staged",
+    tactic="Collection",
+    reference_note="Files collected and staged for exfiltration.",
+)
+
+T1020 = Technique(
+    technique_id="T1020",
+    name="Automated Exfiltration",
+    tactic="Exfiltration",
+    reference_note="Connection to exfiltration destination for automated data transfer.",
+)
+
 REGISTRY = {
     t.technique_id: t
-    for t in (T1547_011, T1036_005, T1204_002, T1571, T1071_001, T1562_001)
+    for t in (T1547_011, T1036_005, T1204_002, T1571, T1071_001, T1562_001, T1112, T1003_001, T1021_003, T1505_004, T1074, T1020)
 }

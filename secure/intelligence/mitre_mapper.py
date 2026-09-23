@@ -67,6 +67,67 @@ FINDING_TO_TECHNIQUE = {
         "confidence": CONF_LIKELY,
         "rationale": "Security tool or sensor became unavailable.",
     },
+    # Phase 51: Extended Playbooks finding types
+    "persistence.registry-run-key": {
+        "technique_id": "T1112",
+        "confidence": CONF_CONFIRMED,
+        "rationale": "Registry Run key modification detected for persistence.",
+    },
+    "persistence.registry-runonce": {
+        "technique_id": "T1112",
+        "confidence": CONF_CONFIRMED,
+        "rationale": "Registry RunOnce key used for single-run persistence.",
+    },
+    "file_change.registry": {
+        "technique_id": "T1112",
+        "confidence": CONF_LIKELY,
+        "rationale": "Registry file integrity change indicates potential modification.",
+    },
+    "process.suspicious-lsass-access": {
+        "technique_id": "T1003.001",
+        "confidence": CONF_CONFIRMED,
+        "rationale": "Process attempting to access LSASS for credential extraction.",
+    },
+    "process.credential-dump-attempt": {
+        "technique_id": "T1003.001",
+        "confidence": CONF_LIKELY,
+        "rationale": "Process behavior consistent with credential dumping attack.",
+    },
+    "network.dcom-lateral-movement": {
+        "technique_id": "T1021.003",
+        "confidence": CONF_CONFIRMED,
+        "rationale": "DCOM exploitation pattern detected for lateral movement.",
+    },
+    "network.wmi-lateral-movement": {
+        "technique_id": "T1021.003",
+        "confidence": CONF_LIKELY,
+        "rationale": "WMI remote execution pattern consistent with lateral movement.",
+    },
+    "file.webshell-execution": {
+        "technique_id": "T1505.004",
+        "confidence": CONF_CONFIRMED,
+        "rationale": "Webshell file detected and executed on web server.",
+    },
+    "web.suspicious-upload-executed": {
+        "technique_id": "T1505.004",
+        "confidence": CONF_LIKELY,
+        "rationale": "File uploaded and executed on web application.",
+    },
+    "network.data-staging": {
+        "technique_id": "T1074",
+        "confidence": CONF_CONFIRMED,
+        "rationale": "File gathering and staging behavior for exfiltration.",
+    },
+    "file.bulk-archive-creation": {
+        "technique_id": "T1074",
+        "confidence": CONF_LIKELY,
+        "rationale": "Multiple files archived, suggesting data staging.",
+    },
+    "connection.exfiltration-destination": {
+        "technique_id": "T1020",
+        "confidence": CONF_LIKELY,
+        "rationale": "Connection to known exfiltration destination.",
+    },
 }
 
 

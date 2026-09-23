@@ -194,6 +194,57 @@ class ApprovalEngine:
                 post_action_notification=True,
                 rollback_allowed=False,  # Network isolation not user-reversible
             ),
+
+            # Phase 51: Extended Playbooks (5 new HIGH-risk actions)
+            "registry.clear-persistence": ApprovalPolicy(
+                action_id="registry.clear-persistence",
+                risk_level=RiskLevel.HIGH,
+                approval_required=True,
+                escalation_path=EscalationPath.SECURITY_TEAM,
+                escalation_timeout=timedelta(hours=24),
+                post_action_notification=True,
+                rollback_allowed=True,
+            ),
+
+            "process.kill-suspicious": ApprovalPolicy(
+                action_id="process.kill-suspicious",
+                risk_level=RiskLevel.HIGH,
+                approval_required=True,
+                escalation_path=EscalationPath.SECURITY_TEAM,
+                escalation_timeout=timedelta(hours=24),
+                post_action_notification=True,
+                rollback_allowed=False,  # Killed process cannot be restored
+            ),
+
+            "process.block-dcom": ApprovalPolicy(
+                action_id="process.block-dcom",
+                risk_level=RiskLevel.HIGH,
+                approval_required=True,
+                escalation_path=EscalationPath.SECURITY_TEAM,
+                escalation_timeout=timedelta(hours=24),
+                post_action_notification=True,
+                rollback_allowed=True,
+            ),
+
+            "file.quarantine-webshell": ApprovalPolicy(
+                action_id="file.quarantine-webshell",
+                risk_level=RiskLevel.HIGH,
+                approval_required=True,
+                escalation_path=EscalationPath.SECURITY_TEAM,
+                escalation_timeout=timedelta(hours=24),
+                post_action_notification=True,
+                rollback_allowed=True,
+            ),
+
+            "network.block-exfil-destinations": ApprovalPolicy(
+                action_id="network.block-exfil-destinations",
+                risk_level=RiskLevel.HIGH,
+                approval_required=True,
+                escalation_path=EscalationPath.SECURITY_TEAM,
+                escalation_timeout=timedelta(hours=24),
+                post_action_notification=True,
+                rollback_allowed=True,
+            ),
         }
 
     def get_policy(self, action_id: str):

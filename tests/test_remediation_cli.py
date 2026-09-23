@@ -134,7 +134,7 @@ class TestRemediationCLI(unittest.TestCase):
         """Test 'catalog' command lists all actions."""
         actions = self.cli.cmd_catalog()
         self.assertGreater(len(actions), 0)
-        self.assertEqual(len(actions), 12)  # 12 built-in actions
+        self.assertEqual(len(actions), 17)  # 12 original + 5 Phase 51 actions
 
     def test_cmd_catalog_filter_risk(self):
         """Test 'catalog' command filtered by risk level."""
@@ -167,7 +167,7 @@ class TestRemediationCLI(unittest.TestCase):
     def test_cmd_playbooks_all(self):
         """Test 'playbooks' command."""
         playbooks = self.cli.cmd_playbooks()
-        self.assertEqual(len(playbooks), 5)  # 5 built-in playbooks
+        self.assertEqual(len(playbooks), 10)  # 5 original + 5 Phase 51 playbooks
 
     def test_cmd_playbook_detail(self):
         """Test 'playbook-detail' command."""

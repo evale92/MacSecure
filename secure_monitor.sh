@@ -69,6 +69,12 @@ if [ "$LOG_ONLY" = false ]; then
     # Connections (unexpected destinations)
     run_scanner "connections" "python3 -m secure connections scan --quick" || true
 
+    # File integrity (changes to critical paths)
+    run_scanner "fileintegrity" "python3 -m secure fileintegrity scan --quick" || true
+
+    # Posture checks (Gatekeeper, SIP, FileVault, firewall, etc.)
+    run_scanner "checks" "python3 -m secure check --quick" || true
+
     # WiFi (lookalike SSIDs)
     run_scanner "wifi" "python3 -m secure wifi scan" || true
 

@@ -188,6 +188,7 @@ from secure_gui.baseline_view import open_baseline_window
 from secure_gui.performance_view import open_performance_window
 from secure_gui.agent_view import open_agent_window
 from secure_gui.change_requests_view import open_change_requests_window
+from secure_gui.remediation_view import open_remediation_window
 from secure_gui.components import confirm_action, mark_state_dialog, resolve_fonts
 from secure_gui.view_models import (
     COMMAND_CATALOG,
@@ -403,6 +404,9 @@ class SecureGUI(tk.Tk):
         # `secure ai changes ...`, never decides anything in Python.
         self._build_agent_launcher(categories_frame)
 
+        # Phase 52: Remediation -> Automated Response.
+        self._build_remediation_launcher(categories_frame)
+
         for category in self._categories():
             self._build_category(categories_frame, category)
 
@@ -596,6 +600,40 @@ class SecureGUI(tk.Tk):
         `secure ai changes approve <cr_id> <hash>` a terminal user
         would, with the hash taken from the record rather than retyped.
         """
+
+    def _build_remediation_launcher(self, parent: tk.Widget) -> None:
+        """Build the remediation launcher frame."""
+        box = tk.LabelFrame(parent, text="Remediation — Automated Response", padx=8, pady=8, font=self._fonts["body_bold"])
+        box.pack(fill=tk.X, pady=(0, 10))
+        tk.Button(
+            box,
+            text="Open Remediation Monitor…",
+            width=26,
+            anchor="w",
+            command=self._open_remediation_window,
+        ).pack(fill=tk.X, pady=2)
+        tk.Label(
+            box,
+            text="Automated remediation execution monitor (Phase 52).\n"
+            "Shows pending/successful/failed actions and recent\n"
+            "execution history. All approvals route through CLI\n"
+            "for audit trail preservation.",
+            font=self._fonts["small"],
+            fg="#666",
+            justify="left",
+        ).pack(anchor="w", pady=(4, 0))
+
+    def _open_remediation_window(self) -> None:
+        """Open the Remediation monitor window (Phase 52). Same
+        read-only-display / CLI-subprocess-for-actions split as every
+        other launcher. Approvals and executions route through the CLI
+        subprocess, preserving the audit trail.
+        """
+
+        def run_command(label: str, args: List[str], nonzero_is_finding: bool) -> None:
+            self._run_command(Command(label, (lambda a=args: a), nonzero_is_finding))
+
+        open_remediation_window(self, run_command=run_command)
 
         def run_command(label: str, args: List[str], nonzero_is_finding: bool) -> None:
             self._run_command(Command(label, (lambda a=args: a), nonzero_is_finding))

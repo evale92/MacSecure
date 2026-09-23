@@ -828,3 +828,82 @@ def fetch_change_request_center_now(limit: int = 50) -> list:
     cfg = load_config()
     with Database(cfg.database_path()) as db:
         return list_pending_change_requests(db.conn, limit=limit)
+
+
+# Phase 52: Remediation dashboard data access
+@dataclass
+class RemediationExecution:
+    """Read-only view of a remediation execution."""
+    execution_id: str
+    action_id: str
+    status: str
+    started_at: str
+    completed_at: str
+    risk_level: str
+
+
+@dataclass
+class RemediationDashboard:
+    """Summary stats for the remediation dashboard."""
+    pending_count: int
+    successful_count: int
+    failed_count: int
+    total_executions: int
+    recent_executions: List[RemediationExecution]
+    running_playbooks: int
+
+
+def fetch_remediation_dashboard_now(limit: int = 20) -> RemediationDashboard:
+    """Phase 52: read-only fetch of remediation execution stats for the
+    GUI dashboard. Returns pending/successful/failed counts and recent
+    execution history.
+
+    All actions go through the CLI subprocess, never directly from the GUI.
+    """
+    from secure.remediation.executor import RemediationExecutor, ExecutionStatus
+
+    try:
+        executor = RemediationExecutor()
+
+        # Get all executions
+        all_executions = executor.list_executions(limit=1000)
+
+        # Count by status
+        pending = sum(1 for e in all_executions if e.status == ExecutionStatus.PENDING)
+        success = sum(1 for e in all_executions if e.status == ExecutionStatus.SUCCESS)
+        failed = sum(1 for e in all_executions if e.status == ExecutionStatus.FAILED)
+
+        # Recent executions (formatted)
+        recent = []
+        for e in all_executions[:limit]:
+            recent.append(RemediationExecution(
+                execution_id=e.execution_id,
+                action_id=e.action_id,
+                status=e.status.value if hasattr(e.status, 'value') else str(e.status),
+                started_at=e.started_at.strftime("%Y-%m-%d %H:%M:%S") if e.started_at else "",
+                completed_at=e.completed_at.strftime("%Y-%m-%d %H:%M:%S") if e.completed_at else "",
+                risk_level=e.risk_level.value if hasattr(e.risk_level, 'value') else "unknown",
+            ))
+
+        # Count running playbooks (estimated from pending executions)
+        running_pbs = sum(1 for e in all_executions
+                          if e.status == ExecutionStatus.PENDING and e.playbook_run_id)
+
+        return RemediationDashboard(
+            pending_count=pending,
+            successful_count=success,
+            failed_count=failed,
+            total_executions=len(all_executions),
+            recent_executions=recent,
+            running_playbooks=running_pbs,
+        )
+    except Exception:
+        # Remediation not available or database error
+        return RemediationDashboard(
+            pending_count=0,
+            successful_count=0,
+            failed_count=0,
+            total_executions=0,
+            recent_executions=[],
+            running_playbooks=0,
+        )

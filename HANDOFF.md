@@ -303,6 +303,25 @@ python3 -m pytest tests/ -q
 ✅ **Phase 53:** Detection Intelligence — suppression/escalation rules, pure decision functions
 ✅ **Phase 54:** Detection Pipeline Integration — baseline → correlation → alert → store
 
+## Baseline Collection (24-48h active)
+
+**Status:** ✅ STARTED 2026-09-23 09:59 EDT
+
+**Automation:** Baseline monitor running every 4 hours (0 */4 * * * EST)
+- Executes: `secure_monitor.sh --log-only`
+- Logs to: `.monitoring/monitor_YYYYMMDD_HHMMSS.log`
+- Collects: Process baselines, network patterns, file system state
+- Stores to: `anomaly_events` table (Phase 14 storage)
+
+**Collection data informs:**
+1. Phase 50 learning loop (normal behavior thresholds)
+2. Phase 54 detection pipeline (correlation patterns)
+3. Suppression rules (expected-change windows)
+
+**Next deep review:** After 24-48h baseline collection, escalate to deep agent for security review with real threat data.
+
+---
+
 ## Next Phases (55+)
 
 ### Phase 55: User Feedback Loop

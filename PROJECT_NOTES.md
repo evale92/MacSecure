@@ -9086,3 +9086,16 @@ Each step:
 
 Phase 48 enables Secure to transition from *detection* (what happened) to *response* (safe, auditable, learned action).
 
+
+## Phase 48.5 — Executor Wrapper & CLI (In Progress)
+
+Executor wrapper tying actions → approvals → database, CLI commands for remediation management.
+
+**Components:**
+- `executor.py`: RemediationExecutor class, action execution through Phase 47 safe-code, database persistence
+- `cli.py`: CLI commands (run, approve, status, history)
+- `notifications.py`: User/team notifications on execution/approval/completion
+- `gui_category.py`: GUI remediation management panel
+
+**Scope:** 300-400 LOC, full-stack integration
+

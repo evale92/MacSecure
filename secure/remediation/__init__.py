@@ -20,6 +20,12 @@ from secure.remediation.catalog import (
     get_action,
     list_actions,
 )
+from secure.remediation.executor import (
+    RemediationExecutor,
+    ExecutionResult,
+    ExecutionStatus,
+)
+from secure.remediation.cli import RemediationCLI
 
 __all__ = [
     "RemediationAction",
@@ -32,4 +38,8 @@ __all__ = [
     "load_catalog",
     "get_action",
     "list_actions",
+    "RemediationExecutor",
+    "ExecutionResult",
+    "ExecutionStatus",
+    "RemediationCLI",
 ]

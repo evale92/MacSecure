@@ -8944,3 +8944,72 @@ Implemented:
 
 **Status:** Phase 48.1–48.2 complete (80+ tests, ~1300 LOC). Proceeding to Phase 48.3 (Incident Orchestration / Playbooks).
 
+
+### Phase 48.3 — Incident Orchestration (Playbooks)
+
+Implemented:
+
+- **PlaybookEngine** (`secure/remediation/playbooks.py`): Orchestrates multi-step incident response
+  - Executes remediation actions in sequence with conditional branching
+  - Supports on_success, on_failure, on_timeout step transitions
+  - Tracks step execution status (PENDING, RUNNING, COMPLETED, FAILED, WAITING_APPROVAL)
+- **5 built-in incident playbooks:**
+  1. incident.unsigned-process (MEDIUM): Unsigned executable spawning from suspicious location
+  2. incident.persistence-change (HIGH): Unexpected LaunchAgent/LaunchDaemon modification
+  3. incident.network-anomaly (HIGH): Correlated process + connection + file change in 60s
+  4. incident.privilege-escalation (HIGH): Process with elevated uid/gid
+  5. incident.lateral-movement (HIGH): SSH key modification + new network destination
+- **50+ comprehensive tests** (`tests/test_remediation_playbooks.py`):
+  - Playbook discovery by finding type + anomaly score
+  - Run creation and status tracking
+  - Step-by-step execution with branching
+  - Run completion/failure/stopping
+
+**Design:**
+- PlaybookRun tracks complete execution history: trigger, steps, status, final result
+- StepExecution records individual step outcomes: status, approval request, result, error
+- Conditional branching: on_success/on_failure/on_timeout step transitions
+- Playbook discovery filters by finding_types and anomaly_score thresholds
+- Integration point: approval_request can be attached to any step (routes to approval engine)
+
+**Database schema** (`secure/storage/remediation_schema.py`):
+- remediation_actions_meta: Metadata for all actions (id, name, risk_level, etc.)
+- remediation_approval_requests: Tracks approval workflow per action
+- remediation_executions: Records of action execution (outcome, error, CR/repair ref)
+- playbook_runs: Tracks complete playbook execution
+- playbook_step_executions: Individual step records within a run
+
+**What remains (Phase 48.4-48.5):**
+- Executor: Wrap action + approval → Phase 47 change request
+- Learning loop: Track pre/post-scan changes to measure remediation efficacy
+- CLI integration: `secure remediation run/status/approve/reject` commands
+- GUI: Remediation category with pending approvals, execution history, playbook management
+- Notifications: Alert user on action pending/approved/executed/rolled_back
+
+**Git commits:**
+- `020612b`: Phase 48.3: Playbook engine with 5 built-in playbooks
+- `8641fe3`: Phase 48: Database schema
+
+---
+
+## Summary: Phase 48 (Automated Remediation & Response Orchestration)
+
+**Complete (130+ tests, 1800+ LOC):**
+
+| Component | Status | Commits |
+|---|---|---|
+| 48.1 Catalog | ✅ COMPLETE | 5dc0d89, 43ca9f0, 61629ec, 9999f68 |
+| 48.2 Approval | ✅ COMPLETE | e484a4d, abffe2e |
+| 48.3 Playbooks | ✅ COMPLETE | 020612b, 8641fe3 |
+
+**Architecture Delivered:**
+- 12 remediation actions (firewall, SSH, service, hardening, network, process, config)
+- Risk-stratified approval (LOW auto-exec, MEDIUM human review 1h, HIGH 24h)
+- 5 incident playbooks with multi-step orchestration
+- Full database schema for execution tracking + audit trail
+- 130+ tests covering all major paths
+
+**Immediate next:** Phase 48.4 (Learning Loop + Executor Integration) — measure remediation outcomes and wire actions into Phase 47's safe-code infrastructure.
+
+Phase 48 enables Secure to go from *detection* (what happened) to *response* (what to do about it).
+

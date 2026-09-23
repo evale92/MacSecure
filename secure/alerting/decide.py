@@ -54,9 +54,9 @@ def decide_alert(
     else:
         reasoning.append("Escalation: no signals")
 
-    # Step 2: Suppression (applies to escalated severity if present)
+    # Step 2: Suppression (applies to base severity; multi_device check prevents full suppression)
     suppression = classify_suppression(
-        event_severity=escalated_severity,
+        event_severity=base_severity,
         entity_type=entity_type,
         entity_path=entity_path,
         event_timestamp=event_timestamp,
@@ -66,14 +66,13 @@ def decide_alert(
     if suppression.reason:
         reasoning.append(f"Suppression: {suppression.reason}")
 
-    # Final decision: use escalated severity, but suppress if indicated
-    final_severity = escalated_severity
-    if suppression.category == "SUPPRESSED_EXPECTED":
-        # Even with escalation, suppression can override if expected change window matches
-        final_severity = escalated_severity
-        reasoning.append("Suppression applied to escalated severity")
-    elif suppression.category == "DOWNGRADED_EXPECTED":
-        # Downgrade from escalated level
+    # Final decision: determine severity based on suppression + escalation
+    # - SUPPRESSED: use base_severity (event is in expected-change window)
+    # - DOWNGRADED: use base_severity (downgrade was already decided by suppression)
+    # - ACTIVE: use escalated_severity (no suppression, so escalation applies)
+    if suppression.category in ("SUPPRESSED_EXPECTED", "DOWNGRADED_EXPECTED"):
+        final_severity = base_severity
+    else:  # ACTIVE
         final_severity = escalated_severity
 
     return AlertDecision(

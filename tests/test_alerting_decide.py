@@ -47,8 +47,10 @@ def test_suppressed_event_not_escalated():
     )
 
     assert decision.verdict == "SUPPRESSED_EXPECTED"
-    assert decision.final_severity == "LOW"  # Not escalated
-    assert any("skipped" in r for r in decision.reasoning)
+    assert decision.final_severity == "LOW"  # Not escalated (even though ADMIN role detected)
+    # Verify escalation signals were computed but not applied due to suppression
+    assert any("ADMIN" in r for r in decision.reasoning)  # Escalation detected
+    assert any("Suppression" in r for r in decision.reasoning)  # Suppression applied
 
 
 def test_downgraded_event_still_escalated():

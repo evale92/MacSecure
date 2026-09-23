@@ -135,7 +135,7 @@ class DetectionPipeline:
             # Get correlation data if available
             finding_type = f"{anomaly.entity_type}.{anomaly.feature_name}"
             correlated = correlated_findings.get(finding_type)
-            peer_count = None
+            peer_count = 0  # Default: no peers saw this finding
             if correlated:
                 event.correlation_id = correlated.correlation_id
                 event.correlated_finding = correlated

@@ -54,9 +54,10 @@ def compose_device_context(peer_device_count: Optional[int] = None) -> Optional[
         # Extract role as uppercase string (escalation.py expects "ADMIN", "SHARED", etc.)
         role_str = device_info.role.value.upper() if hasattr(device_info.role, 'value') else str(device_info.role).upper()
 
-        # Use provided peer_device_count, or count active devices except self
+        # Use provided peer_device_count (from correlation data showing which peers saw THIS finding)
+        # If None, default to 0 (no peers reported this finding; don't count enrolled devices)
         if peer_device_count is None:
-            peer_device_count = len([d for d in active_devices if d.device_id != device_info.device_id])
+            peer_device_count = 0
 
         # Map internal device structure to DeviceContext
         return DeviceContext(

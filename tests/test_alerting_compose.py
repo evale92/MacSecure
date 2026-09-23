@@ -154,14 +154,14 @@ def test_compose_device_context_with_real_config():
 
             from secure.alerting.compose import compose_device_context
 
-            # When no local_device_id in AppConfig, falls back to first device
+            # When no peer_device_count provided (no correlation), defaults to 0
             result = compose_device_context()
             assert result is not None
             assert isinstance(result, DeviceContext)
             # Should use first device in list as fallback
             assert result.device_id == "device_remote"
             assert result.role == "SHARED"
-            assert result.peer_device_count == 1  # one other device
+            assert result.peer_device_count == 0  # No correlation, no peers
 
 
 def test_compose_peer_device_count_from_correlation():
@@ -188,3 +188,45 @@ def test_compose_peer_device_count_from_correlation():
             result = compose_device_context(peer_device_count=3)
             assert result is not None
             assert result.peer_device_count == 3  # Uses provided value, not count of active devices
+
+
+def test_multi_device_no_correlation_no_false_escalation():
+    """Multi-device system with no correlation should NOT escalate based on enrolled count."""
+    from unittest.mock import Mock, patch
+    from secure.multi_device.device_registry import EnrolledDevice
+    from secure.alerting.context import DeviceContext
+
+    # 3 enrolled devices, but NO correlation for this finding
+    device1 = Mock(spec=EnrolledDevice)
+    device1.device_id = "device1"
+    device1.role = Mock(value="ADMIN")
+    device1.cpu_ok = device1.disk_ok = device1.memory_ok = device1.network_ok = True
+    device1.last_sync = True
+
+    device2 = Mock(spec=EnrolledDevice)
+    device2.device_id = "device2"
+    device2.role = Mock(value="SHARED")
+    device2.cpu_ok = device2.disk_ok = device2.memory_ok = device2.network_ok = True
+    device2.last_sync = True
+
+    device3 = Mock(spec=EnrolledDevice)
+    device3.device_id = "device3"
+    device3.role = Mock(value="SHARED")
+    device3.cpu_ok = device3.disk_ok = device3.memory_ok = device3.network_ok = True
+    device3.last_sync = True
+
+    mock_cfg = Mock()
+    with patch("secure.config.load_config", return_value=mock_cfg):
+        with patch("secure.multi_device.device_registry.DeviceRegistry") as MockRegistry:
+            mock_registry = Mock()
+            mock_registry.get_active_devices.return_value = [device1, device2, device3]
+            MockRegistry.return_value = mock_registry
+
+            from secure.alerting.compose import compose_device_context
+
+            # No correlation data: peer_device_count defaults to 0
+            result = compose_device_context()
+            assert result is not None
+            assert isinstance(result, DeviceContext)
+            # Should NOT count enrolled devices as peers (only peers that saw THIS finding)
+            assert result.peer_device_count == 0  # No false escalation from enrolled count

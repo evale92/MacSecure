@@ -68,18 +68,22 @@ def decide_alert(
 
     # Final decision: determine severity based on suppression + escalation
     # Escalation signals override suppression (never drop escalation)
+    # When escalation wins, verdict is ACTIVE (not SUPPRESSED_EXPECTED)
     if escalation_reasons:
         final_severity = escalated_severity
+        verdict = "ACTIVE"
     elif suppression.category in ("SUPPRESSED_EXPECTED", "DOWNGRADED_EXPECTED"):
         final_severity = base_severity
+        verdict = suppression.category
     else:  # ACTIVE
         final_severity = escalated_severity
+        verdict = "ACTIVE"
 
     return AlertDecision(
         source_table=source_table,
         source_id=source_id,
         base_severity=base_severity,
-        verdict=suppression.category,
+        verdict=verdict,
         final_severity=final_severity,
         reasoning=reasoning,
     )

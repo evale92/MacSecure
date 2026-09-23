@@ -35,7 +35,7 @@ def test_suppressed_event_escalated():
     ctx = AlertContext(device=device, expected_changes=(change,))
 
     # LOW event in suppression window with ADMIN device
-    # Verdict is SUPPRESSED_EXPECTED (suppression applies), but escalation overrides severity
+    # Verdict is ACTIVE (escalation wins), severity is escalated
     decision = decide_alert(
         source_table="anomaly_events",
         source_id=123,
@@ -46,15 +46,15 @@ def test_suppressed_event_escalated():
         context=ctx,
     )
 
-    assert decision.verdict == "SUPPRESSED_EXPECTED"
+    assert decision.verdict == "ACTIVE"  # Escalation wins over suppression
     assert decision.final_severity == "MEDIUM"  # Escalated (ADMIN role overrides suppression)
     # Verify both escalation and suppression were computed
     assert any("ADMIN" in r for r in decision.reasoning)  # Escalation detected
     assert any("Suppression" in r for r in decision.reasoning)  # Suppression computed
 
 
-def test_downgraded_event_still_escalated():
-    """If event is downgraded, escalation still applies from base."""
+def test_downgraded_event_with_escalation_overrides():
+    """When escalation signals exist, verdict is ACTIVE even with suppression window."""
     now = datetime.now(timezone.utc)
     change = ExpectedChange(
         kind="os_update",
@@ -74,8 +74,7 @@ def test_downgraded_event_still_escalated():
     ctx = AlertContext(device=device, expected_changes=(change,))
 
     # MEDIUM event in suppression window with ADMIN device
-    # Should be downgraded (capped) but not suppressed
-    # And escalation should still be considered
+    # Escalation signals override suppression, so verdict is ACTIVE
     decision = decide_alert(
         source_table="anomaly_events",
         source_id=123,
@@ -86,9 +85,10 @@ def test_downgraded_event_still_escalated():
         context=ctx,
     )
 
-    assert decision.verdict == "DOWNGRADED_EXPECTED"
+    assert decision.verdict == "ACTIVE"  # Escalation wins over suppression
     assert decision.base_severity == "MEDIUM"
-    # Final severity: MEDIUM + escalation (ADMIN) = HIGH (possibly capped by suppression)
+    # Final severity: MEDIUM + escalation (ADMIN) = HIGH
+    assert decision.final_severity == "HIGH"
     assert any("Suppression:" in r for r in decision.reasoning)
 
 
@@ -190,6 +190,42 @@ def test_critical_never_downgraded():
     assert decision.verdict == "ACTIVE"
     assert decision.final_severity == "CRITICAL"
     assert decision.base_severity == "CRITICAL"
+
+
+def test_verdict_active_when_escalation_wins():
+    """Verdict is ACTIVE (not SUPPRESSED) when escalation signals override suppression."""
+    now = datetime.now(timezone.utc)
+    change = ExpectedChange(
+        kind="os_update",
+        started_at=now - timedelta(hours=1),
+        ends_at=now + timedelta(hours=1),
+        entity_types=frozenset(["process_key"]),
+        path_prefixes=(),
+        source="test",
+    )
+    device = DeviceContext(
+        device_id="device",
+        role="ADMIN",
+        health="healthy",
+        sync_state="synced",
+        peer_device_count=0,
+    )
+    ctx = AlertContext(device=device, expected_changes=(change,))
+
+    # LOW event in suppression window with ADMIN device
+    # Verdict should be ACTIVE (not SUPPRESSED_EXPECTED) because escalation wins
+    decision = decide_alert(
+        source_table="anomaly_events",
+        source_id=123,
+        entity_type="process_key",
+        entity_path=None,
+        base_severity="LOW",
+        event_timestamp=now,
+        context=ctx,
+    )
+
+    assert decision.verdict == "ACTIVE"  # Not SUPPRESSED_EXPECTED
+    assert decision.final_severity == "MEDIUM"  # Escalated by ADMIN
 
 
 def test_complete_workflow_with_all_signals():

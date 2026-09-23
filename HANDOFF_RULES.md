@@ -8,6 +8,27 @@
 
 ## Handoff Must Include
 
+### 0. Project Location & Access (FIRST THING)
+
+**What to include:**
+- Absolute path to project directory
+- Commands to verify bot is in correct location
+- Commands to verify project health (git, pytest, imports)
+
+**Example:**
+```
+## Project Location & Access
+
+**Save this for the bot:**
+cd /Users/erickvale/Desktop/secure-resource
+pwd  # Should output: /Users/erickvale/Desktop/secure-resource
+ls HANDOFF.md  # Should exist
+```
+
+**Why:** Bot may not know where project is. Always include absolute path. Provide copy-paste ready commands.
+
+---
+
 ### 1. Executive Summary (Top of File)
 
 **What to include:**
@@ -407,6 +428,12 @@ python3 -m pytest tests/test_alerting_*.py -q  # Phase 53 only
 **Current Phase:** [Name] [STATUS: ✅/🏗️/⏸️]  
 **Total Progress:** [test count] tests, [LOC] LOC, [commits] commits
 
+## Project Location & Access
+
+cd /Users/erickvale/Desktop/secure-resource
+pwd  # Should output: /Users/erickvale/Desktop/secure-resource
+ls HANDOFF.md  # Should exist
+
 ## Quick Start for Bot
 [Read in order / Commands to run]
 
@@ -455,6 +482,7 @@ python3 -m pytest tests/test_alerting_*.py -q  # Phase 53 only
 ## Review Checklist (Before Every Commit)
 
 **Update HANDOFF.md with:**
+- [ ] Project Location section (absolute path + verification commands)
 - [ ] Last Updated timestamp (current session time)
 - [ ] Current Phase and status (✅/🏗️/⏸️)
 - [ ] Total test count (run `pytest --co -q | tail -1`)

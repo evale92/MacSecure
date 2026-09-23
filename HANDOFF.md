@@ -5,6 +5,23 @@
 **Total Progress:** 265 tests passing, 5316+ LOC, 16 commits  
 **Working Directory:** `/Users/erickvale/Desktop/secure-resource`
 
+## Project Location & Access
+
+**IMPORTANT:** Save this exact command for the bot.
+
+```
+# This command gets the bot to the right directory:
+cd /Users/erickvale/Desktop/secure-resource
+
+# Verify you're in the right place:
+pwd  # Should output: /Users/erickvale/Desktop/secure-resource
+ls HANDOFF.md  # Should exist and be readable
+```
+
+**Why this matters:** The bot may not know where the project is. Always provide the absolute path `/Users/erickvale/Desktop/secure-resource` when starting a new session.
+
+---
+
 ## Quick Start for Bot (Next Session)
 
 **When resuming, read in this order:**
@@ -18,8 +35,13 @@
 **Start working:**
 ```bash
 cd /Users/erickvale/Desktop/secure-resource
-git log --oneline -5          # See recent commits
+
+# Verify health
+git log --oneline -5          # See recent commits (should show b29fc71 at top)
 python3 -m pytest tests/test_alerting_*.py -q  # Verify Phase 53 tests pass (61 tests)
+
+# Check imports work
+python3 -c "from secure.alerting import AlertContext, decide_alert; print('✓ Imports OK')"
 ```
 
 ---

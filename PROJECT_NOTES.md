@@ -8845,3 +8845,58 @@ verify the file on disk is untouched.
   source edits, uncommitted, for the user to review and commit.
 
 Phase 47.5 is **complete and presented for review, not self-certified.**
+
+---
+
+## Phase 48 — Automated Remediation & Response Orchestration
+
+Governing instruction, verbatim: Extend Secure from *detection-only* to *response-capable*. Add safe, auditable remediation actions for common security findings, executed through Phase 47's verified safe-code infrastructure. Define 12 initial remediations (firewall, SSH, service disabling, hardening) plus approval workflows and incident playbooks.
+
+### Phase 48.1 — Foundation & Catalog
+
+Implemented:
+
+- **Remediation models** (`secure/remediation/models.py`): `RemediationAction`, `ApprovalPolicy`, `PlaybookStep`, `Playbook` dataclasses with full type safety.
+- **Remediation catalog** (`secure/remediation/catalog.py`): 12 initial actions covering firewall (enable, block-inbound), SSH (disable-root, disable-password), service disabling (LaunchAgent, LaunchDaemon), network isolation, process monitoring, hardening, credentials, and threat hunting.
+- **Comprehensive test suite** (`tests/test_remediation_catalog.py`): 30+ tests covering catalog loading, action retrieval, filtering by risk level / action type, verification methods, prerequisites, and MITRE ATT&CK references.
+- **Specification** (`docs/PHASE_48.md`): Full design document with risk levels, approval tiers, incident orchestration, schema additions, and implementation phases 48.1–48.5.
+
+**Remediation actions shipped:**
+1. firewall.enable (LOW) — Enable macOS firewall
+2. firewall.block-inbound (MEDIUM) — Block inbound to anomalous service
+3. ssh.disable-root-login (LOW) — Set PermitRootLogin no
+4. ssh.disable-password-auth (LOW) — Set PasswordAuthentication no
+5. service.disable-launchagent (MEDIUM) — Quarantine suspicious user agent
+6. service.disable-launchdaemon (MEDIUM) — Rename suspicious system daemon
+7. network.isolate-destination (HIGH) — Route suspicious IP through lo0
+8. process.alert-on-relaunch (LOW) — Flag if killed process relaunches
+9. config.harden-umask (LOW) — Set restrictive umask
+10. credential.recommend-rotation (LOW) — User-actionable SSH key rotation prompt
+11. endpoint.mdm-notify (MEDIUM) — Notify paired MDM system
+12. threat-hunt.priority-flag (LOW) — Raise correlation signal weight
+
+**Architectural decisions:**
+- All actions are immutable, versioned specifications (dataclasses).
+- Every action executes through Phase 47's verified safe-code infrastructure (never directly).
+- Risk levels (LOW/MEDIUM/HIGH) determine approval workflows, not execution capability.
+- Low-risk actions auto-execute with post-notification; medium/high require human review.
+- All actions are auditable: every execution recorded in database with full provenance.
+- No destructive actions (deletes, wipes, privilege escalation) in Phase 48.1; focused on safe, reversible changes.
+
+**What remains for Phase 48.2–48.5:**
+- Approval workflow engine (routes actions to appropriate approval tier)
+- Executor that wraps actions as Phase 47 change requests
+- Database schema for remediation executions, approvals, playbook runs
+- Incident orchestration (playbook step sequencing, condition evaluation)
+- Learning loop (outcome tracking via pre/post-scan comparison)
+- CLI integration (`secure remediation` command group)
+- GUI category for remediation management
+- 150+ additional tests
+
+**Git commits:**
+- `5dc0d89`: docs: Phase 48 specification
+- `43ca9f0`: Phase 48.1: Remediation catalog foundation
+- `61629ec`: tests: Add 30+ comprehensive tests
+
+**Status:** Phase 48.1 complete. Proceeding to Phase 48.2 (Approval Workflows).
+

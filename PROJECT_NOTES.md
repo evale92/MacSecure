@@ -9136,3 +9136,24 @@ Executor wrapper tying actions → approvals → database, CLI commands for reme
 
 **Scope:** 300-400 LOC, full-stack integration
 
+
+## Phase 49 — Multi-Device Orchestration & Coordination
+
+Extends Phase 48 remediation to work across multiple devices with family/team views, local data isolation, and coordinated incident response.
+
+**Scope:**
+- MultiDeviceOrchestrator: Coordinate actions across family/team devices
+- Device registry: Track enrolled devices with health status
+- Cross-device findings: Correlate detections across devices
+- Incident coordination: Run playbooks on multiple devices
+- Local data isolation: Each device's data stays local
+- Team approval workflows: Escalate critical incidents to team admins
+
+**Components (~400 LOC, 50+ tests):**
+- `orchestrator.py`: MultiDeviceOrchestrator class
+- `device_registry.py`: Device enrollment, health tracking
+- `cross_device_findings.py`: Cross-device correlation and enrichment
+- Database schema extensions: device_registry, team_incidents, device_findings
+
+**Status:** In progress
+

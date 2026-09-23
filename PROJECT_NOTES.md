@@ -9039,6 +9039,42 @@ Implemented:
 
 ---
 
+### Phase 48.5 — Executor Wrapper & CLI Integration
+
+**Completes the end-to-end remediation workflow:** catalog → approval → execution → database persistence → CLI interface.
+
+**Components:**
+- `RemediationExecutor` (200 LOC): Action execution with approval routing, safe-code infrastructure, database persistence, rollback support
+- `RemediationCLI` (300 LOC): Full CLI interface
+  - `run`: Execute remediation action (auto/pending based on risk level)
+  - `approve`: Approve and execute pending remediation
+  - `status`: Check execution status with full details
+  - `history`: List and filter execution history
+  - `catalog`: Browse remediation actions with filtering
+  - `playbooks`: List incident response playbooks
+  - `*-detail`: View detailed action/playbook information
+
+**Test coverage:** 43 tests covering:
+- Executor initialization and action loading
+- LOW/MEDIUM/HIGH risk execution flows
+- Approval → execution workflows
+- Rollback operations
+- History filtering and sorting
+- CLI command execution and output
+- Integration workflows (run → status, pending → approve → execute)
+
+**Key features:**
+- Low-risk actions auto-execute with post-action notification
+- Medium/high-risk require human approval (1-hour / 24-hour timeouts)
+- All executions stored in-memory with database persistence hooks
+- Execution IDs track actions through their complete lifecycle
+- CLI provides rich output formatting with status icons and details
+
+**Git commit:**
+- `5e41ead`: Phase 48.5: Executor wrapper & CLI integration
+
+---
+
 ## Phase 48 COMPLETE — Full Automated Remediation & Response Orchestration
 
 **Final Status:**
@@ -9049,12 +9085,13 @@ Implemented:
 | 48.2 Approval | 2 | 50+ | 400 | ✅ Complete |
 | 48.3 Playbooks | 2 | 50+ | 550 | ✅ Complete |
 | 48.4 Outcomes | 1 | - | 200 | ✅ Complete |
+| 48.5 Executor & CLI | 1 | 43 | 500 | ✅ Complete |
 | Database Schema | 1 | - | 150 | ✅ Complete |
 | Compatibility | 1 | - | - | ✅ Fixed |
 
 **Total Delivered:**
-- 9 commits
-- 130+ tests (all passing)
+- 10 commits
+- 173+ tests (all passing)
 - 2000+ LOC
 - 4 database tables + indexes
 - 12 remediation actions (7 LOW, 4 MEDIUM, 1 HIGH)

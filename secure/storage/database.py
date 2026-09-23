@@ -2207,6 +2207,13 @@ def init_schema(conn: sqlite3.Connection) -> None:
     except Exception:
         pass  # Schema optional; will be initialized if alerting is used
 
+    # Phase 55: Feedback schema
+    try:
+        from secure.feedback.schema import init_feedback_schema
+        init_feedback_schema(conn)
+    except Exception:
+        pass  # Schema optional; will be initialized if feedback is used
+
     conn.commit()
 
 

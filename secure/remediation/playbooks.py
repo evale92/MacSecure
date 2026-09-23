@@ -263,15 +263,15 @@ class PlaybookEngine:
 
             # Check anomaly score threshold if applicable
             score_match = True
-            if "anomaly_score >" in playbook.trigger.condition:
+            if playbook.trigger.anomaly_threshold is not None:
+                score_match = anomaly_score >= playbook.trigger.anomaly_threshold
+            elif "anomaly_score" in playbook.trigger.condition:
                 try:
-                    # Extract threshold: "anomaly_score > 80 AND ..." → 80
                     parts = playbook.trigger.condition.split(">")[1].split()[0]
                     threshold = int(parts)
                     score_match = anomaly_score >= threshold
                 except (IndexError, ValueError):
-                    # If parsing fails, assume match
-                    score_match = True
+                    score_match = False
 
             if finding_match and score_match:
                 applicable.append(playbook)

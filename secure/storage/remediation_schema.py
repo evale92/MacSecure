@@ -123,6 +123,38 @@ CREATE INDEX IF NOT EXISTS idx_playbook_step_executions_playbook_run
     ON playbook_step_executions(playbook_run_id);
 CREATE INDEX IF NOT EXISTS idx_playbook_step_executions_remediation
     ON playbook_step_executions(remediation_id);
+
+CREATE TABLE IF NOT EXISTS remediation_outcomes (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    outcome_id          TEXT NOT NULL UNIQUE,
+    execution_id        TEXT NOT NULL REFERENCES remediation_executions(execution_id),
+    action_id           TEXT NOT NULL REFERENCES remediation_actions_meta(id),
+
+    created_at          TEXT NOT NULL,
+    measured_at         TEXT,
+
+    pre_scan_json       TEXT,
+    post_scan_json      TEXT,
+
+    status              TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'measuring', 'success', 'partial', 'failed', 'inconclusive')),
+
+    findings_reduced    INTEGER DEFAULT 0,
+    anomaly_score_change REAL DEFAULT 0.0,
+    services_disabled   INTEGER DEFAULT 0,
+    destinations_isolated INTEGER DEFAULT 0,
+    time_to_effect      INTEGER DEFAULT 0,
+    shadow_scores_json  TEXT DEFAULT '[]',
+
+    effectiveness       TEXT,
+    reason              TEXT DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_remediation_outcomes_action
+    ON remediation_outcomes(action_id);
+CREATE INDEX IF NOT EXISTS idx_remediation_outcomes_status
+    ON remediation_outcomes(status);
+CREATE INDEX IF NOT EXISTS idx_remediation_outcomes_execution
+    ON remediation_outcomes(execution_id);
 """
 
 

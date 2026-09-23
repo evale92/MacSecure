@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Optional, Any
 
 
 class OutcomeStatus(str, Enum):
@@ -82,9 +82,10 @@ class RemediationOutcome:
 class OutcomeEngine:
     """Measures remediation efficacy and learns from outcomes."""
 
-    def __init__(self):
-        """Initialize outcome tracker."""
+    def __init__(self, conn: Optional[Any] = None):
+        """Initialize outcome tracker with optional database connection for persistence."""
         self.outcomes: dict[str, RemediationOutcome] = {}
+        self.conn = conn
 
     def create_outcome(
         self,
@@ -110,7 +111,7 @@ class OutcomeEngine:
         outcome_id: str,
         post_scan: PostScanSnapshot,
     ) -> RemediationOutcome | None:
-        """Record post-remediation scan and calculate changes."""
+        """Record post-remediation scan and calculate changes. Persists to DB if connected."""
         outcome = self.outcomes.get(outcome_id)
         if outcome is None or outcome.pre_scan is None:
             return None
@@ -128,6 +129,11 @@ class OutcomeEngine:
         # Determine effectiveness
         outcome = self._classify_effectiveness(outcome)
         outcome.status = OutcomeStatus.SUCCESS if outcome.findings_reduced > 0 else OutcomeStatus.PARTIAL
+
+        # Persist to database if connected
+        if self.conn:
+            from secure.storage.models.remediation import insert_outcome
+            insert_outcome(self.conn, outcome, outcome.execution_id)
 
         return outcome
 
@@ -150,30 +156,38 @@ class OutcomeEngine:
         return outcome
 
     def get_action_efficacy(self, action_id: str) -> dict:
-        """Calculate cumulative efficacy stats for an action."""
-        action_outcomes = [
+        """Calculate cumulative efficacy stats for an action. Denominator is ALL measured outcomes, not just successes."""
+        measured_outcomes = [
             o for o in self.outcomes.values()
-            if o.action_id == action_id and o.status == OutcomeStatus.SUCCESS
+            if o.action_id == action_id and o.post_scan is not None
         ]
 
-        if not action_outcomes:
+        if not measured_outcomes:
             return {"action_id": action_id, "samples": 0, "success_rate": 0.0}
 
-        high_effectiveness = sum(
-            1 for o in action_outcomes if o.effectiveness == "high"
+        effective = sum(
+            1 for o in measured_outcomes if o.effectiveness in ("high", "medium")
         )
-        medium_effectiveness = sum(
-            1 for o in action_outcomes if o.effectiveness == "medium"
+        ineffective = sum(
+            1 for o in measured_outcomes if o.effectiveness == "none"
         )
+        inconclusive = sum(
+            1 for o in measured_outcomes if o.effectiveness == "low"
+        )
+
+        success_rate = effective / len(measured_outcomes)
+        avg_reduced = sum(o.findings_reduced for o in measured_outcomes) / len(measured_outcomes)
+        avg_time = sum(o.time_to_effect for o in measured_outcomes) / len(measured_outcomes)
 
         return {
             "action_id": action_id,
-            "samples": len(action_outcomes),
-            "success_rate": len(action_outcomes) / len(action_outcomes),
-            "high_effectiveness_rate": high_effectiveness / len(action_outcomes),
-            "medium_effectiveness_rate": medium_effectiveness / len(action_outcomes),
-            "avg_findings_reduced": sum(o.findings_reduced for o in action_outcomes) / len(action_outcomes),
-            "avg_time_to_effect": sum(o.time_to_effect for o in action_outcomes) / len(action_outcomes),
+            "samples": len(measured_outcomes),
+            "success_rate": success_rate,
+            "effective": effective,
+            "ineffective": ineffective,
+            "inconclusive": inconclusive,
+            "avg_findings_reduced": avg_reduced,
+            "avg_time_to_effect": avg_time,
         }
 
     def get_outcome(self, outcome_id: str) -> RemediationOutcome | None:

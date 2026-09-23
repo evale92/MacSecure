@@ -101,6 +101,7 @@ class PlaybookTrigger:
     trigger_type: Literal["finding_pattern", "anomaly_score", "correlation_match"]
     condition: str                              # e.g., "anomaly_score > 80"
     finding_types: list[str] = field(default_factory=list)  # Specific finding types
+    anomaly_threshold: Optional[float] = None   # Numeric threshold (Phase 50+); preferred over string parsing
 
 
 @dataclass

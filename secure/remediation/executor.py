@@ -285,3 +285,57 @@ class RemediationExecutor:
         #     VALUES (?, ?, ?, ...)
         # """)
         pass
+
+    def validate_sandbox_constraints(self, action_id: str) -> tuple[bool, list[str]]:
+        """
+        Validate that action meets sandboxing constraints before execution.
+
+        Constraints:
+        1. Action scope must be limited (single device or specific finding type)
+        2. Action cannot modify audit tables or core configuration
+        3. Action must have rollback support for destructive operations
+        4. Action cannot execute external code without verification
+
+        Returns: (is_valid, list of constraint violations)
+        """
+        action = get_action(action_id)
+        if action is None:
+            return False, ["Action not found in catalog"]
+
+        violations = []
+
+        # Constraint 1: Check scope
+        scope_ok = False
+        if hasattr(action, 'scope'):
+            scope_value = action.scope.apply_to if hasattr(action.scope, 'apply_to') else ""
+            if scope_value in ["specific_finding_type", "this_mac"]:
+                scope_ok = True
+            else:
+                violations.append(f"Scope '{scope_value}' is too broad (must be specific_finding_type or this_mac)")
+
+        # Constraint 2: Check for dangerous modifications
+        dangerous_tables = [
+            "alert_decisions", "remediation_request_log", "evidence_links",
+            "baseline_entities", "device_registry"
+        ]
+        action_desc = f"{action.name} {action.description if hasattr(action, 'description') else ''}".lower()
+        for table in dangerous_tables:
+            if table in action_desc:
+                violations.append(f"Action cannot modify {table} (audit/core table)")
+
+        # Constraint 3: Check rollback support for destructive operations
+        destructive_keywords = ["kill", "disable", "delete", "remove", "uninstall", "quarantine"]
+        action_name_lower = action.name.lower()
+        is_destructive = any(kw in action_name_lower for kw in destructive_keywords)
+
+        if is_destructive:
+            if not hasattr(action, 'rollback_allowed') or not action.rollback_allowed:
+                violations.append("Destructive action must have rollback support enabled")
+
+        # Constraint 4: Check for code execution
+        code_keywords = ["eval", "exec", "subprocess", "shell"]
+        if any(kw in action_desc for kw in code_keywords):
+            if not hasattr(action, 'verification_type'):
+                violations.append("Code execution actions require verification_type")
+
+        return len(violations) == 0, violations

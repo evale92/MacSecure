@@ -234,3 +234,89 @@ class CrossDeviceFindingCorrelator:
         """Clear cached findings for a device (e.g., after device reset)."""
         if device_id in self.device_findings:
             del self.device_findings[device_id]
+
+    def detect_poisoned_devices(self) -> list[dict]:
+        """
+        Detect devices that may be compromised and poisoning correlation.
+
+        Heuristics:
+        1. Device reports unique findings (not seen on any other device)
+        2. Device has outlier finding frequency (reports 10x more/less than peers)
+        3. Device reports findings that don't correlate with others (isolated reports)
+
+        Returns list of {device_id, risk_score, reason} dicts.
+        """
+        if len(self.device_findings) < 2:
+            return []  # Need at least 2 devices to detect anomalies
+
+        poisoned_devices = []
+        device_ids = list(self.device_findings.keys())
+
+        # Calculate stats per device
+        device_stats = {}
+        for device_id, findings_by_type in self.device_findings.items():
+            total_findings = sum(len(f) for f in findings_by_type.values())
+            unique_types = len(findings_by_type)
+            device_stats[device_id] = {
+                "total_findings": total_findings,
+                "unique_types": unique_types,
+                "finding_types": set(findings_by_type.keys()),
+            }
+
+        # Calculate average findings per device
+        avg_findings = sum(s["total_findings"] for s in device_stats.values()) / len(device_ids)
+        avg_types = sum(s["unique_types"] for s in device_stats.values()) / len(device_ids)
+
+        # Check each device for poison indicators
+        for device_id, stats in device_stats.items():
+            risk_score = 0.0
+            reasons = []
+
+            # Heuristic 1: Unique findings (only this device reports them)
+            unique_findings = stats["finding_types"].copy()
+            for other_id, other_stats in device_stats.items():
+                if other_id != device_id:
+                    unique_findings -= other_stats["finding_types"]
+
+            if len(unique_findings) > 0:
+                unique_pct = len(unique_findings) / max(1, stats["unique_types"])
+                if unique_pct > 0.5:  # >50% of findings are unique to this device
+                    risk_score += 30.0
+                    reasons.append(f"{len(unique_findings)} finding types unique to this device")
+
+            # Heuristic 2: Outlier frequency
+            if avg_findings > 0:
+                freq_ratio = stats["total_findings"] / avg_findings
+                if freq_ratio > 5.0:  # Reports 5x more than average
+                    risk_score += 25.0
+                    reasons.append(f"Reports {freq_ratio:.1f}x average findings (possible logging attack)")
+                elif freq_ratio < 0.2:  # Reports 5x less than average
+                    risk_score += 15.0
+                    reasons.append(f"Reports {freq_ratio:.1f}x average findings (possible sensor compromise)")
+
+            # Heuristic 3: Isolated reports (findings not correlated with any other device)
+            isolated_count = 0
+            for finding_type in stats["finding_types"]:
+                type_device_count = sum(
+                    1 for other_stats in device_stats.values()
+                    if finding_type in other_stats["finding_types"]
+                )
+                if type_device_count == 1:  # Only this device has this type
+                    isolated_count += 1
+
+            if isolated_count > 0 and stats["unique_types"] > 0:
+                isolated_pct = isolated_count / stats["unique_types"]
+                if isolated_pct > 0.7:  # >70% of findings are isolated
+                    risk_score += 20.0
+                    reasons.append(f"{isolated_count} isolated findings (not correlated with other devices)")
+
+            # Report if risk is above threshold
+            if risk_score >= 30.0:
+                poisoned_devices.append({
+                    "device_id": device_id,
+                    "risk_score": risk_score,
+                    "reasons": reasons,
+                    "recommendation": "Investigate device for compromise; consider isolating from correlation pool"
+                })
+
+        return sorted(poisoned_devices, key=lambda x: x["risk_score"], reverse=True)

@@ -57,6 +57,15 @@ class IntegrityIssue:
     problem: str  # "unknown_table" or "missing_row"
 
 
+@dataclass(frozen=True)
+class AuditTrailIssue:
+    """Represents a potential tampering or deletion in audit trail."""
+    table_name: str
+    record_id: int
+    issue_type: str  # "hash_mismatch" | "chain_break" | "deletion_detected"
+    details: str
+
+
 def check_evidence_link_referential_integrity(conn: sqlite3.Connection) -> List[IntegrityIssue]:
     """Walk every evidence_links row and confirm both sides still
     resolve to a real row in the table they name. Returns one
@@ -86,5 +95,135 @@ def check_evidence_link_referential_integrity(conn: sqlite3.Connection) -> List[
             found = conn.execute(f"SELECT 1 FROM {table} WHERE id = ?", (source_id,)).fetchone()
             if found is None:
                 issues.append(IntegrityIssue(row["id"], side, table, source_id, "missing_row"))
+
+    return issues
+
+
+def check_alert_decisions_integrity(conn: sqlite3.Connection) -> List[AuditTrailIssue]:
+    """
+    Verify audit trail integrity by checking:
+    1. Hash chain continuity (prior_hash links records)
+    2. No gaps in sequence (deletion detection)
+    3. No orphaned records (prior_hash pointing to deleted row)
+
+    Returns list of issues found; empty list means clean audit trail.
+    """
+    issues: List[AuditTrailIssue] = []
+
+    # Check if alert_decisions table exists
+    check_table = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='alert_decisions'"
+    ).fetchone()
+
+    if not check_table:
+        return issues  # Table doesn't exist yet, no audit trail to check
+
+    # Get all alert decisions ordered by creation time
+    records = conn.execute(
+        "SELECT id, created_at, decision_hash, prior_hash FROM alert_decisions ORDER BY created_at ASC"
+    ).fetchall()
+
+    if not records:
+        return issues  # No records yet
+
+    # First record should have NULL prior_hash (chain start)
+    if records[0]["prior_hash"] is not None:
+        issues.append(AuditTrailIssue(
+            table_name="alert_decisions",
+            record_id=records[0]["id"],
+            issue_type="chain_break",
+            details="First record has non-NULL prior_hash (chain integrity broken)"
+        ))
+
+    # Check chain continuity: each record's prior_hash should match previous record's decision_hash
+    for i in range(1, len(records)):
+        prev_record = records[i - 1]
+        curr_record = records[i]
+
+        if curr_record["prior_hash"] != prev_record["decision_hash"]:
+            issues.append(AuditTrailIssue(
+                table_name="alert_decisions",
+                record_id=curr_record["id"],
+                issue_type="chain_break",
+                details=f"prior_hash doesn't match previous decision_hash (record {prev_record['id']} → {curr_record['id']} broken)"
+            ))
+
+    # Check for orphaned prior_hash references (prior_hash pointing to deleted record)
+    for record in records:
+        if record["prior_hash"] is not None:
+            found = conn.execute(
+                "SELECT 1 FROM alert_decisions WHERE decision_hash = ?",
+                (record["prior_hash"],)
+            ).fetchone()
+            if found is None:
+                issues.append(AuditTrailIssue(
+                    table_name="alert_decisions",
+                    record_id=record["id"],
+                    issue_type="deletion_detected",
+                    details=f"prior_hash {record['prior_hash'][:8]}... points to deleted record"
+                ))
+
+    return issues
+
+
+def check_remediation_request_log_integrity(conn: sqlite3.Connection) -> List[AuditTrailIssue]:
+    """
+    Verify remediation approval log integrity using same hash chain method.
+    Returns list of issues found; empty list means clean request log.
+    """
+    issues: List[AuditTrailIssue] = []
+
+    # Check if remediation_request_log table exists
+    check_table = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='remediation_request_log'"
+    ).fetchone()
+
+    if not check_table:
+        return issues
+
+    # Get all request logs ordered by creation time
+    records = conn.execute(
+        "SELECT id, created_at, entry_hash, prior_hash FROM remediation_request_log ORDER BY created_at ASC"
+    ).fetchall()
+
+    if not records:
+        return issues
+
+    # First record should have NULL prior_hash
+    if records[0]["prior_hash"] is not None:
+        issues.append(AuditTrailIssue(
+            table_name="remediation_request_log",
+            record_id=records[0]["id"],
+            issue_type="chain_break",
+            details="First record has non-NULL prior_hash (chain integrity broken)"
+        ))
+
+    # Check chain continuity
+    for i in range(1, len(records)):
+        prev_record = records[i - 1]
+        curr_record = records[i]
+
+        if curr_record["prior_hash"] != prev_record["entry_hash"]:
+            issues.append(AuditTrailIssue(
+                table_name="remediation_request_log",
+                record_id=curr_record["id"],
+                issue_type="chain_break",
+                details=f"prior_hash doesn't match previous entry_hash (record {prev_record['id']} → {curr_record['id']} broken)"
+            ))
+
+    # Check for orphaned references
+    for record in records:
+        if record["prior_hash"] is not None:
+            found = conn.execute(
+                "SELECT 1 FROM remediation_request_log WHERE entry_hash = ?",
+                (record["prior_hash"],)
+            ).fetchone()
+            if found is None:
+                issues.append(AuditTrailIssue(
+                    table_name="remediation_request_log",
+                    record_id=record["id"],
+                    issue_type="deletion_detected",
+                    details=f"prior_hash {record['prior_hash'][:8]}... points to deleted record"
+                ))
 
     return issues

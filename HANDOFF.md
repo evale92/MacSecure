@@ -1,24 +1,19 @@
-# Secure Project Handoff — Session 2026-09-22
+# Secure Project Handoff — Session 2026-09-23
 
-**Last Updated:** 2026-09-22 22:57 EDT  
-**Current Phase:** Phase 49 complete, ready for Phase 50  
-**Total Progress:** 201+ tests, 3600+ LOC, 13 commits this session
+**Last Updated:** 2026-09-23 06:08 EDT  
+**Current Phase:** Phase 51 COMPLETE ✅. Phase 52 requires architecture correction.  
+**Total Progress:** 204 tests, 4000+ LOC, 14 commits (9/22 session + 1 commit 9/23)
 
-## Session Summary
+## Session Summary (Latest: 2026-09-23)
 
-In this session, we delivered two major phases of automated incident response:
+**This session (9/23):** Phases 50-51 COMPLETE
+- Phase 50: Threat Intelligence Integration ✅ (655 LOC, 45 tests)
+- Phase 51: Extended Playbook Library ✅ (5 playbooks, 26 tests)
+- Total: 204/204 tests passing
 
-**Phase 48: Automated Remediation & Response Orchestration** (11 commits, 173+ tests)
-- 48.1: Remediation catalog (12 safe, immutable actions)
-- 48.2: Risk-stratified approval workflows (LOW auto, MEDIUM 1h, HIGH 24h)
-- 48.3: Incident playbooks (5 patterns with conditional branching)
-- 48.4: Outcome tracking (pre/post efficacy measurement)
-- 48.5: Executor wrapper + CLI (run/approve/status/history/catalog commands)
-
-**Phase 49: Multi-Device Orchestration** (2 commits, 28 tests)
-- Device registry (enrollment, health tracking, roles)
-- Cross-device correlation (supply chain attack detection)
-- Orchestrator (coordination, isolation, team approvals)
+**Previous session (9/22):** Phases 48-49 delivered
+- Phase 48: Automated Remediation & Response Orchestration (11 commits, 173+ tests)
+- Phase 49: Multi-Device Orchestration (2 commits, 28 tests)
 
 ## Project State
 
@@ -142,36 +137,118 @@ python3 -m unittest discover tests/ -v
 - incident.webshell-execution (Web shell pattern)
 - incident.data-staging (Exfiltration prep)
 
-### Phase 52: GUI Remediation Panel
+### Phase 52: GUI Remediation Panel (CRITICAL ARCHITECTURE FIX NEEDED)
 **Why:** Make Phase 48 actions visible/controllable in UI
 
-- Remediation dashboard (pending actions, recent executions)
-- Playbook status view (running playbooks, step progress)
-- Multi-device incident view (Phase 49 cross-device incidents)
-- Approval queue (pending human review actions)
+⚠️ **IMPORTANT:** Phase 52 requires NO HTTP API. Deep agent flagged `secure/remediation/api.py` approach:
+1. Violates SECURITY_INVARIANTS.md (approval authority over unauthenticated socket)
+2. Breaks ARCHITECTURE_RULES.md (interfaces belong in `secure/cli/` or `secure_gui/`, not domain packages)
+3. Single-threaded blocking (stalls all endpoints during remediation execution)
+
+**CORRECT Phase 52 approach (per deep agent review):**
+
+1. **Wire RemediationCLI into main CLI** (`secure/cli/__init__.py`)
+   - Add `remediation` and `playbooks` subparsers
+   - Dispatch to existing `RemediationCLI` methods
+   - Implement `--json` flag for read commands (status, history, catalog, playbooks)
+   
+2. **Split RemediationCLI methods** (in `secure/remediation/cli.py`)
+   - Separate printing from returning data (currently does both)
+   - Returns raw data for `--json` output
+   
+3. **Create GUI panel** (`secure_gui/remediation_view.py`)
+   - Pure formatters mirroring `alerts_view.py` / `agent_view.py`
+   - Extend `secure_gui/data_access.py` with direct storage reads:
+     * Dashboard stats (pending/successful/failed actions)
+     * Running playbooks
+     * Phase 49 multi-device incidents
+     * Approval queue
+   
+4. **Approvals via CLI** (not direct calls)
+   - GUI invokes `run_command([py(), "-m", "secure", "remediation", "approve", ...])`
+   - Preserves audit trail (approval happens through Phase 47 safe-code path)
+   - Same pattern as `secure_gui.py` already uses for agent commands
+
+**Files to modify/create:**
+- `secure/cli/__init__.py` — add remediation subparser dispatch
+- `secure/remediation/cli.py` — split print/return logic, add --json support
+- `secure_gui/data_access.py` — add direct reads for dashboard/playbooks/approvals
+- `secure_gui/remediation_view.py` — new GUI panel (formatters)
+- `tests/test_remediation_cli_json.py` — test --json output
+
+**DO NOT CREATE:**
+- ❌ `secure/remediation/api.py` (violates architecture)
+- ❌ HTTP server endpoints (use CLI + GUI, not HTTP)
 
 ### Phase 53: Detection Intelligence (AI/ML)
 **Original feature list priority:** "biggest leverage from AI anomaly detection + cross-engine correlation"
 
+**1. Anomaly Detection Engine**
+   - Establish behavioral baselines from clean-state snapshots
+   - Detect deviations (file changes, process behavior, network connections)
+   - Calculate anomaly scores per finding type
+   - Threshold tuning based on Phase 50 learning loop (historical efficacy)
+
+**2. Cross-Engine Correlation**
+   - Join findings from multiple detection modules (within time window)
+   - Supply chain detection (same finding type across devices)
+   - Multi-stage attack detection (persistence + exfil + lateral movement)
+   - Confidence boost for correlated patterns
+
+**3. Context-Aware Alerting**
+   - Reduce false positives using Phase 49 device context
+   - Suppress alerts for expected changes (OS updates, app installs)
+   - Escalate based on Phase 48 risk level + Phase 51 playbook severity
+   - Human feedback loop: user marks false positives, learning reduces them
+
+**Key architectural notes:**
+- Keep detection stateless (score = pure function of findings + baselines)
+- Use Phase 50's learning loop to tune thresholds per environment
+- Preserve audit trail: every alert decision is logged with reasoning
+- No external ML dependencies (sklearn/torch) — use stdlib statistics
+
+**Files to create:**
+- `secure/ai/anomaly.py` — baseline calculation, anomaly scoring
+- `secure/ai/correlation.py` — multi-engine join, pattern detection
+- `secure/ai/alerting.py` — context-aware alert generation
+- `tests/test_ai_anomaly.py` — baseline and scoring tests
+- `tests/test_ai_correlation.py` — multi-engine tests
+
+## How to Resume Phase 52 or Beyond
+
+**Start here when resuming:**
+
+```bash
+cd ~/Desktop/secure-resource
+
+# 1. Check Phase 50-51 are committed
+git log --oneline -5
+# Should show: "Phase 50-51: Threat Intelligence + Extended Playbooks"
+
+# 2. Verify all tests pass (204 tests)
+python3 -m pytest tests/test_remediation*.py tests/test_intelligence*.py -q
+# Should show: 204 passed
+
+# 3. Check what changed in this session
+git diff --stat HEAD~1
+```
+
+**Phase 50-51 Status (COMMITTED):**
+- ✅ Phase 50.0: Outcomes persistence + bug fixes (remediation_schema.py, executor.py, models.py)
+- ✅ Phase 50.1-50.4: CVE integrator, MITRE mapper, learning loop, CLI (secure/intelligence/)
+- ✅ Phase 51.0: 5 new playbooks (10 total), 5 new actions, 5 new MITRE techniques
+- ✅ All tests passing (204/204), committed in single commit
+
+**Phase 52 WARNING:** 
+- ⚠️ Deep agent flagged incorrect HTTP API approach
+- ✅ Correct approach: CLI wiring + GUI panel (see Phase 52 section above)
+- ❌ DO NOT use `secure/remediation/api.py` pattern
+
+**Phase 53 Guidance:**
 - Anomaly detection engine (behavioral baselines)
-- Cross-engine correlation (join findings across detection modules)
+- Cross-engine correlation (multi-finding patterns)
 - Context-aware alerting (reduce false positives)
-
-## How to Resume
-
-When you refresh and continue in a new session:
-
-1. **Read this file** for context
-2. **Check git log** for recent work:
-   ```bash
-   cd ~/Desktop/secure-resource
-   git log --oneline -15
-   ```
-
-3. **Verify tests pass:**
-   ```bash
-   python3 -m unittest discover tests/ -v 2>&1 | tail -5
-   ```
+- See Phase 53 section for detailed file structure
 
 4. **Start Phase 50 or ask user priority:**
    - Run Phase 50 if user says "continue"

@@ -113,6 +113,38 @@ class ApprovalEngine:
                 rollback_allowed=True,
             ),
 
+            "ssh.disable-password-auth": ApprovalPolicy(
+                action_id="ssh.disable-password-auth",
+                risk_level=RiskLevel.LOW,
+                approval_required=False,
+                post_action_notification=True,
+                rollback_allowed=True,
+            ),
+
+            "process.alert-on-relaunch": ApprovalPolicy(
+                action_id="process.alert-on-relaunch",
+                risk_level=RiskLevel.LOW,
+                approval_required=False,
+                post_action_notification=True,
+                rollback_allowed=True,
+            ),
+
+            "credential.recommend-rotation": ApprovalPolicy(
+                action_id="credential.recommend-rotation",
+                risk_level=RiskLevel.LOW,
+                approval_required=False,
+                post_action_notification=True,
+                rollback_allowed=True,
+            ),
+
+            "threat-hunt.priority-flag": ApprovalPolicy(
+                action_id="threat-hunt.priority-flag",
+                risk_level=RiskLevel.LOW,
+                approval_required=False,
+                post_action_notification=True,
+                rollback_allowed=True,
+            ),
+
             # MEDIUM-risk: human approval required, 1-hour timeout
             "firewall.block-inbound": ApprovalPolicy(
                 action_id="firewall.block-inbound",
@@ -126,6 +158,16 @@ class ApprovalEngine:
 
             "service.disable-launchagent": ApprovalPolicy(
                 action_id="service.disable-launchagent",
+                risk_level=RiskLevel.MEDIUM,
+                approval_required=True,
+                escalation_path=EscalationPath.HUMAN_REVIEW,
+                escalation_timeout=timedelta(hours=1),
+                post_action_notification=True,
+                rollback_allowed=True,
+            ),
+
+            "service.disable-launchdaemon": ApprovalPolicy(
+                action_id="service.disable-launchdaemon",
                 risk_level=RiskLevel.MEDIUM,
                 approval_required=True,
                 escalation_path=EscalationPath.HUMAN_REVIEW,

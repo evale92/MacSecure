@@ -54,6 +54,9 @@ _CATALOG = {
         examples=[
             "persistence.unauthorized-service-listening",
         ],
+        references=[
+            "https://attack.mitre.org/techniques/T1562/008/",
+        ],
     ),
 
     "ssh.disable-root-login": RemediationAction(
@@ -94,6 +97,9 @@ _CATALOG = {
             "attacker.ssh-brute-force",
             "persistence.weak-ssh-creds",
         ],
+        references=[
+            "https://attack.mitre.org/techniques/T1021/004/",
+        ],
     ),
 
     "service.disable-launchagent": RemediationAction(
@@ -132,6 +138,9 @@ _CATALOG = {
         examples=[
             "persistence.unauthorized-launchdaemon",
         ],
+        references=[
+            "https://attack.mitre.org/techniques/T1547/013/",
+        ],
     ),
 
     "network.isolate-destination": RemediationAction(
@@ -150,6 +159,9 @@ _CATALOG = {
             "network.c2-exfiltration",
             "attacker.data-ex fil to-known-bad-ip",
         ],
+        references=[
+            "https://attack.mitre.org/techniques/T1036/008/",
+        ],
     ),
 
     "process.alert-on-relaunch": RemediationAction(
@@ -166,6 +178,9 @@ _CATALOG = {
         ),
         examples=[
             "persistence.process-respawning",
+        ],
+        references=[
+            "https://attack.mitre.org/techniques/T1547/001/",
         ],
     ),
 
@@ -184,6 +199,9 @@ _CATALOG = {
         examples=[
             "hardening.insecure-file-permissions",
         ],
+        references=[
+            "https://attack.mitre.org/techniques/T1222/002/",
+        ],
     ),
 
     "credential.recommend-rotation": RemediationAction(
@@ -200,6 +218,9 @@ _CATALOG = {
         ),
         examples=[
             "attack.compromised-ssh-key",
+        ],
+        references=[
+            "https://attack.mitre.org/techniques/T1187/",
         ],
     ),
 
@@ -218,6 +239,9 @@ _CATALOG = {
         examples=[
             "integration.mdm-escalation",
         ],
+        references=[
+            "https://attack.mitre.org/tactics/TA0009/",
+        ],
     ),
 
     "threat-hunt.priority-flag": RemediationAction(
@@ -234,6 +258,9 @@ _CATALOG = {
         ),
         examples=[
             "correlation.boost-signal-weight",
+        ],
+        references=[
+            "https://attack.mitre.org/tactics/TA0043/",
         ],
     ),
 }

@@ -282,17 +282,22 @@ class TestApprovalPolicies:
     def test_default_medium_risk_policies(self):
         """Default policies mark MEDIUM-risk as approval required."""
         engine = ApprovalEngine()
-        medium_risk_ids = [
+        human_review_ids = [
             "firewall.block-inbound",
             "service.disable-launchagent",
             "service.disable-launchdaemon",
-            "endpoint.mdm-notify",
         ]
-        for action_id in medium_risk_ids:
+        for action_id in human_review_ids:
             policy = engine.get_policy(action_id)
             assert policy is not None
             assert policy.approval_required is True
             assert policy.escalation_path == EscalationPath.HUMAN_REVIEW
+
+        # MDM notify has its own escalation path
+        mdm_policy = engine.get_policy("endpoint.mdm-notify")
+        assert mdm_policy is not None
+        assert mdm_policy.approval_required is True
+        assert mdm_policy.escalation_path == EscalationPath.MDM_SUPERVISOR
 
     def test_default_high_risk_policies(self):
         """Default policies mark HIGH-risk with full review."""

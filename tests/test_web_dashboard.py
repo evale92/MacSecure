@@ -25,6 +25,11 @@ def test_dashboard_alerts_api():
         except Exception as e:
             raise AssertionError(f"GATE_DASHBOARD_ALERTS_TOTAL: server binding failed as expected: {e}")
 
+    # Stub: server returns wrong data (for payload-level gate testing)
+    if os.environ.get("SECURE_STUB_DASHBOARD_ALERTS_WRONG"):
+        # Force immediate failure on the payload assertion
+        raise AssertionError(f"GATE_DASHBOARD_ALERTS_TOTAL: expected 5 alerts, got 999")
+
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "test.db"
         conn = sqlite3.connect(db_path)

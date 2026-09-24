@@ -72,3 +72,36 @@ class TestDashboardMutationGates:
         assert any("GATE_DASHBOARD_EXPORT" in l or "URLError" in l or "Connection" in l
                    for l in fail_lines), \
             f"GATE_DASHBOARD_EXPORT: Expected HTTP/connection error, got:\n{result.stdout}"
+
+    def test_gate_dashboard_alerts_payload_validation(self):
+        """GATE: Verify dashboard test checks response payload, not just connectivity.
+
+        Server IS up, but returns wrong data. Test must fail on the assertion,
+        specifically the GATE_DASHBOARD_ALERTS_TOTAL sentinel, not on connection errors.
+        """
+        env = os.environ.copy()
+        env["SECURE_STUB_DASHBOARD_ALERTS_WRONG"] = "true"
+
+        result = subprocess.run(
+            [sys.executable, "-m", "pytest",
+             "tests/test_web_dashboard.py::test_dashboard_alerts_api",
+             "--tb=line", "-q", "-p", "no:cacheprovider"],
+            env=env,
+            capture_output=True,
+            text=True,
+            cwd="/Users/erickvale/Projects/secure-resource",
+        )
+
+        # Test must fail (bad payload)
+        if result.returncode == 0:
+            assert False, \
+                f"GATE_DASHBOARD_ALERTS_PAYLOAD: test should fail on wrong payload, but passed:\n{result.stdout}"
+
+        # Failure MUST be on the specific assertion (GATE_DASHBOARD_ALERTS_TOTAL sentinel)
+        # NOT on a connection error — we're testing the payload check, not connectivity
+        fail_lines = [l for l in result.stdout.splitlines() if "AssertionError" in l]
+        assert any("GATE_DASHBOARD_ALERTS_TOTAL" in l for l in fail_lines), \
+            f"GATE_DASHBOARD_ALERTS_PAYLOAD: Must fail on assertion, not connection. Got:\n{result.stdout}"
+        # Ensure it's NOT a connection error (that would mean no payload check)
+        assert not any("URLError" in l or "Connection" in l for l in fail_lines), \
+            f"GATE_DASHBOARD_ALERTS_PAYLOAD: Should not fail on connection when server is up:\n{result.stdout}"

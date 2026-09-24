@@ -283,7 +283,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             ).fetchall()
 
             if fmt == "json":
-                data = [dict(row) for row in rows]
+                data = {"alerts": [dict(row) for row in rows]}
                 response_json = json.dumps(data, indent=2, default=str)
                 self.send_response(200)
                 self.send_header("Content-type", "application/json")

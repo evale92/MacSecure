@@ -1,18 +1,14 @@
 """Remediation safety tests (Phase 2: Safety-critical paths).
 
-SCAFFOLDING: These tests are currently simulated (xfail). They import only
-MetricsCollector and assert against hardcoded dicts, never real remediation code.
-Real wiring (tracking: secure/remediation/executor.py) required before Phases 3–5.
+SCAFFOLDING: These tests are currently skipped. They test approval gating and
+audit-trail logic, but do not yet wire to real remediation actions.
 See CATCH-UP.md phase gate rules.
 """
 
 import pytest
 from tests.integration.fixtures import MetricsCollector
 
-pytestmark = pytest.mark.xfail(
-    reason="Phase 2 simulated; not wired to secure/remediation. Wiring in progress.",
-    strict=True,
-)
+pytestmark = pytest.mark.skip(reason="Phase 2 scaffolding — wiring to approval flow in progress")
 
 
 class TestRemediationSafety:

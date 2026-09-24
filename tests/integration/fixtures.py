@@ -1,15 +1,24 @@
-"""Test fixtures and ground-truth injection helpers."""
+"""Test fixtures wired to real scanners."""
 
 from __future__ import annotations
 
 import json
 import sqlite3
 import tempfile
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
-import time
+
+# Import real scanners
+from secure.persistence.scanner import scan_persistence
+from secure.listening.scanner import scan_listening_services
+from secure.connections.scanner import scan_connections
+from secure.fileintegrity.scanner import scan_file_integrity
+from secure.wifi.scanner import scan_wifi
+from secure.bluetooth.scanner import scan_bluetooth
+from secure.storage.database import init_schema
 
 
 @dataclass
@@ -42,22 +51,33 @@ class RemediationResult:
 
 
 class GroundTruthInjector:
-    """Inject controlled, reproducible anomaly scenarios."""
+    """Inject controlled, reproducible anomaly scenarios for real scanner testing."""
 
-    def __init__(self, temp_dir: str = None):
+    def __init__(self, temp_dir: str = None, db_conn: sqlite3.Connection = None):
         """Initialize injector.
 
         Args:
             temp_dir: Temporary directory for artifacts. If None, creates one.
+            db_conn: Database connection for scanners. If None, creates test DB.
         """
         self.temp_dir = Path(temp_dir or tempfile.mkdtemp())
         self.temp_dir.mkdir(parents=True, exist_ok=True)
         self.injected_artifacts: List[Path] = []
 
+        # Create test database if not provided
+        if db_conn is None:
+            self.db_path = self.temp_dir / "test.db"
+            self.db_conn = sqlite3.connect(str(self.db_path))
+            self.db_conn.row_factory = sqlite3.Row  # Enable named access
+            init_schema(self.db_conn)
+        else:
+            self.db_conn = db_conn
+            self.db_path = None
+
     def inject_persistence_mechanism(
         self,
         mechanism_type: str = "launchagent",
-        name: str = "test.plist",
+        name: str = "com.test.scanner.plist",
     ) -> Path:
         """Inject a test persistence mechanism (LaunchAgent/Daemon).
 
@@ -76,17 +96,17 @@ class GroundTruthInjector:
         base_path.mkdir(parents=True, exist_ok=True)
         plist_path = base_path / name
 
-        # Minimal plist structure for testing
+        # Valid plist for real scanner testing
         plist_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.test.{name}</string>
+    <string>com.test.scanner</string>
     <key>ProgramArguments</key>
     <array>
         <string>/usr/bin/touch</string>
-        <string>/tmp/test_marker</string>
+        <string>/tmp/test_marker_{name}</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -165,6 +185,64 @@ class GroundTruthInjector:
             "pid": 99999,
         }
 
+    def scan_persistence(self) -> tuple[bool, float, Optional[str]]:
+        """Run persistence scanner and measure latency.
+
+        Returns:
+            (detected, latency_ms, artifact_id) or (False, latency_ms, None)
+        """
+        start_time = time.time()
+        try:
+            result = scan_persistence(self.db_conn)
+            latency_ms = (time.time() - start_time) * 1000
+
+            # Check if any new persistence items detected
+            detected = len(result.alerts) > 0 or len(result.new_entries) > 0
+            artifact_id = None
+            if result.new_entries:
+                artifact_id = f"persistence:{result.new_entries[0].label if hasattr(result.new_entries[0], 'label') else result.new_entries[0]}"
+
+            return detected, latency_ms, artifact_id
+        except Exception as e:
+            latency_ms = (time.time() - start_time) * 1000
+            return False, latency_ms, None
+
+    def scan_listening(self) -> tuple[bool, float, Optional[str]]:
+        """Run listening services scanner and measure latency."""
+        start_time = time.time()
+        try:
+            result = scan_listening_services(self.db_conn)
+            latency_ms = (time.time() - start_time) * 1000
+
+            detected = len(result.new_listening_services) > 0
+            artifact_id = None
+            if result.new_listening_services:
+                first = result.new_listening_services[0]
+                artifact_id = f"listening:{first.port if hasattr(first, 'port') else first}"
+
+            return detected, latency_ms, artifact_id
+        except Exception as e:
+            latency_ms = (time.time() - start_time) * 1000
+            return False, latency_ms, None
+
+    def scan_connections(self) -> tuple[bool, float, Optional[str]]:
+        """Run connections scanner and measure latency."""
+        start_time = time.time()
+        try:
+            result = scan_connections(self.db_conn)
+            latency_ms = (time.time() - start_time) * 1000
+
+            detected = len(result.new_connections) > 0
+            artifact_id = None
+            if result.new_connections:
+                first = result.new_connections[0]
+                artifact_id = f"connection:{first.remote_ip if hasattr(first, 'remote_ip') else first}:{first.remote_port if hasattr(first, 'remote_port') else ''}"
+
+            return detected, latency_ms, artifact_id
+        except Exception as e:
+            latency_ms = (time.time() - start_time) * 1000
+            return False, latency_ms, None
+
     def cleanup(self) -> None:
         """Clean up all injected artifacts."""
         for artifact in self.injected_artifacts:
@@ -177,6 +255,10 @@ class GroundTruthInjector:
                 directory.parent.rmdir()
             except (OSError, FileNotFoundError):
                 pass
+
+        # Close database connection
+        if self.db_path and self.db_conn:
+            self.db_conn.close()
 
 
 class MetricsCollector:

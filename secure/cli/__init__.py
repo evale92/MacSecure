@@ -2746,6 +2746,74 @@ def build_parser() -> argparse.ArgumentParser:
     )
     web_start_parser.set_defaults(func=cmd_web_start)
 
+    # SIEM integration (Phase 65)
+    from secure.cli.siem import (
+        cmd_siem_add,
+        cmd_siem_list,
+        cmd_siem_remove,
+        cmd_siem_test,
+        cmd_siem_enable,
+        cmd_siem_disable,
+    )
+
+    siem_parser = subparsers.add_parser(
+        "siem", help="SIEM integration — forward alerts to external systems"
+    )
+    siem_subparsers = siem_parser.add_subparsers(
+        dest="siem_command", help="SIEM subcommand"
+    )
+
+    siem_add_parser = siem_subparsers.add_parser(
+        "add", help="Add a SIEM endpoint"
+    )
+    siem_add_parser.add_argument("endpoint_id", help="Unique endpoint ID")
+    siem_add_parser.add_argument("name", help="Friendly name")
+    siem_add_parser.add_argument(
+        "format", choices=["json", "syslog", "cef", "splunk_hec"],
+        help="Output format"
+    )
+    siem_add_parser.add_argument("--url", help="HTTP endpoint URL")
+    siem_add_parser.add_argument("--host", help="Syslog host")
+    siem_add_parser.add_argument("--port", type=int, help="Syslog/HTTP port")
+    siem_add_parser.add_argument("--api-key", dest="api_key", help="API key")
+    siem_add_parser.add_argument("--timeout", type=int, help="Timeout seconds")
+    siem_add_parser.add_argument("--json", action="store_true", help="JSON output")
+    siem_add_parser.set_defaults(func=cmd_siem_add)
+
+    siem_list_parser = siem_subparsers.add_parser(
+        "list", help="List SIEM endpoints"
+    )
+    siem_list_parser.add_argument("--json", action="store_true", help="JSON output")
+    siem_list_parser.set_defaults(func=cmd_siem_list)
+
+    siem_remove_parser = siem_subparsers.add_parser(
+        "remove", help="Remove a SIEM endpoint"
+    )
+    siem_remove_parser.add_argument("endpoint_id", help="Endpoint ID to remove")
+    siem_remove_parser.add_argument("--json", action="store_true", help="JSON output")
+    siem_remove_parser.set_defaults(func=cmd_siem_remove)
+
+    siem_test_parser = siem_subparsers.add_parser(
+        "test", help="Test a SIEM endpoint"
+    )
+    siem_test_parser.add_argument("endpoint_id", help="Endpoint ID to test")
+    siem_test_parser.add_argument("--json", action="store_true", help="JSON output")
+    siem_test_parser.set_defaults(func=cmd_siem_test)
+
+    siem_enable_parser = siem_subparsers.add_parser(
+        "enable", help="Enable a SIEM endpoint"
+    )
+    siem_enable_parser.add_argument("endpoint_id", help="Endpoint ID to enable")
+    siem_enable_parser.add_argument("--json", action="store_true", help="JSON output")
+    siem_enable_parser.set_defaults(func=cmd_siem_enable)
+
+    siem_disable_parser = siem_subparsers.add_parser(
+        "disable", help="Disable a SIEM endpoint"
+    )
+    siem_disable_parser.add_argument("endpoint_id", help="Endpoint ID to disable")
+    siem_disable_parser.add_argument("--json", action="store_true", help="JSON output")
+    siem_disable_parser.set_defaults(func=cmd_siem_disable)
+
     return parser
 
 

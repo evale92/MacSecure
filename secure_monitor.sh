@@ -42,17 +42,20 @@ log_json() {
 log "=== Secure Monitor Start ==="
 
 # Function to run a scanner safely
+# Note: scanners use exit 0 (no findings) and exit 1 (findings or errors)
+# We cannot distinguish between them reliably, so we just log the result
 run_scanner() {
     local scanner_name=$1
     local cmd=$2
 
     log "Running $scanner_name..."
-    if eval "$cmd" >> "$LOG_FILE" 2>&1; then
-        log "✓ $scanner_name completed"
-        return 0
+    eval "$cmd" >> "$LOG_FILE" 2>&1
+    local exit_code=$?
+
+    if [ $exit_code -eq 0 ]; then
+        log "✓ $scanner_name completed (exit 0)"
     else
-        log "✗ $scanner_name failed (exit code: $?)"
-        return 1
+        log "⚠ $scanner_name exited $exit_code (findings or error — check log details)"
     fi
 }
 
@@ -62,25 +65,25 @@ cd "$REPO"
 FAILED=0
 if [ "$LOG_ONLY" = false ]; then
     # Persistence scan (unsigned binaries, kernel extensions, etc.)
-    run_scanner "persistence" "python3 -m secure persistence scan" || FAILED=$((FAILED + 1))
+    run_scanner "persistence" "python3 -m secure persistence scan"
 
     # Listening ports (unexpected network bindings)
-    run_scanner "listening" "python3 -m secure listening scan" || FAILED=$((FAILED + 1))
+    run_scanner "listening" "python3 -m secure listening scan"
 
     # Connections (unexpected destinations)
-    run_scanner "connections" "python3 -m secure connections scan" || FAILED=$((FAILED + 1))
+    run_scanner "connections" "python3 -m secure connections scan"
 
     # File integrity (changes to critical paths)
-    run_scanner "fileintegrity" "python3 -m secure fileintegrity scan" || FAILED=$((FAILED + 1))
+    run_scanner "fileintegrity" "python3 -m secure fileintegrity scan"
 
     # Posture checks (Gatekeeper, SIP, FileVault, firewall, etc.)
-    run_scanner "checks" "python3 -m secure check" || FAILED=$((FAILED + 1))
+    run_scanner "checks" "python3 -m secure check"
 
     # WiFi (lookalike SSIDs)
-    run_scanner "wifi" "python3 -m secure wifi scan" || FAILED=$((FAILED + 1))
+    run_scanner "wifi" "python3 -m secure wifi scan"
 
     # Bluetooth (unknown devices)
-    run_scanner "bluetooth" "python3 -m secure bluetooth scan" || FAILED=$((FAILED + 1))
+    run_scanner "bluetooth" "python3 -m secure bluetooth scan"
 fi
 
 # Run detection pipeline on anomalies found
@@ -88,7 +91,8 @@ log "Running detection pipeline..."
 if python3 -m secure detection-pipeline run --lookback-minutes 60 --json >> "$LOG_FILE" 2>&1; then
     log "✓ Detection pipeline completed"
 else
-    log "✗ Detection pipeline failed (exit code: $?)"
+    log "✗ Detection pipeline failed"
+    FAILED=$((FAILED + 1))
 fi
 
 # Show baseline status

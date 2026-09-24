@@ -91,13 +91,9 @@ def test_compose_all_fields_present():
 
 def test_compose_use_defaults_false_no_crash():
     """compose(use_defaults=False) handles missing sources gracefully."""
-    try:
-        ctx = compose(use_defaults=False)
-        # If it succeeds, should still return valid AlertContext
-        assert isinstance(ctx, AlertContext)
-    except Exception:
-        # If it raises, that's also acceptable (expected behavior)
-        pass
+    ctx = compose(use_defaults=False)
+    # Should return valid AlertContext even without defaults
+    assert isinstance(ctx, AlertContext)
 
 
 def test_learning_context_threshold_overrides_dict():

@@ -49,8 +49,8 @@ run_scanner() {
     local cmd=$2
 
     log "Running $scanner_name..."
-    eval "$cmd" >> "$LOG_FILE" 2>&1
-    local exit_code=$?
+    local exit_code=0
+    eval "$cmd" >> "$LOG_FILE" 2>&1 || exit_code=$?
 
     if [ $exit_code -eq 0 ]; then
         log "✓ $scanner_name completed (exit 0)"

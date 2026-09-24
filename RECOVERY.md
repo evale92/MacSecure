@@ -1,6 +1,9 @@
 # Secure Project Recovery Guide
 
-**Backup location:** `~/Backups/secure-resource/`  
+**Backup location:** `~/Backups/secure-resource/` (on same disk, not off-machine)  
+**Protects against:** Repository corruption, database loss  
+**Does NOT protect against:** Disk failure, theft, ransomware (use Time Machine for that)  
+
 **Backup types:**
 - Git bundles: `secure_YYYYMMDD_HHMMSS.bundle` (daily, 7-day retention, 2.0M each)
 - Database backups: `secure_db_YYYYMMDD_HHMMSS.bak` (daily, 7-day retention, 2.2M each)

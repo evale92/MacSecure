@@ -5,11 +5,11 @@
 #
 # Usage: ./secure_monitor.sh [--json] [--log-only]
 # Optional: add to crontab for automated runs (e.g., every 4 hours)
-#   0 */4 * * * /Users/erickvale/Desktop/secure-resource/secure_monitor.sh >> /var/log/secure_monitor.log 2>&1
+#   0 */4 * * * /Users/erickvale/Projects/secure-resource/secure_monitor.sh >> /var/log/secure_monitor.log 2>&1
 
 set -e
 
-REPO="/Users/erickvale/Desktop/secure-resource"
+REPO="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 LOG_DIR="${REPO}/.monitoring"
 TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
 TIMESTAMP_FILE=$(date +"%Y%m%d_%H%M%S")
@@ -59,27 +59,28 @@ run_scanner() {
 # Run scanners (safe, read-only operations)
 cd "$REPO"
 
+FAILED=0
 if [ "$LOG_ONLY" = false ]; then
     # Persistence scan (unsigned binaries, kernel extensions, etc.)
-    run_scanner "persistence" "python3 -m secure persistence scan --quick" || true
+    run_scanner "persistence" "python3 -m secure persistence scan" || FAILED=$((FAILED + 1))
 
     # Listening ports (unexpected network bindings)
-    run_scanner "listening" "python3 -m secure listening scan --quick" || true
+    run_scanner "listening" "python3 -m secure listening scan" || FAILED=$((FAILED + 1))
 
     # Connections (unexpected destinations)
-    run_scanner "connections" "python3 -m secure connections scan --quick" || true
+    run_scanner "connections" "python3 -m secure connections scan" || FAILED=$((FAILED + 1))
 
     # File integrity (changes to critical paths)
-    run_scanner "fileintegrity" "python3 -m secure fileintegrity scan --quick" || true
+    run_scanner "fileintegrity" "python3 -m secure fileintegrity scan" || FAILED=$((FAILED + 1))
 
     # Posture checks (Gatekeeper, SIP, FileVault, firewall, etc.)
-    run_scanner "checks" "python3 -m secure check --quick" || true
+    run_scanner "checks" "python3 -m secure check" || FAILED=$((FAILED + 1))
 
     # WiFi (lookalike SSIDs)
-    run_scanner "wifi" "python3 -m secure wifi scan" || true
+    run_scanner "wifi" "python3 -m secure wifi scan" || FAILED=$((FAILED + 1))
 
     # Bluetooth (unknown devices)
-    run_scanner "bluetooth" "python3 -m secure bluetooth scan" || true
+    run_scanner "bluetooth" "python3 -m secure bluetooth scan" || FAILED=$((FAILED + 1))
 fi
 
 # Run detection pipeline on anomalies found
@@ -97,9 +98,18 @@ python3 -m secure baseline status 2>&1 | head -20 >> "$LOG_FILE" || true
 log "=== Secure Monitor Complete ==="
 log "Results logged to: $LOG_FILE"
 
-# Print summary
-if [ "$JSON_OUTPUT" = true ]; then
-    echo "{\"timestamp\": \"$TIMESTAMP\", \"log_file\": \"$LOG_FILE\", \"status\": \"success\"}"
+# Report failures
+if [ "$FAILED" -gt 0 ]; then
+    log "WARNING: $FAILED scanner(s) failed"
 fi
 
-exit 0
+# Print summary
+if [ "$JSON_OUTPUT" = true ]; then
+    STATUS="success"
+    if [ "$FAILED" -gt 0 ]; then
+        STATUS="partial"
+    fi
+    echo "{\"timestamp\": \"$TIMESTAMP\", \"log_file\": \"$LOG_FILE\", \"status\": \"$STATUS\", \"failed_scanners\": $FAILED}"
+fi
+
+exit $FAILED

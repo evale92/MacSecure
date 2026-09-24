@@ -39,7 +39,7 @@ class TestSensorAccuracy:
             # Assertions on real scanner output
             # Real scanner does full system inventory (~11-20s), varies with load.
             # Threshold: 25s accounts for slower runs without masking true hangs.
-            assert latency_ms < 25000, f"Scanner latency too high: {latency_ms}ms (may indicate hang)"
+            assert latency_ms < 25000, f"GATE1_SCANNER_LATENCY: Scanner latency too high: {latency_ms}ms (may indicate hang)"
             assert latency_ms > 0, "Latency should be measurable"
             # Display actual timing
             print(f"\n✓ Persistence scan latency: {latency_ms:.1f}ms")

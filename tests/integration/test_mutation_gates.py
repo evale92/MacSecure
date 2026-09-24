@@ -23,7 +23,7 @@ class TestMutationGates:
         result = subprocess.run(
             [sys.executable, "-m", "pytest",
              "tests/integration/test_sensor_ground_truth.py::TestSensorAccuracy::test_persistence_mechanism_detection",
-             "-v", "-p", "no:cacheprovider"],
+             "--tb=line", "-q", "-p", "no:cacheprovider"],
             env=env,
             capture_output=True,
             text=True,
@@ -33,8 +33,11 @@ class TestMutationGates:
         # Real test must FAIL under stub
         assert result.returncode != 0, \
             f"Phase 1 passed under latency stub (30000ms) — it does not test the scanner:\n{result.stdout}\n{result.stderr}"
-        assert "Scanner latency too high" in result.stdout, \
-            f"Expected 'Scanner latency too high' in output:\n{result.stdout}"
+
+        # Check for the specific sentinel in failure lines
+        fail_lines = [l for l in result.stdout.splitlines() if "AssertionError" in l]
+        assert any("GATE1_SCANNER_LATENCY" in l for l in fail_lines), \
+            f"Phase 1 failed, but not on the latency assertion:\n{result.stdout}"
 
     def test_gate1_real_phase1_passes_with_real_scanner(self):
         """GATE 1 control: Actual test_persistence_mechanism_detection passes without stub."""
@@ -70,7 +73,7 @@ class TestMutationGates:
         result = subprocess.run(
             [sys.executable, "-m", "pytest",
              "tests/integration/test_phase2_approval.py::TestApprovalFlow::test_medium_risk_requires_approval",
-             "-v", "-p", "no:cacheprovider"],
+             "--tb=line", "-q", "-p", "no:cacheprovider"],
             env=env,
             capture_output=True,
             text=True,
@@ -80,7 +83,10 @@ class TestMutationGates:
         # Real test must FAIL under approval stub
         assert result.returncode != 0, \
             f"Phase 2 passed without approval enforcement — it is not testing the flow:\n{result.stdout}\n{result.stderr}"
-        assert "should stay PENDING but got" in result.stdout, \
+
+        # Check for the specific sentinel in failure lines
+        fail_lines = [l for l in result.stdout.splitlines() if "AssertionError" in l]
+        assert any("GATE2_APPROVAL_PENDING" in l for l in fail_lines), \
             f"Phase 2 failed, but not on the approval assertion:\n{result.stdout}"
 
     def test_gate2_real_phase2_approval_flow_passes_with_enforcement(self):

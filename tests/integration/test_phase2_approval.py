@@ -40,7 +40,7 @@ class TestApprovalFlow:
         # Must stay PENDING without approval
         # (This is what fails when bypass stub is active)
         assert result.status == ExecutionStatus.PENDING, \
-            f"MEDIUM-risk should stay PENDING but got {result.status}"
+            f"GATE2_APPROVAL_PENDING: MEDIUM-risk should stay PENDING but got {result.status}"
 
         # Approval request should exist
         assert result.approval_request_id is not None, \

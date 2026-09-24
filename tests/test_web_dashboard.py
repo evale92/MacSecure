@@ -44,18 +44,14 @@ def test_dashboard_alerts_api():
         server_thread.start()
         time.sleep(0.5)
 
-        # Test API call
-        try:
-            resp = urlopen("http://127.0.0.1:5001/api/alerts")
-            data = json.loads(resp.read().decode())
+        # Test API call - let failures propagate loudly
+        resp = urlopen("http://127.0.0.1:5001/api/alerts")
+        data = json.loads(resp.read().decode())
 
-            assert data["total"] == 5
-            assert data["critical_count"] == 0
-            assert len(data["alerts"]) == 5
-            assert data["alerts"][0]["final_severity"] == "HIGH"
-        except Exception as e:
-            # Server may not start in test; skip if connection fails
-            pass
+        assert data["total"] == 5, f"GATE_DASHBOARD_ALERTS_TOTAL: expected 5 alerts, got {data['total']}"
+        assert data["critical_count"] == 0, f"GATE_DASHBOARD_ALERTS_CRITICAL: expected 0 critical, got {data['critical_count']}"
+        assert len(data["alerts"]) == 5, f"GATE_DASHBOARD_ALERTS_COUNT: expected 5 in array, got {len(data['alerts'])}"
+        assert data["alerts"][0]["final_severity"] == "HIGH", f"GATE_DASHBOARD_ALERTS_SEVERITY: expected HIGH, got {data['alerts'][0]['final_severity']}"
 
 
 def test_dashboard_feedback_submission():
@@ -108,8 +104,18 @@ def test_dashboard_export_json():
 
         # Verify export data structure
         DashboardHandler.db_path = str(db_path)
-        try:
-            # Would need to test via HTTP, but skip in unit tests
-            pass
-        except Exception:
-            pass
+
+        # Start server in background
+        server_thread = threading.Thread(
+            target=lambda: run_server(host="127.0.0.1", port=5002, db_path=str(db_path)),
+            daemon=True
+        )
+        server_thread.start()
+        time.sleep(0.5)
+
+        # Test export endpoint
+        resp = urlopen("http://127.0.0.1:5002/api/export?format=json")
+        export_data = json.loads(resp.read().decode())
+
+        assert "alerts" in export_data, "GATE_DASHBOARD_EXPORT: missing 'alerts' key in export"
+        assert len(export_data["alerts"]) == 1, f"GATE_DASHBOARD_EXPORT_COUNT: expected 1 alert, got {len(export_data['alerts'])}"

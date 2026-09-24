@@ -253,7 +253,7 @@ class RemediationCLI:
 
     def _print_execution_summary(self, result):
         """Pretty-print execution summary."""
-        status_icon = "✓" if result.status == ExecutionStatus.SUCCESS else "✗" if result.status == ExecutionStatus.FAILED else "⏳"
+        status_icon = "✓" if result.status == ExecutionStatus.SUCCESS else "⏳" if result.status == ExecutionStatus.SIMULATED else "✗"
 
         print(f"\n{status_icon} Execution {result.execution_id}")
         print(f"  Action:  {result.action_id}")

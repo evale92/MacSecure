@@ -51,7 +51,7 @@ class TestRemediationCLI(unittest.TestCase):
         )
 
         self.assertIsNotNone(result)
-        self.assertEqual(result.status, ExecutionStatus.SUCCESS)
+        self.assertEqual(result.status, ExecutionStatus.SIMULATED)
 
     def test_cmd_run_failure(self):
         """Test 'run' command with unknown action."""
@@ -81,7 +81,7 @@ class TestRemediationCLI(unittest.TestCase):
         )
 
         self.assertIsNotNone(result)
-        self.assertEqual(result.status, ExecutionStatus.SUCCESS)
+        self.assertEqual(result.status, ExecutionStatus.SIMULATED)
 
     def test_cmd_status(self):
         """Test 'status' command."""
@@ -241,11 +241,11 @@ class TestCLIIntegration(unittest.TestCase):
             triggered_by_ref="find_123",
         )
 
-        self.assertEqual(result.status, ExecutionStatus.SUCCESS)
+        self.assertEqual(result.status, ExecutionStatus.SIMULATED)
 
         # Check status
         status = self.cli.cmd_status(result.execution_id)
-        self.assertEqual(status.status, ExecutionStatus.SUCCESS)
+        self.assertEqual(status.status, ExecutionStatus.SIMULATED)
         self.assertEqual(status.action_id, "firewall.enable")
 
     def test_workflow_pending_approve_execute(self):
@@ -267,11 +267,11 @@ class TestCLIIntegration(unittest.TestCase):
             reason="Verified threat",
         )
 
-        self.assertEqual(result2.status, ExecutionStatus.SUCCESS)
+        self.assertEqual(result2.status, ExecutionStatus.SIMULATED)
 
         # Check status
         result3 = self.cli.cmd_status(result1.execution_id)
-        self.assertEqual(result3.status, ExecutionStatus.SUCCESS)
+        self.assertEqual(result3.status, ExecutionStatus.SIMULATED)
 
     def test_workflow_list_and_filter(self):
         """Test workflow: execute multiple → history with filter."""

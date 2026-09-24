@@ -22,6 +22,7 @@ class ExecutionStatus:
     PENDING = "pending"
     APPROVED = "approved"
     EXECUTING = "executing"
+    SIMULATED = "simulated"
     SUCCESS = "success"
     ROLLED_BACK = "rolled_back"
     FAILED = "failed"
@@ -148,16 +149,17 @@ class RemediationExecutor:
         - secure.phase47.SandboxExecutor for isolated execution
         - secure.phase47.RepairRun for tracking
 
-        For now, simulates successful execution.
+        Currently: executor is stubbed; Phase 47 not implemented.
+        Returns SIMULATED to indicate no execution occurred.
         """
         result.status = ExecutionStatus.EXECUTING
 
         try:
             # Phase 47 would handle actual execution
-            # Here we simulate success for the 12 catalog actions
-            result.status = ExecutionStatus.SUCCESS
-            result.exit_code = 0
-            result.stdout = f"✓ {action.name} executed successfully"
+            # For now, mark as simulated (no execution)
+            result.status = ExecutionStatus.SIMULATED
+            result.exit_code = None  # None indicates no execution attempted
+            result.stdout = f"[SIMULATED — not executed] {action.name}"
             result.completed_at = datetime.utcnow()
         except Exception as e:
             result.status = ExecutionStatus.FAILED

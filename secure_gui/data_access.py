@@ -871,6 +871,7 @@ def fetch_remediation_dashboard_now(limit: int = 20) -> RemediationDashboard:
         # Count by status
         pending = sum(1 for e in all_executions if e.status == ExecutionStatus.PENDING)
         success = sum(1 for e in all_executions if e.status == ExecutionStatus.SUCCESS)
+        simulated = sum(1 for e in all_executions if e.status == ExecutionStatus.SIMULATED)
         failed = sum(1 for e in all_executions if e.status == ExecutionStatus.FAILED)
 
         # Recent executions (formatted)

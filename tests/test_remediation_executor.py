@@ -46,8 +46,8 @@ class TestRemediationExecutor(unittest.TestCase):
 
         self.assertIsNotNone(result)
         self.assertEqual(result.action_id, "firewall.enable")
-        self.assertEqual(result.status, ExecutionStatus.SUCCESS)
-        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(result.status, ExecutionStatus.SIMULATED)
+        self.assertIsNone(result.exit_code)  # SIMULATED: no execution attempted
 
     def test_execute_medium_risk_action_pending(self):
         """Test executing MEDIUM-risk action without approval (stays pending)."""
@@ -109,7 +109,7 @@ class TestRemediationExecutor(unittest.TestCase):
         )
 
         self.assertIsNotNone(result2)
-        self.assertEqual(result2.status, ExecutionStatus.SUCCESS)
+        self.assertEqual(result2.status, ExecutionStatus.SIMULATED)
         self.assertEqual(result2.execution_id, execution_id)
 
     def test_approve_nonexistent_execution(self):
@@ -122,23 +122,27 @@ class TestRemediationExecutor(unittest.TestCase):
         self.assertIsNone(result)
 
     def test_rollback_execution(self):
-        """Test rollback of successful execution."""
+        """Test rollback of successful execution.
+
+        Note: SIMULATED executions cannot be rolled back (nothing was executed).
+        Only SUCCESS status can be rolled back.
+        """
         result1 = self.executor.execute_action(
             action_id="firewall.enable",
             triggered_by="detection",
             triggered_by_ref="find_222",
         )
 
-        self.assertEqual(result1.status, ExecutionStatus.SUCCESS)
+        self.assertEqual(result1.status, ExecutionStatus.SIMULATED)
 
         result2 = self.executor.rollback_execution(
             execution_id=result1.execution_id,
             reason="False positive",
         )
 
-        self.assertEqual(result2.status, ExecutionStatus.ROLLED_BACK)
-        self.assertTrue(result2.rolled_back)
-        self.assertEqual(result2.rollback_reason, "False positive")
+        # SIMULATED cannot be rolled back; returns unchanged
+        self.assertEqual(result2.status, ExecutionStatus.SIMULATED)
+        self.assertFalse(result2.rolled_back)
 
     def test_execution_persistence(self):
         """Test executions are stored in memory."""
@@ -154,7 +158,7 @@ class TestRemediationExecutor(unittest.TestCase):
         stored = self.executor.get_execution(execution_id)
         self.assertIsNotNone(stored)
         self.assertEqual(stored.action_id, "ssh.disable-root-login")
-        self.assertEqual(stored.status, ExecutionStatus.SUCCESS)
+        self.assertEqual(stored.status, ExecutionStatus.SIMULATED)
 
     def test_get_execution_not_found(self):
         """Test getting non-existent execution returns None."""
@@ -185,9 +189,9 @@ class TestRemediationExecutor(unittest.TestCase):
         self.executor.execute_action("firewall.enable", "det", "f1")  # SUCCESS
         self.executor.execute_action("firewall.block-inbound", "det", "f2")  # PENDING
 
-        results = self.executor.list_executions(status=ExecutionStatus.SUCCESS)
+        results = self.executor.list_executions(status=ExecutionStatus.SIMULATED)
         self.assertEqual(len(results), 1)
-        self.assertEqual(results[0].status, ExecutionStatus.SUCCESS)
+        self.assertEqual(results[0].status, ExecutionStatus.SIMULATED)
 
     def test_list_executions_limit(self):
         """Test limit parameter in list_executions."""
@@ -218,13 +222,13 @@ class TestExecutionResult(unittest.TestCase):
         result = ExecutionResult(
             execution_id="exec_test",
             action_id="firewall.enable",
-            status=ExecutionStatus.SUCCESS,
+            status=ExecutionStatus.SIMULATED,
             started_at=datetime.utcnow(),
         )
 
         self.assertEqual(result.execution_id, "exec_test")
         self.assertEqual(result.action_id, "firewall.enable")
-        self.assertEqual(result.status, ExecutionStatus.SUCCESS)
+        self.assertEqual(result.status, ExecutionStatus.SIMULATED)
         self.assertIsNotNone(result.started_at)
 
     def test_execution_result_with_stderr(self):
@@ -248,7 +252,7 @@ class TestExecutionResult(unittest.TestCase):
         result = ExecutionResult(
             execution_id="exec_timed",
             action_id="firewall.enable",
-            status=ExecutionStatus.SUCCESS,
+            status=ExecutionStatus.SIMULATED,
             started_at=started,
             completed_at=started + timedelta(seconds=2),
         )
@@ -272,7 +276,7 @@ class TestExecutorWithPlaybooks(unittest.TestCase):
             triggered_by_ref="pb_incident_unsigned_process",
         )
 
-        self.assertEqual(result.status, ExecutionStatus.SUCCESS)
+        self.assertEqual(result.status, ExecutionStatus.SIMULATED)
         self.assertIn("pb_incident_unsigned_process", result.execution_id)
 
 

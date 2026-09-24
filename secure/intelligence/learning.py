@@ -2,16 +2,19 @@
 
 Sits above remediation tier; reads outcomes table, never imports remediation code.
 All proposals are recommendations only — never auto-applied.
+Integrates user feedback (Phase 62) to tune thresholds based on false positive rate.
 """
 
 from __future__ import annotations
 
 import math
+import sqlite3
 from typing import Optional
 
 from secure.intelligence.models import (
     EfficacySummary, ThresholdProposal, PROPOSE_RAISE, PROPOSE_LOWER, PROPOSE_HOLD
 )
+from secure.feedback.store import FeedbackStore
 
 MIN_SAMPLES = 10
 HARD_MIN_THRESHOLD = 20
@@ -41,11 +44,48 @@ def _wilson_lower_bound(successes: int, total: int, confidence: float = 0.95) ->
 
 
 class LearningEngine:
-    """Generate playbook threshold proposals from efficacy history."""
+    """Generate playbook threshold proposals from efficacy history and user feedback."""
 
-    def __init__(self):
-        """Initialize learning engine."""
-        pass
+    def __init__(self, db_conn: Optional[sqlite3.Connection] = None):
+        """Initialize learning engine.
+
+        Args:
+            db_conn: Optional database connection for feedback integration.
+        """
+        self.db_conn = db_conn
+        self.feedback_store = FeedbackStore(db_conn) if db_conn else None
+
+    def analyze_feedback(self, alert_type: str = None) -> dict:
+        """Analyze user feedback to measure false positive rate.
+
+        Args:
+            alert_type: Optional alert type to filter by.
+
+        Returns:
+            Dict with keys: total, false_positives, true_positives, fp_rate, confidence
+        """
+        if not self.feedback_store:
+            return {"total": 0, "false_positives": 0, "true_positives": 0, "fp_rate": 0.0, "confidence": 0.0}
+
+        stats = self.feedback_store.get_feedback_stats(alert_type=alert_type)
+        if not stats:
+            return {"total": 0, "false_positives": 0, "true_positives": 0, "fp_rate": 0.0, "confidence": 0.0}
+
+        total = stats.total_feedback
+        fp = stats.false_positives
+        tp = stats.true_positives
+
+        fp_rate = fp / total if total > 0 else 0.0
+        lower_bound = _wilson_lower_bound(fp, total) if total > 0 else 0.0
+
+        return {
+            "total": total,
+            "false_positives": fp,
+            "true_positives": tp,
+            "fp_rate": fp_rate,
+            "fp_rate_lower": lower_bound,
+            "confidence": stats.confidence,
+        }
 
     def analyze_action_efficacy(
         self,
@@ -113,6 +153,7 @@ class LearningEngine:
         current_threshold: float,
         efficacy: EfficacySummary,
         shadow_scores: Optional[list[float]] = None,
+        alert_type: Optional[str] = None,
     ) -> ThresholdProposal:
         """Generate a threshold proposal for a playbook.
 
@@ -121,10 +162,30 @@ class LearningEngine:
             current_threshold: Current anomaly_score threshold
             efficacy: EfficacySummary for outcomes
             shadow_scores: Optional list of anomaly scores from evaluations
+            alert_type: Optional alert type for feedback analysis
 
         Returns:
             ThresholdProposal with direction (RAISE/LOWER/HOLD) and proposed value
         """
+        # Check user feedback for false positive rate
+        feedback_data = self.analyze_feedback(alert_type=alert_type) if alert_type else {}
+
+        # High false positive rate: propose lowering threshold to be more selective
+        if feedback_data.get("total", 0) >= MIN_SAMPLES:
+            fp_rate_lower = feedback_data.get("fp_rate_lower", 0.0)
+            if fp_rate_lower > 0.30:  # More than 30% FP rate confidence
+                proposed = float(min(int(current_threshold) + GRID_STEP, HARD_MAX_THRESHOLD))
+                return ThresholdProposal(
+                    playbook_id=playbook_id,
+                    parameter="anomaly_score",
+                    current_value=current_threshold,
+                    proposed_value=proposed,
+                    direction=PROPOSE_RAISE,
+                    samples=feedback_data.get("total", 0),
+                    evidence=f"high false positive rate ({feedback_data.get('fp_rate', 0):.1%} empirical, {fp_rate_lower:.1%} lower bound); raise threshold to reduce noise",
+                    confidence_lower=fp_rate_lower,
+                )
+
         if efficacy.measured < MIN_SAMPLES:
             return ThresholdProposal(
                 playbook_id=playbook_id,

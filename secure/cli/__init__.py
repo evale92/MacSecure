@@ -2666,6 +2666,62 @@ def build_parser() -> argparse.ArgumentParser:
     )
     detection_pipeline_run_parser.set_defaults(func=cmd_detection_pipeline_run)
 
+    # Feedback (Phase 62)
+    from secure.cli.feedback import cmd_feedback_submit, cmd_feedback_review, cmd_feedback_stats
+
+    feedback_parser = subparsers.add_parser(
+        "feedback", help="User feedback on alert decisions"
+    )
+    feedback_subparsers = feedback_parser.add_subparsers(
+        dest="feedback_command", help="Feedback subcommand"
+    )
+
+    feedback_submit_parser = feedback_subparsers.add_parser(
+        "submit", help="Submit feedback on a decision"
+    )
+    feedback_submit_parser.add_argument(
+        "decision_id", type=int, help="Alert decision ID to provide feedback on"
+    )
+    feedback_submit_parser.add_argument(
+        "verdict", help="true_positive, false_positive, or unclear"
+    )
+    feedback_submit_parser.add_argument(
+        "--reason", help="Why you tagged it this way"
+    )
+    feedback_submit_parser.add_argument(
+        "--severity-adjustment", dest="severity_adjustment", type=int, default=0,
+        help="Severity was wrong by how much? (-2 to +2)"
+    )
+    feedback_submit_parser.add_argument(
+        "--by", dest="feedback_by", help="Your identifier (default: user)"
+    )
+    feedback_submit_parser.add_argument(
+        "--json", action="store_true", help="Output as JSON"
+    )
+    feedback_submit_parser.set_defaults(func=cmd_feedback_submit)
+
+    feedback_review_parser = feedback_subparsers.add_parser(
+        "review", help="Review recent feedback"
+    )
+    feedback_review_parser.add_argument(
+        "--limit", type=int, help="Max feedback to show (default: 50)"
+    )
+    feedback_review_parser.add_argument(
+        "--json", action="store_true", help="Output as JSON"
+    )
+    feedback_review_parser.set_defaults(func=cmd_feedback_review)
+
+    feedback_stats_parser = feedback_subparsers.add_parser(
+        "stats", help="Feedback statistics"
+    )
+    feedback_stats_parser.add_argument(
+        "--alert-type", dest="alert_type", help="Filter by alert type"
+    )
+    feedback_stats_parser.add_argument(
+        "--json", action="store_true", help="Output as JSON"
+    )
+    feedback_stats_parser.set_defaults(func=cmd_feedback_stats)
+
     return parser
 
 

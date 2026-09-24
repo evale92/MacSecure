@@ -80,8 +80,8 @@ class TestMutationGates:
         # Real test must FAIL under approval stub
         assert result.returncode != 0, \
             f"Phase 2 passed without approval enforcement — it is not testing the flow:\n{result.stdout}\n{result.stderr}"
-        assert "PENDING" in result.stdout or "AssertionError" in result.stdout, \
-            f"Expected approval assertion in output:\n{result.stdout}"
+        assert "should stay PENDING but got" in result.stdout, \
+            f"Phase 2 failed, but not on the approval assertion:\n{result.stdout}"
 
     def test_gate2_real_phase2_approval_flow_passes_with_enforcement(self):
         """GATE 2 control: Actual Phase 2 approval test passes when enforcement works."""

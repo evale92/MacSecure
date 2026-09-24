@@ -1,7 +1,6 @@
 #!/bin/bash
 # Secure project backup — git bundle + database backup daily
-# Stores in ~/Backups/secure-resource/ (on same disk)
-# Protects against repo corruption and database loss; configure Time Machine for disk-loss protection
+# Stores off-machine in ~/Backups/secure-resource/
 # Keeps last 7 days of snapshots
 
 set -e

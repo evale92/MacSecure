@@ -42,29 +42,18 @@ log_json() {
 log "=== Secure Monitor Start ==="
 
 # Function to run a scanner safely
-# Exit codes: 0 = no findings, 1 = findings detected (both OK), 2+ = error
 run_scanner() {
     local scanner_name=$1
     local cmd=$2
 
     log "Running $scanner_name..."
-    eval "$cmd" >> "$LOG_FILE" 2>&1
-    local exit_code=$?
-
-    case $exit_code in
-        0)
-            log "✓ $scanner_name completed (no findings)"
-            return 0
-            ;;
-        1)
-            log "✓ $scanner_name completed (findings detected)"
-            return 0
-            ;;
-        *)
-            log "✗ $scanner_name failed (exit code: $exit_code)"
-            return 1
-            ;;
-    esac
+    if eval "$cmd" >> "$LOG_FILE" 2>&1; then
+        log "✓ $scanner_name completed"
+        return 0
+    else
+        log "✗ $scanner_name failed (exit code: $?)"
+        return 1
+    fi
 }
 
 # Run scanners (safe, read-only operations)
@@ -96,13 +85,10 @@ fi
 
 # Run detection pipeline on anomalies found
 log "Running detection pipeline..."
-python3 -m secure detection-pipeline run --lookback-minutes 60 --json >> "$LOG_FILE" 2>&1
-PIPELINE_EXIT=$?
-if [ $PIPELINE_EXIT -eq 0 ]; then
+if python3 -m secure detection-pipeline run --lookback-minutes 60 --json >> "$LOG_FILE" 2>&1; then
     log "✓ Detection pipeline completed"
 else
-    log "✗ Detection pipeline failed (exit code: $PIPELINE_EXIT)"
-    FAILED=$((FAILED + 1))
+    log "✗ Detection pipeline failed (exit code: $?)"
 fi
 
 # Show baseline status

@@ -2722,6 +2722,30 @@ def build_parser() -> argparse.ArgumentParser:
     )
     feedback_stats_parser.set_defaults(func=cmd_feedback_stats)
 
+    # Web dashboard (Phase 63)
+    from secure.cli.web import cmd_web_start
+
+    web_parser = subparsers.add_parser(
+        "web", help="Web dashboard for alerts and reporting"
+    )
+    web_subparsers = web_parser.add_subparsers(
+        dest="web_command", help="Web subcommand"
+    )
+
+    web_start_parser = web_subparsers.add_parser(
+        "start", help="Start the dashboard server"
+    )
+    web_start_parser.add_argument(
+        "--host", default="127.0.0.1", help="Server host (default: 127.0.0.1)"
+    )
+    web_start_parser.add_argument(
+        "--port", type=int, default=5000, help="Server port (default: 5000)"
+    )
+    web_start_parser.add_argument(
+        "--db", help="Database path (default: ~/.secure/secure.db)"
+    )
+    web_start_parser.set_defaults(func=cmd_web_start)
+
     return parser
 
 

@@ -10,10 +10,10 @@ actually read.
 
 - **[AGENTS.md](AGENTS.md)** — rules for automated coding agents. Read this
   first if you are one.
-- **[SECURITY_INVARIANTS.md](SECURITY_INVARIANTS.md)** — properties held since
+- **[SECURITY_INVARIANTS.md](docs/SECURITY_INVARIANTS.md)** — properties held since
   the phase that introduced each. Weakening one is a `SECURITY_SEMANTIC_CHANGE`
   and needs explicit human approval *before* any code is written.
-- **[ARCHITECTURE_RULES.md](ARCHITECTURE_RULES.md)** — the normative subset of
+- **[ARCHITECTURE_RULES.md](docs/ARCHITECTURE_RULES.md)** — the normative subset of
   the structure. `docs/ARCHITECTURE.md` is the descriptive map.
 - **[TESTING_POLICY.md](TESTING_POLICY.md)** — how tests are written, named and
   trusted.
@@ -227,7 +227,7 @@ user-visible behaviour that nothing in the environment can run is the shape of
 change this repository is arranged to refuse.
 
 **The score was also wrong about the file** (J-0163). "untested = no test names
-it" can never be satisfied under `secure_gui/`: `TESTING_POLICY.md` and
+it" can never be satisfied under `secure_gui/`: `docs/TESTING_POLICY.md` and
 `targeted_test_files()` map every `secure_gui/*` path to `tests/test_gui*.py`,
 never `tests/test_<module>.py`, and `tests/test_agent_tiers.py:139` asserts
 exactly that. A `tests/test_baseline_view.py` would satisfy the score and
@@ -242,7 +242,7 @@ genuinely testable logic in `secure_gui/data_access.py` instead").
 
 ## Known boundary, stated by the project itself
 
-`SECURITY_INVARIANTS.md` records that there is **no OS-level sandbox** here.
+`docs/SECURITY_INVARIANTS.md` records that there is **no OS-level sandbox** here.
 That is written down as a limit rather than left for someone to discover, which
 is the same discipline the rest of the project runs on: a gap that is named is
 a decision, and a gap that is merely absent is an accident waiting to be found

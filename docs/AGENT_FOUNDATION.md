@@ -509,7 +509,7 @@ unchanged), it deterministically derives a `RepairContext`:
   affected file, read-only, run against the live checkout (safe because
   the isolated worktree is a checkout of that exact same history).
 - **`policy_excerpts`** — reads `AGENTS.md`/`ARCHITECTURE_RULES.md`/
-  `SECURITY_INVARIANTS.md`/`TESTING_POLICY.md` from the repo root when
+  `docs/SECURITY_INVARIANTS.md`/`docs/TESTING_POLICY.md` from the repo root when
   they exist, truncated per-file. None of them exist yet (that's
   Phase 37's job) so this is `{}` today — the moment Phase 37 adds any
   of them, every future repair task automatically includes them with
@@ -826,8 +826,8 @@ and nothing is pending approval.
 
 Phase 33 built `secure/agent/context.py`'s `policy_excerpts` hook and
 left it deliberately dormant: it reads `AGENTS.md`,
-`ARCHITECTURE_RULES.md`, `SECURITY_INVARIANTS.md`, and
-`TESTING_POLICY.md` from the repository root, and returned `{}` because
+`ARCHITECTURE_RULES.md`, `docs/SECURITY_INVARIANTS.md`, and
+`docs/TESTING_POLICY.md` from the repository root, and returned `{}` because
 none of them existed. Phase 37 creates them. No code changed — the hook
 was written to need nothing when the files arrived, and it needed
 nothing.
@@ -847,7 +847,7 @@ the budget; everything below the marker is rationale for human readers
 and may be truncated with no loss of meaning. Each file states this in
 its own opening paragraph. Current sizes of the normative sections:
 `AGENTS.md` 2487, `ARCHITECTURE_RULES.md` 2626,
-`SECURITY_INVARIANTS.md` 2941, `TESTING_POLICY.md` 2647 characters.
+`docs/SECURITY_INVARIANTS.md` 2941, `docs/TESTING_POLICY.md` 2647 characters.
 
 The alternative — raising `_MAX_POLICY_CHARS_PER_FILE` — was rejected.
 That constant is a deliberate prompt bound, part of Phase 33's own
@@ -868,13 +868,13 @@ a production change made for a documentation reason.
   the `_shell.py` subprocess seam, empty-string-default gating,
   new capability in a new package, no upward imports, and no
   reimplementation of what an adopted framework already provides.
-- **`SECURITY_INVARIANTS.md`** — the twelve properties that may not be
+- **`docs/SECURITY_INVARIANTS.md`** — the twelve properties that may not be
   weakened without explicit human approval, each traceable to
   `secure/ai/__init__.py`'s Phase 28 hard rules,
   `secure/validate/__init__.py`'s Phase 27 hard rules, or a Phase
   31/31.5/35 trust boundary. It also names, honestly, the boundary that
   is not closed: there is no OS-level sandbox.
-- **`TESTING_POLICY.md`** — never weaken a test (first, because the
+- **`docs/TESTING_POLICY.md`** — never weaken a test (first, because the
   repair loop's only deterministic signal depends on it), the
   `tests/test_<module>.py` naming rule that Phase 36's
   `targeted_test_files()` actually depends on, the fixture surface in

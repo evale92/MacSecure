@@ -141,7 +141,11 @@ def _load_policy_excerpts(root: Path) -> "dict[str, str]":
     automatically includes them with zero change to this function."""
     excerpts: "dict[str, str]" = {}
     for name in _POLICY_FILENAMES:
-        path = root / name
+        # AGENTS.md stays at root; others moved to docs/
+        if name == "AGENTS.md":
+            path = root / name
+        else:
+            path = root / "docs" / name
         if not path.is_file():
             continue
         try:

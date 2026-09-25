@@ -182,8 +182,8 @@ promotion (still not automated in this phase)`. See
 
 ### Engineering policy files (repository root — Phase 37)
 
-`AGENTS.md`, `ARCHITECTURE_RULES.md`, `SECURITY_INVARIANTS.md`, and
-`TESTING_POLICY.md` sit at the repository root. They are normative for
+`../AGENTS.md`, `ARCHITECTURE_RULES.md`, `docs/SECURITY_INVARIANTS.md`, and
+`docs/TESTING_POLICY.md` sit at `docs/`, except `AGENTS.md` at root. They are normative for
 human and automated authors alike, and `secure/agent/context.py` reads
 them into every repair prompt. `ARCHITECTURE_RULES.md` is the normative
 subset of this document; where the two ever disagree, that file is a

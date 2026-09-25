@@ -37,9 +37,9 @@ no rule ever lives down there.
    (`UNAVAILABLE`/`DEGRADED`/`ERROR`) rather than return a clean
    result. A silent clean pass is a bug in this codebase.
 8. **Respect the layer rule.** A lower layer never imports from a
-   higher one. See `ARCHITECTURE_RULES.md`.
+   higher one. See `docs/ARCHITECTURE_RULES.md`.
 9. **Do not weaken a security invariant.** See
-   `SECURITY_INVARIANTS.md`. If your fix would change one, stop and
+   `docs/SECURITY_INVARIANTS.md`. If your fix would change one, stop and
    report instead of editing.
 10. **Your patch is a proposal, not a change.** It will be diffed,
     hashed, verified, and reviewed by a human before it lands. Write

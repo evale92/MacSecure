@@ -47,7 +47,11 @@ _EXPECTED_POLICY_FILES = ("AGENTS.md", "ARCHITECTURE_RULES.md", "SECURITY_INVARI
 
 
 def _policy_path(name: str) -> Path:
-    return project_root() / name
+    root = project_root()
+    # AGENTS.md stays at root; others moved to docs/
+    if name == "AGENTS.md":
+        return root / name
+    return root / "docs" / name
 
 
 def _candidate() -> RepairCandidate:

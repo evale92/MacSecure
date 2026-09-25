@@ -4,7 +4,6 @@ Development & Self-Healing — "Automated Failure Diagnosis").
 
 Connects failure detection to the repair workflow, in the fixed order
 the governing text requires
-(docs/ROADMAP_PART2_PHASES_38_47.md):
 
     DETECT FAILURE -> REPRODUCE -> COLLECT MINIMAL RELEVANT CONTEXT ->
     PRIMARY AGENT DIAGNOSIS -> SANDBOX REPAIR -> TARGETED TESTS ->

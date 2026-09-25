@@ -1,7 +1,6 @@
 """tests/test_agent_supervisor.py — Phase 42 ("Background Supervisor").
 
 Acceptance criterion under test (verbatim, from
-docs/ROADMAP_PART2_PHASES_38_47.md):
 
     "Scheduling/supervisor behavior can be tested without modifying
     live launchd; jobs are bounded/audited; ordinary GUI startup cannot

@@ -3,7 +3,6 @@ secure/agent/toolchain.py — Phase 46 (Part 2: Supervised Agentic
 Development & Self-Healing — "Dependency & Security Tool Maintenance").
 
 Extends the supervised workflow to external tooling and dependencies.
-Governing text, verbatim (docs/ROADMAP_PART2_PHASES_38_47.md):
 
     "Never silently update the live security stack. Package
     installation/update remains approval-gated. Do not install tools

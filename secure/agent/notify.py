@@ -4,7 +4,6 @@ Development & Self-Healing — "Email Change Notifications").
 
 Notifies the operator when a CONSEQUENTIAL change reaches
 AWAITING_APPROVAL. Governing text, verbatim
-(docs/ROADMAP_PART2_PHASES_38_47.md):
 
     "Reuse existing Secure notification/email infrastructure where
     possible... Email is notification only. Email replies must NEVER

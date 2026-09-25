@@ -1,7 +1,6 @@
 """tests/test_agent_verified.py — Phase 44 ("Verified Self-Healing").
 
 Acceptance criterion under test (verbatim, from
-docs/ROADMAP_PART2_PHASES_38_47.md):
 
     "Adversarial tests prove no candidate can reach VERIFIED by
     skipping required gates, changing its diff after verification,

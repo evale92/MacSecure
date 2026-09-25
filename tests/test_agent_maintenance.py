@@ -2,7 +2,6 @@
 ("Supervised Autonomous Maintenance") — the Part 2 acceptance demo.
 
 Acceptance criteria (verbatim, from
-docs/ROADMAP_PART2_PHASES_38_47.md):
 
     "Demonstrate the complete loop using controlled synthetic failures.
     At minimum demonstrate:

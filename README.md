@@ -133,13 +133,13 @@ secure integrations sigma scan       Evaluate Sigma rules
 secure integrations suricata scan    Ingest Suricata EVE alerts
 secure integrations zeek status      Show Zeek availability
 
-secure explain <source> <id>         Show full Phase 13 explanation for one alert
+secure explain <source> <id>         Show the full explanation for one alert
 secure add-note "text"               Insert a test row (diagnostic)
 ```
 
 ## Development
 
-Test suite: stdlib `unittest` + `pytest` (222 tests). Code quality: no external linters. See `GATE-REMEDIATION-WORKORDER.md` for mutation gate verification.
+Test suite: stdlib `unittest` + `pytest` (2,966 tests). Code quality: no external linters. Mutation gates verify dependency stubs in product code; assertion sabotage goes red, restore goes green.
 
 ```bash
 python3 -m pytest tests/ -v

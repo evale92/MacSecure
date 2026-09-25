@@ -5,7 +5,6 @@ Development & Self-Healing — "Change Request Center").
 Assembles the complete, read-only view of one pending change request:
 every field the governing text requires a human to see before deciding,
 gathered from the rows that already hold them. Governing text, verbatim
-(docs/ROADMAP_PART2_PHASES_38_47.md):
 
     "Extend Secure's existing change-request workflow rather than
     replacing it... Approval must remain bound to the exact reviewed

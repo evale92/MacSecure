@@ -4,7 +4,6 @@ Development & Self-Healing — "Background Supervisor").
 
 Lightweight periodic supervision using launchd, the standard macOS
 mechanism. Governing text, verbatim
-(docs/ROADMAP_PART2_PHASES_38_47.md):
 
     "Add lightweight background scheduling using a standard macOS
     mechanism such as launchd. Do not build a custom daemon framework

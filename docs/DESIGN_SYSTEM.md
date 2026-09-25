@@ -212,7 +212,6 @@ pure logic belongs in `tokens.py` (display vocabulary), `data_access.py`
 (read-only display data) or `view_models.py` (the text a window shows and
 the argv a button sends) instead, where it's actually unit-tested.
 `view_models.py` is enforced Tk-free, storage-free and subprocess-free by
-`tests/test_gui_view_models.py`; see `docs/GUI_EXTRACTION_AUDIT.md` for
 what is queued to move there.
 
 - **`resolve_fonts()`** — see Typography above.

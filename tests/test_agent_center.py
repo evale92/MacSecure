@@ -1,7 +1,6 @@
 """tests/test_agent_center.py — Phase 40 ("Change Request Center").
 
 Acceptance criterion under test (verbatim, from
-docs/ROADMAP_PART2_PHASES_38_47.md):
 
     "A consequential candidate can be reviewed end-to-end in Secure;
     approval is cryptographically/revision-bound to the reviewed

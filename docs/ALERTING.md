@@ -511,7 +511,7 @@ python3 -m pytest tests/test_alerting_*.py -v
 
 - **ARCHITECTURE_RULES.md** — Layering constraints
 - **SECURITY_INVARIANTS.md** — Audit trail requirements
-- **docs/PHASE_48.md** — Remediation layer
+- **docs/REMEDIATION.md** — Remediation layer
 - **docs/PHASE_49.md** — Multi-device layer
 
 ---

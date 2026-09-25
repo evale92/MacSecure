@@ -3,7 +3,6 @@ secure/agent/verified.py — Phase 44 (Part 2: Supervised Agentic
 Development & Self-Healing — "Verified Self-Healing").
 
 The authoritative definition of a VERIFIED repair. Governing text,
-verbatim (docs/ROADMAP_PART2_PHASES_38_47.md):
 
     A repair may be VERIFIED only when:
       1. original failure was reproduced before repair

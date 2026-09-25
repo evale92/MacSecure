@@ -26,7 +26,6 @@ Module map:
                       subprocess; guard-tested). Decisions extracted
                       from the view closures: what a window shows and
                       the argv a button sends. See
-                      docs/GUI_EXTRACTION_AUDIT.md.
     alerts_view.py    Tkinter-dependent. The Alerts DataTable +
                       EvidencePanel pilot screen.
 

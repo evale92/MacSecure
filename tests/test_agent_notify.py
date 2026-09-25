@@ -1,7 +1,6 @@
 """tests/test_agent_notify.py — Phase 41 ("Email Change Notifications").
 
 Acceptance criterion under test (verbatim, from
-docs/ROADMAP_PART2_PHASES_38_47.md):
 
     "Tests prove the correct approval states generate sanitized
     notifications, ordinary SAFE_PROJECT_CODE does not unnecessarily

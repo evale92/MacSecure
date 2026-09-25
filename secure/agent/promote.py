@@ -1,6 +1,5 @@
 """
 secure/agent/promote.py — Phase 47.5 ("Close the Verified Safe-Code
-Loop"). Governing text: docs/PHASE_47_5.md.
 
 **This is the first module in the project permitted to write to the
 live checkout.** Every isolation boundary since Phase 31 existed to

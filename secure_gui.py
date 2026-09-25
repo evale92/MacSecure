@@ -706,7 +706,6 @@ class SecureGUI(tk.Tk):
             return [py(), "-m", "secure", "inventory", "mark", identifier, status]
 
         def inventory_prune() -> Optional[List[str]]:
-            # It deletes rows, so it asks first (docs/GUI_ROADMAP.md, Q5).
             return confirmed_args(
                 lambda title, body: confirm_action(self, title=title, body=body, destructive=True),
                 PRUNE_CONFIRM_TITLE,

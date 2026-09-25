@@ -1,7 +1,6 @@
 """tests/test_agent_classify.py — Phase 39 ("Change Classification").
 
 Acceptance criterion under test (verbatim, from
-docs/ROADMAP_PART2_PHASES_38_47.md):
 
     "Tests prove consequential changes cannot be classified into
     automatic execution merely because an LLM describes them as safe.

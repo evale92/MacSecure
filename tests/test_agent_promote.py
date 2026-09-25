@@ -1,7 +1,6 @@
 """tests/test_agent_promote.py — Phase 47.5
 ("Close the Verified Safe-Code Loop").
 
-Governing text: `docs/PHASE_47_5.md`. Required adversarial proofs:
 
     - fully verified SAFE_PROJECT_CODE can auto-promote
     - UNKNOWN blocks promotion

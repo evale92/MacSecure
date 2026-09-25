@@ -4,7 +4,6 @@ Development & Self-Healing — "Change Classification").
 
 Classifies a proposed change BEFORE promotion, deterministically, into
 one of five classes. Governing text, verbatim
-(docs/ROADMAP_PART2_PHASES_38_47.md):
 
     "Classification must be deterministic where possible. When
     uncertain, choose the more restrictive class. Do not let model

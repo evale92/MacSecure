@@ -3,7 +3,6 @@ secure/agent/memory.py — Phase 45 (Part 2: Supervised Agentic
 Development & Self-Healing — "Maintenance Memory").
 
 Structured engineering/repair history. Governing text, verbatim
-(docs/ROADMAP_PART2_PHASES_38_47.md):
 
     "Do not use unrestricted chat history as the primary memory
     system... Allow future failures to search prior validated repairs.

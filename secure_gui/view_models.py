@@ -3,7 +3,6 @@ Tk-free view logic for the secure_gui windows.
 
 The windows in this package build most of their decisions inside
 `open_*_window()` closures, where no test can reach them (see
-docs/GUI_EXTRACTION_AUDIT.md). This module is where those decisions move
 once they are extracted: the text an operator is shown, and the exact
 CLI argv a button sends.
 
@@ -136,7 +135,6 @@ def cr_approve_request(view) -> ApproveRequest:
     )
 
 
-# ---------- command catalog (docs/GUI_ROADMAP.md) ----------
 
 # The GUI kills a job whose timeout expires. Every command not in the
 # catalog keeps this, which is what the GUI always used.
@@ -170,7 +168,6 @@ INVESTIGATE = "Investigate"
 # (docs/INTEGRATIONS.md "Exit codes"); zeek never exits 1. Their runtimes
 # are unmeasured on the target Mac, hence a conservative 300 s. status,
 # rules, rulesets and alerts only read: exit 1 there is a failure. No
-# mark-alert here: it looks alerts up by id alone (docs/GUI_ROADMAP.md G2.5).
 _SCAN_TIMEOUT = 300
 
 
@@ -246,7 +243,6 @@ def confirmed_args(confirm, title: str, body: str, args):
     return args if confirm(title, body) else None
 
 
-# ---------- investigate (docs/GUI_ROADMAP.md G5) ----------
 
 # Exactly the parser's choices for `investigate show <entity_type>`;
 # tests/test_gui_investigate.py fails if the two drift apart.

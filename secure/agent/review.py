@@ -3,7 +3,6 @@ secure/agent/review.py — Phase 38 (Part 2: Supervised Agentic
 Development & Self-Healing — "Independent Reviewer").
 
 Makes the second local model an independent reviewer of non-trivial
-repairs. Governing text, verbatim (docs/ROADMAP_PART2_PHASES_38_47.md):
 
     "Make the second local model an independent reviewer of non-trivial
     repairs... The reviewer does not determine test success.

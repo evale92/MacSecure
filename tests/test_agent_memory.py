@@ -1,7 +1,6 @@
 """tests/test_agent_memory.py — Phase 45 ("Maintenance Memory").
 
 Acceptance criterion under test (verbatim, from
-docs/ROADMAP_PART2_PHASES_38_47.md):
 
     "A later matching failure can retrieve relevant historical repair
     evidence while preserving revision/context differences and without

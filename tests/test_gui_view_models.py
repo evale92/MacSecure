@@ -1,6 +1,5 @@
 """
 Tests for secure_gui/view_models.py: the Tk-free decisions extracted from
-the view closures (docs/GUI_EXTRACTION_AUDIT.md). Pilot: A5, the mark
 request that baseline_view and alerts_view build before dispatching.
 
 The expected strings are the ones each view built inline before the

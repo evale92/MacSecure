@@ -1,7 +1,6 @@
 """tests/test_agent_review.py — Phase 38 ("Independent Reviewer").
 
 Acceptance criterion under test (verbatim, from
-docs/ROADMAP_PART2_PHASES_38_47.md):
 
     "A non-trivial candidate repair can be independently reviewed, its
     assessment is persisted/auditable, deterministic test results

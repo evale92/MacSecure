@@ -1,5 +1,4 @@
 """
-The GUI's "Investigate Entity…" command (docs/GUI_ROADMAP.md G5):
 view_models.investigate_show_request() turns the operator's type and key
 into `secure investigate show` argv, or a refusal.
 

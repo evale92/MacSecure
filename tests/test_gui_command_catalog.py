@@ -1,6 +1,5 @@
 """
 Tests for the GUI command catalog (secure_gui/view_models.py) and the
-parts of secure_gui.py that consume it (docs/GUI_ROADMAP.md, step G1).
 
 The catalog is the argv contract between the GUI and the CLI. Every entry
 must still parse with the real parser and reach the handler it claims, so
@@ -96,7 +95,6 @@ _EXPECTED = {
     # exit 2), so 1 is a detection gap to review. It records a run; its 21
     # synthetic scenarios took 1.2 s in a temp app dir, so the default 60 s.
     # Every other G4 command returns only 0. `detect sync` is left out on
-    # purpose: it writes the rule registry (docs/GUI_ROADMAP.md G4).
     # threatintel providers/history make no network call (Q2).
     "Run Validation Suite": (_VD, ("validate", "run"), v.cmd_validate_run, True, 60),
     "List Validation Runs": (_VD, ("validate", "list"), v.cmd_validate_list, False, 60),
@@ -135,7 +133,6 @@ def test_the_catalog_holds_exactly_the_expected_commands_in_their_categories():
 def test_no_catalog_command_marks_an_alert():
     # Marking known removes an alert from review. Integration mark-alert
     # looks the alert up by id alone, so it stays out of the catalog until
-    # it refuses another integration's alert (docs/GUI_ROADMAP.md G2.5).
     assert not any("mark" in part for entry in COMMAND_CATALOG for part in entry.args)
 
 

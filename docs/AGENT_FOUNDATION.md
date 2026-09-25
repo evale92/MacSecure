@@ -1046,7 +1046,6 @@ branch is not a test, and it will report success forever.
 
 Phases 38-47 were built in one continuous session after the Phase 37
 handoff. The verbatim governing roadmap is saved at
-`docs/ROADMAP_PART2_PHASES_38_47.md`; per-phase results are in
 `PROJECT_NOTES.md`. This section is the map.
 
 ### What each phase added

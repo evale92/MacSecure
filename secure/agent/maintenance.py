@@ -3,7 +3,6 @@ secure/agent/maintenance.py — Phase 47 (Part 2: Supervised Agentic
 Development & Self-Healing — "Supervised Autonomous Maintenance").
 
 The single bounded loop that integrates everything Part 2 built.
-Governing flow, verbatim (docs/ROADMAP_PART2_PHASES_38_47.md):
 
     HEALTH / TESTS -> FAILURE DETECTED -> REPRODUCE -> PRIMARY CODER ->
     ISOLATED REPAIR -> ACTUAL GIT DIFF -> DETERMINISTIC TESTS ->
@@ -28,7 +27,6 @@ the owning phase does them.
 
 Phase 47 originally stopped at REPORTING promotion eligibility, because
 nothing in the Part 2 roadmap authorized writing to the live checkout.
-Phase 47.5 (docs/PHASE_47_5.md) narrowly authorizes it for fully
 VERIFIED SAFE_PROJECT_CODE repairs only.
 
 Two things about that authorization are load-bearing:

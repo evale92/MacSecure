@@ -1,5 +1,4 @@
 """
-The Alerts window's two newest sources (docs/GUI_ROADMAP.md G3):
 integration alerts and correlation chain alerts, and the argv contract for
 marking every kind of row the window can show.
 

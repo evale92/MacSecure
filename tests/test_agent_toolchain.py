@@ -2,7 +2,6 @@
 ("Dependency & Security Tool Maintenance").
 
 Acceptance criterion under test (verbatim, from
-docs/ROADMAP_PART2_PHASES_38_47.md):
 
     "Secure can identify and analyze representative dependency/tool
     maintenance situations and produce a verified proposal/change

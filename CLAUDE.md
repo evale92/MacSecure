@@ -47,7 +47,7 @@ AGENTS.md as binding on a dispatched session.
 A **defensive** macOS security application, built in phases: configuration and
 storage, then a point-in-time posture check (FileVault, firewall, Gatekeeper,
 SIP, updates, sharing), then continuity snapshots, then local device inventory.
-See `docs/PORTFOLIO_SUMMARY.md` for scope and phase coverage.
+See `docs/OVERVIEW.md` for scope and phase coverage.
 
 Everything it does is something you *request*. It is not a background watcher,
 and the distinction is load-bearing rather than a caveat — no daemon, no sudo,

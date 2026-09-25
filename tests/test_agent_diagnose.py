@@ -1,7 +1,6 @@
 """tests/test_agent_diagnose.py — Phase 43 ("Automated Failure Diagnosis").
 
 Acceptance criterion under test (verbatim, from
-docs/ROADMAP_PART2_PHASES_38_47.md):
 
     "Known synthetic failures can travel automatically from detection
     through reproduction, bounded-context diagnosis, isolated repair,

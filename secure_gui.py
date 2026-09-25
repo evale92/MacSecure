@@ -186,10 +186,11 @@ from secure_gui import tokens
 from secure_gui.alerts_view import open_alerts_window
 from secure_gui.baseline_view import open_baseline_window
 from secure_gui.performance_view import open_performance_window
-from secure_gui.agent_view import open_agent_window
+from secure_gui.agent_view import open_agent_view
 from secure_gui.change_requests_view import open_change_requests_window
 from secure_gui.remediation_view import open_remediation_window
 from secure_gui.components import confirm_action, mark_state_dialog, resolve_fonts
+from secure_gui.tile_view import TileView, TileCategory
 from secure_gui.view_models import (
     COMMAND_CATALOG,
     DEFAULT_TIMEOUT_SECONDS,
@@ -253,6 +254,11 @@ class SecureGUI(tk.Tk):
         self.geometry("870x640")
         self.minsize(730, 480)
 
+        # View mode: "list" (default) or "tiles"
+        self._view_mode = "list"
+        self._categories_frame: Optional[tk.Widget] = None
+        self._view_container: Optional[tk.Widget] = None
+
         # Commands run one at a time, in the order they were clicked.
         # Every button click just enqueues a job here; a single
         # background worker thread pulls jobs off and runs them
@@ -309,7 +315,25 @@ class SecureGUI(tk.Tk):
         left = tk.Frame(outer)
         left.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
 
-        tk.Label(left, text="Secure", font=self._fonts["title"]).pack(anchor="w")
+        # Title and view toggle
+        title_frame = tk.Frame(left)
+        title_frame.pack(anchor="w", fill=tk.X, pady=(0, 6))
+
+        tk.Label(title_frame, text="Secure", font=self._fonts["title"]).pack(side=tk.LEFT, anchor="w")
+
+        # View toggle button
+        self._view_toggle_btn = tk.Button(
+            title_frame,
+            text="📋 List",
+            font=self._fonts["body"],
+            bg="#f0f0f0",
+            relief=tk.FLAT,
+            padx=6,
+            pady=2,
+            command=self._toggle_view,
+        )
+        self._view_toggle_btn.pack(side=tk.RIGHT, anchor="e")
+
         tk.Label(
             left,
             text="Foundation control panel\n(plumbing + Phase 2 posture\nchecks — no live monitoring)",
@@ -338,29 +362,20 @@ class SecureGUI(tk.Tk):
         category_area = tk.Frame(left)
         category_area.pack(fill=tk.BOTH, expand=True)
 
-        canvas = tk.Canvas(category_area, highlightthickness=0, width=230)
-        scrollbar = tk.Scrollbar(category_area, orient="vertical", command=canvas.yview)
-        canvas.configure(yscrollcommand=scrollbar.set)
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.LEFT, fill=tk.Y)
+        self._canvas = tk.Canvas(category_area, highlightthickness=0, width=230)
+        self._scrollbar = tk.Scrollbar(category_area, orient="vertical", command=self._canvas.yview)
+        self._canvas.configure(yscrollcommand=self._scrollbar.set)
+        self._canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self._scrollbar.pack(side=tk.LEFT, fill=tk.Y)
 
-        categories_frame = tk.Frame(canvas)
-        categories_window = canvas.create_window((0, 0), window=categories_frame, anchor="nw")
-
-        def _on_frame_configure(_event=None):
-            canvas.configure(scrollregion=canvas.bbox("all"))
-
-        def _on_canvas_configure(event):
-            canvas.itemconfig(categories_window, width=event.width)
-
-        categories_frame.bind("<Configure>", _on_frame_configure)
-        canvas.bind("<Configure>", _on_canvas_configure)
+        self._categories_window_id: Optional[int] = None
+        self._category_area = category_area
 
         def _on_mousewheel(event):
             # macOS reports small delta values directly (no /120 scaling
             # like Windows) — this only needs to feel right on macOS,
             # the only platform this app targets.
-            canvas.yview_scroll(int(-1 * event.delta), "units")
+            self._canvas.yview_scroll(int(-1 * event.delta), "units")
 
         def _bind_mousewheel_recursive(widget) -> None:
             # <MouseWheel> only fires on the exact widget under the
@@ -372,43 +387,10 @@ class SecureGUI(tk.Tk):
             for child in widget.winfo_children():
                 _bind_mousewheel_recursive(child)
 
-        canvas.bind("<MouseWheel>", _on_mousewheel)
+        self._canvas.bind("<MouseWheel>", _on_mousewheel)
 
-        # The Alerts table is a pilot for a structured, non-console
-        # screen (see docs/DESIGN_SYSTEM.md) — it's a plain button, not
-        # a Command, because it opens a window directly rather than
-        # running a CLI subprocess itself. Placed first, above the
-        # per-domain categories, since it's meant to be the primary
-        # cross-cutting entry point once more domains adopt this
-        # pattern (see the GUI domain-mapping table in
-        # SOFTWARE_ENGINEERING_PLAN.md).
-        self._build_alerts_launcher(categories_frame)
-
-        # Phase 14.5 Stage D: Baseline & Anomalies, the first GUI
-        # representation Phase 14 has ever had. Same additive-button
-        # pattern as the Alerts table just above — see this file's
-        # module docstring ("this file is FROZEN from new per-category
-        # screens") for why this is a launcher method + button rather
-        # than a new _categories() entry.
-        self._build_baseline_launcher(categories_frame)
-
-        # Phase 30: Diagnostics -> Performance. Same additive-button
-        # pattern as Alerts/Baseline above — ordinary, always-on, no
-        # "Developer Mode" toggle (see secure/cli/diagnostics.py's own
-        # module docstring for why not).
-        self._build_performance_launcher(categories_frame)
-
-        # Phase 31: Agent -> Repairs. Same additive-button pattern as
-        # Alerts/Baseline/Performance above — ordinary, always-on;
-        # every action still shells out to `secure agent ...` /
-        # `secure ai changes ...`, never decides anything in Python.
-        self._build_agent_launcher(categories_frame)
-
-        # Phase 52: Remediation -> Automated Response.
-        self._build_remediation_launcher(categories_frame)
-
-        for category in self._categories():
-            self._build_category(categories_frame, category)
+        # Build initial list view
+        self._rebuild_categories_view()
 
         _bind_mousewheel_recursive(categories_frame)
 
@@ -449,6 +431,77 @@ class SecureGUI(tk.Tk):
         self._log(f"Python:  {_python_executable()}", "meta")
         self._log(f"Project: {PROJECT_ROOT}", "meta")
         self._log("Ready.\n", "meta")
+
+        # Build initial list view
+        self._rebuild_categories_view()
+
+    def _toggle_view(self) -> None:
+        """Switch between list and tile views."""
+        if self._view_mode == "list":
+            self._view_mode = "tiles"
+            self._view_toggle_btn.config(text="🔲 Tiles")
+        else:
+            self._view_mode = "list"
+            self._view_toggle_btn.config(text="📋 List")
+        self._rebuild_categories_view()
+
+    def _rebuild_categories_view(self) -> None:
+        """Clear and rebuild the categories view based on current mode."""
+        # Clear existing content
+        self._canvas.delete("all")
+
+        if self._view_mode == "list":
+            self._build_list_view()
+        else:
+            self._build_tile_view()
+
+    def _build_list_view(self) -> None:
+        """Build the traditional list-based button view."""
+        categories_frame = tk.Frame(self._canvas)
+
+        def _on_frame_configure(_event=None):
+            self._canvas.configure(scrollregion=self._canvas.bbox("all"))
+
+        def _on_canvas_configure(event):
+            self._canvas.itemconfig(self._categories_window_id, width=event.width)
+
+        categories_frame.bind("<Configure>", _on_frame_configure)
+        self._canvas.bind("<Configure>", _on_canvas_configure)
+
+        # Add special launchers
+        self._build_alerts_launcher(categories_frame)
+        self._build_baseline_launcher(categories_frame)
+        self._build_performance_launcher(categories_frame)
+        self._build_agent_launcher(categories_frame)
+        self._build_remediation_launcher(categories_frame)
+
+        # Add regular categories
+        for category in self._categories():
+            self._build_category(categories_frame, category)
+
+        self._categories_window_id = self._canvas.create_window((0, 0), window=categories_frame, anchor="nw")
+
+    def _build_tile_view(self) -> None:
+        """Build the tile-based category view with hover dropdowns."""
+        # Convert categories to TileCategory objects
+        tile_categories = []
+        for category in self._categories():
+            commands = [(cmd.label, cmd.argv() if callable(cmd.argv) else cmd.argv, cmd.nonzero_is_finding) for cmd in category.commands]
+            tile_categories.append(TileCategory(category.title, commands))
+
+        tile_view = TileView(
+            self._canvas,
+            tile_categories,
+            self._run_command_from_tile,
+            self._fonts,
+        )
+
+        self._categories_window_id = self._canvas.create_window((0, 0), window=tile_view, anchor="nw")
+
+    def _run_command_from_tile(self, label: str, argv: List[str], nonzero_is_finding: bool) -> None:
+        """Wrapper to run a command from tile view."""
+        cmd = Command(label, (lambda a=argv: a), nonzero_is_finding)
+        self._run_command(cmd)
 
     def _build_alerts_launcher(self, parent: tk.Widget) -> None:
         box = tk.LabelFrame(parent, text="Alerts", padx=8, pady=8, font=self._fonts["body_bold"])

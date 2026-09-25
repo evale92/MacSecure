@@ -129,18 +129,23 @@ textarea { resize: vertical; min-height: 60px; width: 100%; }
 <body>
     <header class="top">
         <div>
-            <div class="eyebrow">System Monitoring</div>
-            <h1>🔐 Secure Dashboard</h1>
-            <p>Security posture and app diagnostics.</p>
+            <div class="eyebrow">Secure · macOS Monitor</div>
+            <h1>🔐 Security & Health Dashboard</h1>
+            <p>Real-time posture of your Mac and app diagnostics.</p>
         </div>
         <div class="head-right">
-            <div style="display: flex; gap: 8px; align-items: center;">
-                <button id="view-security" class="primary" onclick="switchView('security')" style="border-radius: 8px 0 0 8px;">🛡️ Security</button>
-                <button id="view-developer" onclick="switchView('developer')" style="border-radius: 0 8px 8px 0;">⚙️ Developer</button>
-            </div>
-            <button id="refresh" class="primary" onclick="loadDashboard()" style="margin-left: 10px;">Refresh</button>
+            <button id="refresh" class="primary" onclick="loadDashboard()">Refresh</button>
         </div>
     </header>
+
+    <nav class="report" aria-label="Views" style="display: flex; gap: 4px; flex-wrap: wrap; padding: 10px clamp(16px, 4vw, 48px) 0; border-bottom: 1px solid var(--line);">
+        <button id="view-security" class="nav-tab active" onclick="switchView('security')" style="padding: 7px 14px; border-radius: 8px 8px 0 0; color: var(--text-2); text-decoration: none; font-weight: 600; font-size: 14px; border: 1px solid transparent; border-bottom: 0; margin-bottom: -1px; background: var(--surface); border-color: var(--line); color: var(--text);">🛡️ Security</button>
+        <button id="view-developer" class="nav-tab" onclick="switchView('developer')" style="padding: 7px 14px; border-radius: 8px 8px 0 0; color: var(--text-2); text-decoration: none; font-weight: 600; font-size: 14px; border: 1px solid transparent; border-bottom: 0; margin-bottom: -1px;">⚙️ Developer</button>
+    </nav>
+
+    <div id="alarm-banner" style="display: none; background: #d03b3b; color: #fff; padding: 12px clamp(16px, 4vw, 48px); border-bottom: 1px solid #b82e2e; font-weight: 700; text-decoration: none; font-size: 14px;">
+        ⚠️ <span id="alarm-text"></span>
+    </div>
 
     <main>
         <!-- Security Health View -->
@@ -194,6 +199,11 @@ textarea { resize: vertical; min-height: 60px; width: 100%; }
                         <tbody id="alerts-list"></tbody>
                     </table>
                 </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; gap: 12px; padding: 0 10px;">
+                    <button id="prev-page" onclick="prevPage()" style="padding: 6px 12px; font-size: 13px;">← Previous 20</button>
+                    <span id="page-info" style="font-size: 12px; color: var(--muted);">—</span>
+                    <button id="next-page" onclick="nextPage()" style="padding: 6px 12px; font-size: 13px;">Next 20 →</button>
+                </div>
             </div>
         </div>
 
@@ -232,7 +242,24 @@ textarea { resize: vertical; min-height: 60px; width: 100%; }
 
     <script>
 let currentView = 'security';
+let currentPage = 0;
+let allAlerts = [];
 const severityIcons = { CRITICAL: '🔴', HIGH: '🟠', MEDIUM: '🟡', LOW: '🟢' };
+
+function nextPage() {
+  const maxPage = Math.ceil(allAlerts.length / 20) - 1;
+  if (currentPage < maxPage) {
+    currentPage++;
+    renderAlerts();
+  }
+}
+
+function prevPage() {
+  if (currentPage > 0) {
+    currentPage--;
+    renderAlerts();
+  }
+}
 
 function dot(severity) {
   const colors = { CRITICAL: 'var(--critical)', HIGH: 'var(--warning)', MEDIUM: '#f39c12', LOW: 'var(--good)' };
@@ -244,13 +271,18 @@ function switchView(view) {
   document.getElementById('security-view').style.display = view === 'security' ? 'block' : 'none';
   document.getElementById('developer-view').style.display = view === 'developer' ? 'block' : 'none';
 
-  document.getElementById('view-security').style.background = view === 'security' ? 'var(--accent)' : 'var(--surface)';
-  document.getElementById('view-security').style.color = view === 'security' ? '#fff' : 'var(--text)';
-  document.getElementById('view-security').style.borderColor = view === 'security' ? 'var(--accent)' : 'var(--line)';
+  const secBtn = document.getElementById('view-security');
+  const devBtn = document.getElementById('view-developer');
 
-  document.getElementById('view-developer').style.background = view === 'developer' ? 'var(--accent)' : 'var(--surface)';
-  document.getElementById('view-developer').style.color = view === 'developer' ? '#fff' : 'var(--text)';
-  document.getElementById('view-developer').style.borderColor = view === 'developer' ? 'var(--accent)' : 'var(--line)';
+  secBtn.style.background = view === 'security' ? 'var(--surface)' : 'transparent';
+  secBtn.style.borderColor = view === 'security' ? 'var(--line)' : 'transparent';
+  secBtn.style.color = 'var(--text)';
+  secBtn.classList.toggle('active', view === 'security');
+
+  devBtn.style.background = view === 'developer' ? 'var(--surface)' : 'transparent';
+  devBtn.style.borderColor = view === 'developer' ? 'var(--line)' : 'transparent';
+  devBtn.style.color = 'var(--text)';
+  devBtn.classList.toggle('active', view === 'developer');
 
   if (view === 'security') loadSecurityView();
   else loadDeveloperView();
@@ -344,28 +376,51 @@ function buildDeveloperKpis(diag) {
   const checkPass = parseInt(diag.check_pass) || 0;
   const checkWarn = parseInt(diag.check_warning) || 0;
   const checkFail = parseInt(diag.check_fail) || 0;
+  const total = checkPass + checkWarn + checkFail;
 
   const health = `
     <div style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2);">
-      <div style="font-weight: 600; margin-bottom: 4px;">✓ Posture Checks</div>
-      <div style="font-size: 12px; color: var(--good);">${checkPass} PASS</div>
-      ${checkWarn > 0 ? `<div style="font-size: 12px; color: var(--warning);">${checkWarn} WARNING</div>` : ''}
-      ${checkFail > 0 ? `<div style="font-size: 12px; color: var(--critical);">${checkFail} FAIL</div>` : ''}
+      <div style="font-weight: 600; margin-bottom: 8px;">✓ Posture Checks</div>
+      <div style="display: flex; gap: 12px; font-size: 13px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 4px;">
+          <span class="dot" style="background: var(--good); width: 10px; height: 10px;">✓</span>
+          <span>${checkPass}/${total} PASS</span>
+        </div>
+        ${checkWarn > 0 ? `<div style="display: flex; align-items: center; gap: 4px;">
+          <span class="dot" style="background: var(--warning); width: 10px; height: 10px;">⚠</span>
+          <span>${checkWarn} WARNING</span>
+        </div>` : ''}
+        ${checkFail > 0 ? `<div style="display: flex; align-items: center; gap: 4px;">
+          <span class="dot" style="background: var(--critical); width: 10px; height: 10px;">✕</span>
+          <span>${checkFail} FAIL</span>
+        </div>` : ''}
+      </div>
     </div>
     <div style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2);">
-      <div style="font-weight: 600; margin-bottom: 4px;">✓ Database Health</div>
-      <div style="font-size: 12px; color: var(--good);">Connected (${diag.db_mb})</div>
+      <div style="font-weight: 600; margin-bottom: 6px;">📊 Database & Events</div>
+      <div style="font-size: 12px; color: var(--text-2); line-height: 1.6;">
+        <div>Size: <strong>${diag.db_mb}</strong></div>
+        <div>Events: <strong>${diag.events}</strong> recorded</div>
+      </div>
     </div>
     <div style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2);">
-      <div style="font-weight: 600; margin-bottom: 4px;">📊 Event Stream</div>
-      <div style="font-size: 12px; color: var(--good);">${diag.events} events recorded</div>
-    </div>
-    <div style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2);">
-      <div style="font-weight: 600; margin-bottom: 4px;">⚠️ Findings</div>
-      <div style="font-size: 12px; color: var(--text-2);">${diag.findings} total</div>
+      <div style="font-weight: 600; margin-bottom: 6px;">⚡ Findings Summary</div>
+      <div style="font-size: 12px; color: var(--text-2);">
+        <div style="font-size: 20px; font-weight: 700; color: var(--text);">${diag.findings}</div>
+        <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">total in database</div>
+      </div>
     </div>
   `;
   document.getElementById('system-health').innerHTML = health;
+
+  // Show alarm banner for critical issues
+  const alarmBanner = document.getElementById('alarm-banner');
+  if (data.critical_count > 0) {
+    document.getElementById('alarm-text').textContent = `${data.critical_count} critical finding${data.critical_count > 1 ? 's' : ''} need${data.critical_count > 1 ? '' : 's'} attention`;
+    alarmBanner.style.display = 'block';
+  } else {
+    alarmBanner.style.display = 'none';
+  }
 }
 
 async function loadSecurityView() {
@@ -387,13 +442,28 @@ async function loadSecurityView() {
   buildSecurityKpis(data, diag);
   document.getElementById('alert-count').textContent = data.total + ' total';
 
+  // Store all alerts for pagination
+  allAlerts = data.alerts;
+  currentPage = 0;
+  renderAlerts();
+}
+
+function renderAlerts() {
   const tbody = document.getElementById('alerts-list');
-  if (data.alerts.length === 0) {
+  const pageSize = 20;
+  const start = currentPage * pageSize;
+  const end = start + pageSize;
+  const pageAlerts = allAlerts.slice(start, end);
+
+  if (allAlerts.length === 0) {
     tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted);">No alerts found</td></tr>`;
+    document.getElementById('page-info').textContent = '0 alerts';
+    document.getElementById('prev-page').disabled = true;
+    document.getElementById('next-page').disabled = true;
     return;
   }
 
-  tbody.innerHTML = data.alerts.map(alert => {
+  tbody.innerHTML = pageAlerts.map(alert => {
     const dt = new Date(alert.created_at);
     return `<tr>
       <td>${dot(alert.final_severity)} <span class="severity-badge severity-${alert.final_severity}">${alert.final_severity}</span></td>
@@ -413,6 +483,12 @@ async function loadSecurityView() {
       </td>
     </tr>`;
   }).join('');
+
+  // Update pagination controls
+  const maxPage = Math.ceil(allAlerts.length / pageSize) - 1;
+  document.getElementById('prev-page').disabled = currentPage === 0;
+  document.getElementById('next-page').disabled = currentPage >= maxPage;
+  document.getElementById('page-info').textContent = `${start + 1}–${Math.min(end, allAlerts.length)} of ${allAlerts.length} alerts`;
 }
 
 async function loadDeveloperView() {

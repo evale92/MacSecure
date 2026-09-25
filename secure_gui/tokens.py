@@ -272,3 +272,106 @@ EMPTY_STATE = {
         "body": "macOS has not granted the permission this needs yet. This is not the same as a clean result.",
     },
 }
+
+
+# ---------- UI chrome themes ----------
+#
+# These recolour the app's *chrome* only — window background, tiles,
+# buttons, headers. The severity_*/status_*/confidence_* palettes above
+# are a backend-owned vocabulary and are deliberately NOT themed: a
+# CRITICAL badge must stay red whatever skin the window is wearing.
+
+THEMES = {
+    # Warm coffee palette: Espresso / Roast Brown / Caramel / Latte / Foam
+    "Espresso": {
+        "accent":      "#5A3B2E",   # Roast Brown
+        "accent_text": "#FFF8F0",   # Foam
+        "app_bg":      "#F3E7D6",   # Latte Cream
+        "panel_bg":    "#FFF8F0",   # Foam
+        "tile_bg":     "#FFF8F0",
+        "tile_hover":  "#C9B19C",   # Caramel / Crema
+        "tile_border": "#C9B19C",
+        "text":        "#2B1B14",   # Espresso
+        "text_muted":  "#5A3B2E",
+        "btn_bg":      "#FFF8F0",
+        "btn_active":  "#C9B19C",
+    },
+    # Dark variant of the same palette
+    "Espresso Dark": {
+        "accent":      "#CBBBA0",
+        "accent_text": "#2B1B14",
+        "app_bg":      "#2B1B14",
+        "panel_bg":    "#3B2B24",
+        "tile_bg":     "#3B2B24",
+        "tile_hover":  "#8A6F57",
+        "tile_border": "#8A6F57",
+        "text":        "#E8DCC8",
+        "text_muted":  "#CBBBA0",
+        "btn_bg":      "#3B2B24",
+        "btn_active":  "#8A6F57",
+    },
+    "McAfee": {
+        "accent":      "#C01818",
+        "accent_text": "#ffffff",
+        "app_bg":      "#f4f4f4",
+        "panel_bg":    "#ffffff",
+        "tile_bg":     "#ffffff",
+        "tile_hover":  "#fdecec",
+        "tile_border": "#d8d8d8",
+        "text":        "#1f1f1f",
+        "text_muted":  "#6b6b6b",
+        "btn_bg":      "#ffffff",
+        "btn_active":  "#f2d6d6",
+    },
+    "Facebook": {
+        "accent":      "#1877F2",   # core Facebook blue
+        "accent_text": "#FFFFFF",
+        "app_bg":      "#F0F2F5",
+        "panel_bg":    "#FFFFFF",
+        "tile_bg":     "#FFFFFF",
+        "tile_hover":  "#E7F5FF",   # soft blue
+        "tile_border": "#898F9C",
+        "text":        "#000000",
+        "text_muted":  "#4B4C4F",
+        "btn_bg":      "#FFFFFF",
+        "btn_active":  "#E7F5FF",
+    },
+    "Discord": {
+        "accent":      "#5865F2",   # Blurple
+        "accent_text": "#FFFFFF",
+        "app_bg":      "#23272A",   # Shark
+        "panel_bg":    "#2C2F33",
+        "tile_bg":     "#2C2F33",
+        "tile_hover":  "#5865F2",
+        "tile_border": "#23272A",
+        "text":        "#FFFFFF",
+        "text_muted":  "#B5BAC1",
+        "btn_bg":      "#2C2F33",
+        "btn_active":  "#5865F2",
+    },
+}
+
+# Brand status colours, available to views that want them. Deliberately NOT
+# wired into severity_*/status_* — those stay a backend vocabulary.
+DISCORD_STATUS = {
+    "green": "#57F287", "yellow": "#FEE75C",
+    "fuchsia": "#EB459E", "red": "#ED4245",
+}
+
+DEFAULT_THEME = "Espresso"
+_active = DEFAULT_THEME
+
+
+def set_theme(name: str) -> None:
+    global _active
+    if name in THEMES:
+        _active = name
+
+
+def theme_name() -> str:
+    return _active
+
+
+def ui(key: str) -> str:
+    """Current theme's value for a chrome colour."""
+    return THEMES[_active][key]

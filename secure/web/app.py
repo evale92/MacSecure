@@ -256,8 +256,11 @@ function switchView(view) {
   else loadDeveloperView();
 }
 
-function buildSecurityKpis(data) {
-  const securityScore = Math.max(0, 100 - (data.critical_count * 15 + data.total * 3));
+function buildSecurityKpis(data, diag) {
+  diag = diag || {check_pass: '—', check_warning: '—', check_fail: '—'};
+  const criticalPenalty = Math.min(40, (data.critical_count || 0) * 20);
+  const highPenalty = Math.min(30, Math.max(0, (data.total || 0) - (data.critical_count || 0)) * 2);
+  const securityScore = Math.max(0, 100 - criticalPenalty - highPenalty);
   const kpiHtml = `<div class="kpis">
     <div class="kpi ${securityScore < 70 ? 'alarm' : securityScore < 85 ? 'warn' : 'good'}">
       <div class="label">Security Score</div>
@@ -282,7 +285,17 @@ function buildSecurityKpis(data) {
   </div>`;
   document.getElementById('security-kpis').innerHTML = kpiHtml;
 
+  const checkPass = parseInt(diag.check_pass) || 0;
+  const checkWarn = parseInt(diag.check_warning) || 0;
+  const checkFail = parseInt(diag.check_fail) || 0;
+
   const defenses = `
+    <div style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2);">
+      <div style="font-weight: 600; margin-bottom: 8px;">✓ Posture Checks</div>
+      <div style="font-size: 12px; color: var(--good);">${checkPass} PASS</div>
+      ${checkWarn > 0 ? `<div style="font-size: 12px; color: var(--warning);">${checkWarn} WARNING</div>` : ''}
+      ${checkFail > 0 ? `<div style="font-size: 12px; color: var(--critical);">${checkFail} FAIL</div>` : ''}
+    </div>
     <div style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2);">
       <div style="font-weight: 600; margin-bottom: 8px;">🔒 FileVault</div>
       <div style="font-size: 12px; color: var(--text-2);">Disk encryption enabled</div>
@@ -303,47 +316,53 @@ function buildSecurityKpis(data) {
   document.getElementById('system-defenses').innerHTML = defenses;
 }
 
-function buildDeveloperKpis() {
+function buildDeveloperKpis(diag) {
   const kpiHtml = `<div class="kpis">
     <div class="kpi">
       <div class="label">Memory Usage</div>
-      <div class="value">42 MB</div>
+      <div class="value">${diag.memory_mb}</div>
       <div class="note">Resident set size</div>
     </div>
     <div class="kpi">
-      <div class="label">CPU Impact</div>
-      <div class="value">0.3%</div>
-      <div class="note">Average usage</div>
+      <div class="label">CPU Time</div>
+      <div class="value">${diag.cpu_seconds}s</div>
+      <div class="note">Total runtime</div>
     </div>
     <div class="kpi">
-      <div class="label">Battery Impact</div>
-      <div class="value">Low</div>
-      <div class="note">Energy efficient</div>
+      <div class="label">Database Size</div>
+      <div class="value">${diag.db_mb}</div>
+      <div class="note">Storage used</div>
     </div>
     <div class="kpi">
-      <div class="label">Events/Sec</div>
-      <div class="value">124</div>
-      <div class="note">Processing rate</div>
+      <div class="label">Events</div>
+      <div class="value">${diag.events}</div>
+      <div class="note">Stored in database</div>
     </div>
   </div>`;
   document.getElementById('developer-kpis').innerHTML = kpiHtml;
 
+  const checkPass = parseInt(diag.check_pass) || 0;
+  const checkWarn = parseInt(diag.check_warning) || 0;
+  const checkFail = parseInt(diag.check_fail) || 0;
+
   const health = `
     <div style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2);">
-      <div style="font-weight: 600; margin-bottom: 4px;">✓ Daemon Status</div>
-      <div style="font-size: 12px; color: var(--good);">Running (PID: 4821)</div>
+      <div style="font-weight: 600; margin-bottom: 4px;">✓ Posture Checks</div>
+      <div style="font-size: 12px; color: var(--good);">${checkPass} PASS</div>
+      ${checkWarn > 0 ? `<div style="font-size: 12px; color: var(--warning);">${checkWarn} WARNING</div>` : ''}
+      ${checkFail > 0 ? `<div style="font-size: 12px; color: var(--critical);">${checkFail} FAIL</div>` : ''}
     </div>
     <div style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2);">
       <div style="font-weight: 600; margin-bottom: 4px;">✓ Database Health</div>
-      <div style="font-size: 12px; color: var(--good);">Connected (3.2 MB)</div>
+      <div style="font-size: 12px; color: var(--good);">Connected (${diag.db_mb})</div>
     </div>
     <div style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2);">
-      <div style="font-weight: 600; margin-bottom: 4px;">✓ Log Pipeline</div>
-      <div style="font-size: 12px; color: var(--good);">Processing events</div>
+      <div style="font-weight: 600; margin-bottom: 4px;">📊 Event Stream</div>
+      <div style="font-size: 12px; color: var(--good);">${diag.events} events recorded</div>
     </div>
     <div style="padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2);">
-      <div style="font-weight: 600; margin-bottom: 4px;">✓ API Health</div>
-      <div style="font-size: 12px; color: var(--good);">All endpoints ready</div>
+      <div style="font-weight: 600; margin-bottom: 4px;">⚠️ Findings</div>
+      <div style="font-size: 12px; color: var(--text-2);">${diag.findings} total</div>
     </div>
   `;
   document.getElementById('system-health').innerHTML = health;
@@ -359,7 +378,13 @@ async function loadSecurityView() {
   const resp = await fetch(`/api/alerts?${params}`);
   const data = await resp.json();
 
-  buildSecurityKpis(data);
+  let diag = {check_pass: '—', check_warning: '—', check_fail: '—'};
+  try {
+    const diagResp = await fetch('/api/diagnostics');
+    diag = await diagResp.json();
+  } catch (e) {}
+
+  buildSecurityKpis(data, diag);
   document.getElementById('alert-count').textContent = data.total + ' total';
 
   const tbody = document.getElementById('alerts-list');
@@ -390,12 +415,18 @@ async function loadSecurityView() {
   }).join('');
 }
 
-function loadDeveloperView() {
-  buildDeveloperKpis();
-  document.getElementById('events-processed').textContent = '12,847 events';
-  document.getElementById('last-scan').textContent = '2 minutes ago';
-  document.getElementById('db-size').textContent = '3.2 MB';
-  document.getElementById('feedback-rate').textContent = '12/124 (9.7%)';
+async function loadDeveloperView() {
+  try {
+    const response = await fetch('/api/diagnostics');
+    const diag = await response.json();
+    buildDeveloperKpis(diag);
+  } catch (error) {
+    console.error('Failed to load diagnostics:', error);
+    buildDeveloperKpis({
+      memory_mb: '—', cpu_seconds: '—', db_mb: '—', events: '—', findings: '—',
+      check_pass: '—', check_warning: '—', check_fail: '—'
+    });
+  }
 }
 
 function loadDashboard() {
@@ -519,6 +550,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def _get_diagnostics(self):
         """Get real diagnostics data from secure diagnostics commands."""
         import subprocess
+        import re
         diag = {
             "memory_mb": "—",
             "cpu_seconds": "—",
@@ -535,46 +567,56 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return diag
 
         try:
-            # Get performance metrics
+            # Get performance metrics: "Secure: 33.8MB peak RSS, 0.24s CPU time, db 5.9MB, 24 events, 632 findings"
             result = subprocess.run(
                 ["python3", "-m", "secure", "diagnostics", "performance"],
                 capture_output=True, text=True, timeout=5
             )
             if result.returncode == 0:
-                for line in result.stdout.split('\n'):
-                    if 'peak RSS' in line:
-                        parts = line.split(',')
-                        for part in parts:
-                            if 'peak RSS' in part:
-                                diag["memory_mb"] = part.split()[1]
-                            elif 'CPU time' in part:
-                                diag["cpu_seconds"] = part.split()[2].rstrip('s')
-                            elif 'db' in part:
-                                diag["db_mb"] = part.split()[1]
-                            elif 'events' in part:
-                                diag["events"] = part.split()[0]
-                            elif 'findings' in part:
-                                diag["findings"] = part.split()[0]
+                text = result.stdout
+                # Extract memory: "XXX peak RSS" or "XX.XMB peak RSS"
+                mem_match = re.search(r'([\d.]+M?B)\s+peak RSS', text)
+                if mem_match:
+                    diag["memory_mb"] = mem_match.group(1)
+                # Extract CPU: "X.XXs CPU time"
+                cpu_match = re.search(r'([\d.]+)s\s+CPU time', text)
+                if cpu_match:
+                    diag["cpu_seconds"] = cpu_match.group(1)
+                # Extract DB size: "db XMXB" or "db X.XMB"
+                db_match = re.search(r'db\s+([\d.]+M?B)', text)
+                if db_match:
+                    diag["db_mb"] = db_match.group(1)
+                # Extract events: "N events"
+                events_match = re.search(r'(\d+)\s+events', text)
+                if events_match:
+                    diag["events"] = events_match.group(1)
+                # Extract findings: "N findings"
+                findings_match = re.search(r'(\d+)\s+findings', text)
+                if findings_match:
+                    diag["findings"] = findings_match.group(1)
         except Exception:
             pass
 
         try:
-            # Get posture check results
+            # Get posture check results: "Summary: 12 PASS, 3 WARNING, 0 FAIL"
             result = subprocess.run(
                 ["python3", "-m", "secure", "check"],
                 capture_output=True, text=True, timeout=10
             )
             if result.returncode == 0:
-                for line in result.stdout.split('\n'):
-                    if 'Summary:' in line:
-                        parts = line.split()
-                        for i, part in enumerate(parts):
-                            if part == 'PASS,':
-                                diag["check_pass"] = parts[i-1]
-                            elif part == 'WARNING,':
-                                diag["check_warning"] = parts[i-1]
-                            elif part == 'FAIL':
-                                diag["check_fail"] = parts[i-1]
+                text = result.stdout
+                # Extract PASS count: "N PASS"
+                pass_match = re.search(r'(\d+)\s+PASS', text)
+                if pass_match:
+                    diag["check_pass"] = pass_match.group(1)
+                # Extract WARNING count: "N WARNING"
+                warning_match = re.search(r'(\d+)\s+WARNING', text)
+                if warning_match:
+                    diag["check_warning"] = warning_match.group(1)
+                # Extract FAIL count: "N FAIL"
+                fail_match = re.search(r'(\d+)\s+FAIL', text)
+                if fail_match:
+                    diag["check_fail"] = fail_match.group(1)
         except Exception:
             pass
 

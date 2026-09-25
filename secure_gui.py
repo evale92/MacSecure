@@ -186,7 +186,7 @@ from secure_gui import tokens
 from secure_gui.alerts_view import open_alerts_window
 from secure_gui.baseline_view import open_baseline_window
 from secure_gui.performance_view import open_performance_window
-from secure_gui.agent_view import open_agent_view
+from secure_gui.agent_view import open_agent_window
 from secure_gui.change_requests_view import open_change_requests_window
 from secure_gui.remediation_view import open_remediation_window
 from secure_gui.components import confirm_action, mark_state_dialog, resolve_fonts
@@ -211,6 +211,14 @@ def _python_executable() -> str:
     if venv_python.exists():
         return str(venv_python)
     return sys.executable
+
+
+# Trackpad pixels that must accumulate before one scroll unit is emitted.
+# Higher = slower/less sensitive. Tk 9 trackpads fire many tiny deltas.
+TRACKPAD_THRESHOLD = 34
+
+CONSOLE_W = 620
+MIN_W = 560
 
 
 @dataclass
@@ -257,6 +265,10 @@ class SecureGUI(tk.Tk):
         # View mode: "list" (default) or "tiles"
         self._view_mode = "list"
         self._categories_frame: Optional[tk.Widget] = None
+        self._tile_view: Optional[tk.Widget] = None
+        self._console_visible = True
+        self._console_space = True
+        self._console_pane: Optional[tk.Widget] = None
         self._view_container: Optional[tk.Widget] = None
 
         # Commands run one at a time, in the order they were clicked.
@@ -310,10 +322,12 @@ class SecureGUI(tk.Tk):
 
         outer = tk.Frame(self, padx=10, pady=10)
         outer.pack(fill=tk.BOTH, expand=True)
+        self._outer = outer
 
         # Left: cascading category -> button panel.
         left = tk.Frame(outer)
         left.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
+        self._left_pane = left
 
         # Title and view toggle
         title_frame = tk.Frame(left)
@@ -322,17 +336,29 @@ class SecureGUI(tk.Tk):
         tk.Label(title_frame, text="Secure", font=self._fonts["title"]).pack(side=tk.LEFT, anchor="w")
 
         # View toggle button
-        self._view_toggle_btn = tk.Button(
-            title_frame,
-            text="📋 List",
-            font=self._fonts["body"],
-            bg="#f0f0f0",
-            relief=tk.FLAT,
-            padx=6,
-            pady=2,
-            command=self._toggle_view,
-        )
+        self._view_toggle_btn = self._flat_button(title_frame, "📋 List", self._toggle_view)
         self._view_toggle_btn.pack(side=tk.RIGHT, anchor="e")
+
+        # Console toggle — only meaningful in tile view, where the console
+        # is detached into its own window. Hidden in list view.
+        self._console_btn = self._flat_button(title_frame, "🖥 Console", self._toggle_console_window)
+
+        self.update_button = self._flat_button(title_frame, "⟳ Update", self._update_and_restart)
+
+        # A Label + popup Menu, not tk.OptionMenu: OptionMenu is a Menubutton
+        # and macOS draws it with the native style, ignoring bg/fg — which
+        # left it an unreadable blank box in the dark themes.
+        self._theme_var = tk.StringVar(value=tokens.theme_name())
+        self._theme_btn = self._flat_button(
+            title_frame, f"🎨 {tokens.theme_name()}", self._open_theme_menu
+        )
+        self._theme_menu = tk.Menu(self, tearoff=0)
+        for _name in tokens.THEMES:
+            self._theme_menu.add_command(
+                label=_name, command=lambda n=_name: self._on_theme_change(n)
+            )
+
+        self.update_button = self._flat_button(title_frame, "⟳ Update", self._update_and_restart)
 
         tk.Label(
             left,
@@ -363,10 +389,7 @@ class SecureGUI(tk.Tk):
         category_area.pack(fill=tk.BOTH, expand=True)
 
         self._canvas = tk.Canvas(category_area, highlightthickness=0, width=230)
-        self._scrollbar = tk.Scrollbar(category_area, orient="vertical", command=self._canvas.yview)
-        self._canvas.configure(yscrollcommand=self._scrollbar.set)
-        self._canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        self._scrollbar.pack(side=tk.LEFT, fill=tk.Y)
+        self._canvas.pack(fill=tk.BOTH, expand=True)
 
         self._categories_window_id: Optional[int] = None
         self._category_area = category_area
@@ -387,16 +410,18 @@ class SecureGUI(tk.Tk):
             for child in widget.winfo_children():
                 _bind_mousewheel_recursive(child)
 
-        self._canvas.bind("<MouseWheel>", _on_mousewheel)
+        # wheel handled app-wide by _on_global_wheel
 
         # Build initial list view
         self._rebuild_categories_view()
 
-        _bind_mousewheel_recursive(categories_frame)
+        if self._categories_frame is not None:
+            pass  # wheel handled app-wide by _on_global_wheel
 
         # Right: console.
         right = tk.Frame(outer)
         right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self._console_pane = right
 
         header = tk.Frame(right)
         header.pack(fill=tk.X)
@@ -404,14 +429,12 @@ class SecureGUI(tk.Tk):
         tk.Button(header, text="Clear", command=self._clear_console).pack(side=tk.RIGHT)
         self.copy_button = tk.Button(header, text="Copy", command=self._copy_console)
         self.copy_button.pack(side=tk.RIGHT, padx=(0, 6))
-        self.update_button = tk.Button(header, text="Update", command=self._update_and_restart)
-        self.update_button.pack(side=tk.RIGHT, padx=(0, 6))
 
         # The console shows real command lines and real stdout/stderr
         # text — technical telemetry, not UI prose — so it keeps the
         # monospace font even though the rest of the window now uses
         # the system UI font. See docs/DESIGN_SYSTEM.md.
-        self.console = scrolledtext.ScrolledText(
+        self.console = tk.Text(
             right,
             bg=tokens.COLORS["console_bg"],
             fg=tokens.COLORS["console_fg"],
@@ -432,6 +455,21 @@ class SecureGUI(tk.Tk):
         self._log(f"Project: {PROJECT_ROOT}", "meta")
         self._log("Ready.\n", "meta")
 
+        # Console exists now — apply the mode the current view wants.
+        self._apply_console_mode()
+        self._apply_theme()
+
+        for seq in ("<MouseWheel>", "<Shift-MouseWheel>", "<Button-4>", "<Button-5>"):
+            self.bind_all(seq, self._on_global_wheel)
+        # Tk 9 on macOS: two-finger trackpad scrolling arrives here, NOT as
+        # <MouseWheel>. Without this the trackpad does nothing at all.
+        self.bind_all("<TouchpadScroll>", self._on_touchpad_scroll)
+        # Belt and braces: bind the canvas itself too. bind_all fires at the
+        # "all" tag, which some macOS Tk builds skip for scroll events.
+        for seq in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+            self._canvas.bind(seq, self._on_global_wheel)
+        self._canvas.bind("<TouchpadScroll>", self._on_touchpad_scroll)
+
         # Build initial list view
         self._rebuild_categories_view()
 
@@ -440,6 +478,8 @@ class SecureGUI(tk.Tk):
         if self._view_mode == "list":
             self._view_mode = "tiles"
             self._view_toggle_btn.config(text="🔲 Tiles")
+            # Tiles get the full width; the console is behind the toggle.
+            self._console_visible = False
         else:
             self._view_mode = "list"
             self._view_toggle_btn.config(text="📋 List")
@@ -447,17 +487,373 @@ class SecureGUI(tk.Tk):
 
     def _rebuild_categories_view(self) -> None:
         """Clear and rebuild the categories view based on current mode."""
-        # Clear existing content
+        # Tear down the tile view if it is up; it is a real packed widget,
+        # not a canvas item, so canvas.delete() would leave it on screen.
+        if self._tile_view is not None:
+            self._tile_view.destroy()
+            self._tile_view = None
         self._canvas.delete("all")
+        self._categories_frame = None
 
         if self._view_mode == "list":
+            # Restore the scrolling canvas the tile view hid.
+            if not self._canvas.winfo_ismapped():
+                self._canvas.pack(fill=tk.BOTH, expand=True)
             self._build_list_view()
         else:
             self._build_tile_view()
 
+        self._apply_console_mode()
+
+    # ---- console detach/reattach (tile view only) -------------------------
+    #
+    # Tk cannot reparent a widget, so instead of building a second console
+    # and mirroring output into it, the existing console pane is promoted
+    # to a real top-level window with `wm manage` and returned with
+    # `wm forget`. Same widget, same text buffer, no duplicated logging.
+
+    # ---- scrolling ---------------------------------------------------
+    #
+    # Per-widget <MouseWheel> bindings are fragile here: every tile, label
+    # and dropdown is its own widget, and dropdowns are created on hover
+    # after any recursive bind has already run. One bind_all handler on
+    # the toplevel sees every wheel event, walks up from whatever is under
+    # the pointer, and scrolls the first scrollable ancestor it finds.
+
+    def _scrollables(self):
+        """Widgets the wheel may scroll, most specific first."""
+        targets = [getattr(self, "console", None)]
+        if self._view_mode == "tiles" and self._tile_view is not None:
+            targets.append(getattr(self._tile_view, "canvas", None))
+        else:
+            targets.append(getattr(self, "_canvas", None))
+        return [t for t in targets if t is not None]
+
+    def _on_global_wheel(self, event):
+        # Record every arrival, even ones that scroll nothing — an empty log
+        # means no handler is firing at all, which is a different bug.
+        if getattr(self, "_wheel_seen", 0) < 40:
+            self._wheel_seen = getattr(self, "_wheel_seen", 0) + 1
+            try:
+                with open("/tmp/secure_wheel.log", "a") as fh:
+                    fh.write(f"ARRIVED delta={getattr(event,'delta','?')!r} "
+                             f"num={getattr(event,'num','?')!r} "
+                             f"widget={getattr(event,'widget','?')}\n")
+            except OSError:
+                pass
+        targets = self._scrollables()
+        if not targets:
+            return
+        widget = event.widget
+        # Walk up from the widget under the cursor looking for a target.
+        node = widget
+        for _ in range(40):
+            if node in targets:
+                self._wheel_scroll(node, event)
+                return "break"
+            parent_name = node.winfo_parent() if hasattr(node, "winfo_parent") else ""
+            if not parent_name:
+                break
+            node = node.nametowidget(parent_name)
+        # Pointer is over the pane but not inside any target's subtree
+        # (e.g. the tile grid's padding) — scroll the active view's canvas.
+        fallback = self._fallback_target()
+        if fallback is not None:
+            self._wheel_scroll(fallback, event)
+        return "break"
+
+    def _wheel_scroll(self, canvas, event) -> None:
+        """Scroll `canvas` from a wheel/trackpad event.
+
+        macOS trackpads are awkward here: delta can be a float, can be very
+        small, and for a slow two-finger drag can even arrive as 0. Treating
+        0 as "no scroll" is why this silently did nothing.
+        """
+        delta = getattr(event, "delta", 0) or 0
+        num = getattr(event, "num", None)
+
+        if num == 4:
+            step = -1
+        elif num == 5:
+            step = 1
+        else:
+            try:
+                d = float(delta)
+            except (TypeError, ValueError):
+                d = 0.0
+            if abs(d) >= 120:          # Windows-style notches
+                step = int(-d / 120) or (-1 if d > 0 else 1)
+            elif d:                     # macOS: small signed values
+                step = -1 if d > 0 else 1
+            else:
+                # delta == 0 on a slow trackpad drag. Fall back to the
+                # accumulated direction of the previous event.
+                step = getattr(self, "_last_wheel_step", 0)
+                if not step:
+                    return
+        self._last_wheel_step = step
+
+        # Respect "natural scrolling": Tk already reports the sign the user
+        # configured, so no inversion here on purpose.
+        try:
+            canvas.yview_scroll(step, "units")
+        except tk.TclError:
+            pass
+
+        # Diagnostics to a file, not the console: the console is read-only
+        # output, and a file can be read back without any UI interaction.
+        if getattr(self, "_wheel_debug", 0) < 40:
+            self._wheel_debug = getattr(self, "_wheel_debug", 0) + 1
+            try:
+                with open("/tmp/secure_wheel.log", "a") as fh:
+                    fh.write(f"delta={delta!r} num={num!r} step={step} "
+                             f"target={canvas.winfo_class()} "
+                             f"widget={getattr(event, 'widget', '?')}\n")
+            except OSError:
+                pass
+
+    # ---- Tk 9 trackpad ---------------------------------------------------
+    #
+    # Tk 9.0 stopped sending <MouseWheel> for two-finger trackpad scrolling
+    # on aqua and win32; it sends <TouchpadScroll> instead. Native widgets
+    # got updated class bindings, but a canvas+inner-frame scroll region
+    # relies on application bindings, so the events were dropped entirely.
+    #
+    # <TouchpadScroll> packs BOTH axes into event.delta: high 16 bits are
+    # deltaX, low 16 bits are deltaY, each a signed 16-bit value.
+
+    @staticmethod
+    def _unpack_touchpad_delta(raw):
+        try:
+            v = int(raw) & 0xFFFFFFFF
+        except (TypeError, ValueError):
+            return 0, 0
+        dy = v & 0xFFFF
+        dx = (v >> 16) & 0xFFFF
+        if dy >= 0x8000:
+            dy -= 0x10000
+        if dx >= 0x8000:
+            dx -= 0x10000
+        return dx, dy
+
+    def _on_touchpad_scroll(self, event):
+        dx, dy = self._unpack_touchpad_delta(getattr(event, "delta", 0))
+        if dy == 0:
+            return "break"
+
+        # Trackpads fire many high-resolution events; accumulate so one
+        # scroll unit is emitted per few pixels rather than per event.
+        self._tp_accum = getattr(self, "_tp_accum", 0) + dy
+        if abs(self._tp_accum) < TRACKPAD_THRESHOLD:
+            return "break"
+        step = -1 if self._tp_accum > 0 else 1
+        self._tp_accum = 0
+
+        target = self._target_under(getattr(event, "widget", None)) or self._fallback_target()
+        if target is not None:
+            try:
+                target.yview_scroll(step, "units")
+            except tk.TclError:
+                pass
+        if getattr(self, "_wheel_seen", 0) < 40:
+            self._wheel_seen = getattr(self, "_wheel_seen", 0) + 1
+            try:
+                with open("/tmp/secure_wheel.log", "a") as fh:
+                    fh.write(f"TOUCHPAD raw={getattr(event,'delta','?')!r} "
+                             f"dx={dx} dy={dy} step={step}\n")
+            except OSError:
+                pass
+        return "break"
+
+    def _target_under(self, widget):
+        """First scrollable ancestor of `widget`, or None."""
+        targets = self._scrollables()
+        node = widget
+        for _ in range(40):
+            if node is None:
+                return None
+            if node in targets:
+                return node
+            parent = node.winfo_parent() if hasattr(node, "winfo_parent") else ""
+            if not parent:
+                return None
+            try:
+                node = node.nametowidget(parent)
+            except tk.TclError:
+                return None
+        return None
+
+    def _fallback_target(self):
+        """The pane-level scrollable for the active view."""
+        if self._view_mode == "tiles" and self._tile_view is not None:
+            return getattr(self._tile_view, "canvas", None)
+        return getattr(self, "_canvas", None)
+
+    def _flat_button(self, parent, text, command):
+        """A button that actually honours theme colours.
+
+        macOS draws tk.Button with the native Aqua style and ignores `bg`,
+        so in a dark theme the text goes light on a light chrome button and
+        becomes unreadable. A Label with bindings renders exactly what we
+        ask for on every platform.
+        """
+        lbl = tk.Label(
+            parent, text=text, font=self._fonts["body"],
+            padx=10, pady=3, relief=tk.FLAT, borderwidth=1, cursor="hand2",
+        )
+        lbl.bind("<Button-1>", lambda e: command())
+        lbl.bind("<Enter>", lambda e: lbl.configure(bg=tokens.ui("btn_active")))
+        lbl.bind("<Leave>", lambda e: lbl.configure(
+            bg=tokens.ui("btn_active") if getattr(lbl, "_on", False) else tokens.ui("btn_bg")))
+        lbl._on = False
+        lbl._is_chrome = True      # skipped by _recolour_tree
+        return lbl
+
+    def _open_theme_menu(self) -> None:
+        """Post the theme menu under the button.
+
+        No grab_release() in a finally here: on macOS that fires while the
+        menu is still up and dismisses it immediately, which looks exactly
+        like the button doing nothing.
+        """
+        b = self._theme_btn
+        x = b.winfo_rootx()
+        y = b.winfo_rooty() + b.winfo_height() + 2
+        try:
+            self._theme_menu.tk_popup(x, y)
+        except tk.TclError:
+            self._theme_menu.post(x, y)
+
+    def _on_theme_change(self, name: str) -> None:
+        tokens.set_theme(name)
+        self._theme_var.set(name)
+        self._theme_btn.configure(text=f"🎨 {name}")
+        self._apply_theme()
+        self._rebuild_categories_view()
+
+    def _apply_theme(self) -> None:
+        """Recolour the window chrome. Severity/status colours are left
+        alone on purpose — they are a backend vocabulary, not decoration."""
+        bg = tokens.ui("app_bg")
+        fg = tokens.ui("text")
+        self.configure(bg=bg)
+        for w in (self._outer, getattr(self, "_category_area", None)):
+            if w is not None:
+                try:
+                    w.configure(bg=bg)
+                except tk.TclError:
+                    pass
+        try:
+            self._canvas.configure(bg=bg)
+        except tk.TclError:
+            pass
+        for btn in (self._view_toggle_btn, self._console_btn, self.update_button):
+            btn.configure(
+                bg=tokens.ui("btn_active") if getattr(btn, "_on", False) else tokens.ui("btn_bg"),
+                fg=fg, highlightbackground=tokens.ui("tile_border"),
+            )
+        self._theme_btn.configure(bg=tokens.ui("btn_bg"), fg=fg,
+                                  highlightbackground=tokens.ui("tile_border"))
+        self._theme_menu.configure(bg=tokens.ui("panel_bg"), fg=fg,
+                                   activebackground=tokens.ui("accent"),
+                                   activeforeground=tokens.ui("accent_text"))
+        self._recolour_tree(self._outer, bg, fg)
+
+    def _recolour_tree(self, widget, bg: str, fg: str) -> None:
+        for child in widget.winfo_children():
+            cls = child.winfo_class()
+            try:
+                if cls in ("Frame", "Labelframe"):
+                    child.configure(bg=bg)
+                elif cls == "Label":
+                    if getattr(child, "_is_chrome", False):
+                        continue   # button-styled labels keep their own colours
+                    child.configure(bg=bg, fg=fg)
+            except tk.TclError:
+                pass
+            self._recolour_tree(child, bg, fg)
+
+    def _apply_console_mode(self) -> None:
+        """List view keeps the console docked; tile view hides it behind a
+        toggle. The console is always a side panel of the main window —
+        never a floating window that can cover the tiles."""
+        if getattr(self, "_console_pane", None) is None:
+            return  # layout still being built; called again at the end
+        self.update_button.pack_forget()
+        # In tile view the left pane owns the full width (there is no docked
+        # console), so the tile grid centres against the window rather than
+        # against a narrow category column.
+        # pack_configure, NOT pack_forget+pack: re-packing appends the pane to
+        # the end of the parent's pack order, which flips it to the right of
+        # the console. pack_configure changes options and keeps the position.
+        if self._view_mode == "tiles":
+            # padx=0: the (0,10) right-only padding used in list view to
+            # separate the categories from the console made the tile
+            # gutters asymmetric by exactly 10px.
+            self._left_pane.pack_configure(fill=tk.BOTH, expand=True, padx=0)
+        else:
+            self._left_pane.pack_configure(fill=tk.Y, expand=False, padx=(0, 10))
+        if self._view_mode == "tiles":
+            self._console_btn.pack(side=tk.RIGHT, anchor="e", padx=(0, 6))
+            if self._console_visible:
+                self._show_console_panel()
+            else:
+                self._hide_console_panel()
+        else:
+            self._console_btn.pack_forget()
+            self._console_visible = True
+            self._show_console_panel()
+        # Packed last -> leftmost of the right-aligned button group.
+        self.update_button.pack(side=tk.RIGHT, anchor="e", padx=(0, 6))
+        self._theme_btn.pack_forget()
+        self._theme_btn.pack(side=tk.RIGHT, anchor="e", padx=(0, 6))
+
+    def _show_console_panel(self) -> None:
+        if not self._console_pane.winfo_manager():
+            self._console_pane.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self._console_btn._on = True
+        self._console_btn.configure(relief=tk.SOLID, bg=tokens.ui("btn_active"))
+        self._grow_for_console(True)
+
+    def _hide_console_panel(self) -> None:
+        if self._console_pane.winfo_manager():
+            self._console_pane.pack_forget()
+        self._console_btn._on = False
+        self._console_btn.configure(relief=tk.FLAT, bg=tokens.ui("btn_bg"))
+        self._grow_for_console(False)
+
+    def _grow_for_console(self, showing: bool) -> None:
+        """Widen/narrow the window so the console sits beside the tiles
+        instead of on top of them."""
+        self.update_idletasks()
+        try:
+            w = self.winfo_width()
+            h = self.winfo_height()
+            x = self.winfo_x()
+            y = self.winfo_y()
+        except tk.TclError:
+            return
+        if w <= 1:
+            return
+        if showing and not self._console_space:
+            self.geometry(f"{w + CONSOLE_W}x{h}+{x}+{y}")
+            self._console_space = True
+        elif not showing and self._console_space:
+            self.geometry(f"{max(w - CONSOLE_W, MIN_W)}x{h}+{x}+{y}")
+            self._console_space = False
+
+    def _toggle_console_window(self) -> None:
+        """Toggle the console side panel (tile view only)."""
+        self._console_visible = not self._console_visible
+        if self._console_visible:
+            self._show_console_panel()
+        else:
+            self._hide_console_panel()
+
     def _build_list_view(self) -> None:
         """Build the traditional list-based button view."""
         categories_frame = tk.Frame(self._canvas)
+        self._categories_frame = categories_frame
 
         def _on_frame_configure(_event=None):
             self._canvas.configure(scrollregion=self._canvas.bbox("all"))
@@ -486,21 +882,34 @@ class SecureGUI(tk.Tk):
         # Convert categories to TileCategory objects
         tile_categories = []
         for category in self._categories():
-            commands = [(cmd.label, cmd.argv() if callable(cmd.argv) else cmd.argv, cmd.nonzero_is_finding) for cmd in category.commands]
+            # Pass build_args through UNCALLED — some commands open a
+            # dialog to gather input, and that must happen on click,
+            # not while the tile grid is being built.
+            commands = [(cmd.label, cmd.build_args, cmd.nonzero_is_finding) for cmd in category.commands]
             tile_categories.append(TileCategory(category.title, commands))
 
+        # TileView owns its own canvas + scrollbar, so it must NOT be
+        # embedded in the outer scrolling canvas (a canvas inside a canvas
+        # window gets no size and renders nothing). Pack it directly and
+        # hide the list-view canvas instead.
+        self._canvas.pack_forget()
+
         tile_view = TileView(
-            self._canvas,
+            self._category_area,
             tile_categories,
             self._run_command_from_tile,
             self._fonts,
         )
+        tile_view.pack(fill=tk.BOTH, expand=True)
+        self._tile_view = tile_view
 
-        self._categories_window_id = self._canvas.create_window((0, 0), window=tile_view, anchor="nw")
+    def _run_command_from_tile(self, label: str, build_args, nonzero_is_finding: bool) -> None:
+        """Run a command chosen from the tile view.
 
-    def _run_command_from_tile(self, label: str, argv: List[str], nonzero_is_finding: bool) -> None:
-        """Wrapper to run a command from tile view."""
-        cmd = Command(label, (lambda a=argv: a), nonzero_is_finding)
+        `build_args` is the Command's own deferred arg builder, passed
+        through untouched so dialogs still prompt at click time.
+        """
+        cmd = Command(label, build_args, nonzero_is_finding)
         self._run_command(cmd)
 
     def _build_alerts_launcher(self, parent: tk.Widget) -> None:
@@ -1367,6 +1776,25 @@ class SecureGUI(tk.Tk):
             self._queue.put(("stdout", stdout.rstrip("\n")))
         if stderr:
             self._queue.put(("stderr", stderr.rstrip("\n")))
+
+        # Record the run in the Obsidian vault. Identical output does not
+        # create a second note — it bumps that note's run_count instead;
+        # only a changed result writes a new note, with a diff.
+        if not was_stopped:
+            try:
+                from secure.vaultlog import record_run
+                combined = (stdout or "") + (("\n" + stderr) if stderr else "")
+                res = record_run(label, args, proc.returncode, combined)
+                if res["status"] == "new" and res.get("changed_from"):
+                    self._queue.put(("meta",
+                        f"[vault] output CHANGED since last run — new note {res['digest']}"))
+                elif res["status"] == "repeat":
+                    self._queue.put(("meta",
+                        f"[vault] same result as before (seen {res['count']}x)"))
+                else:
+                    self._queue.put(("meta", f"[vault] first recorded run — note {res['digest']}"))
+            except Exception as exc:
+                self._queue.put(("stderr", f"[vault] could not record run: {exc}"))
 
         # These three outcomes are reported with visibly distinct
         # glyphs/wording (see tokens.RUN_OUTCOME) precisely so a real

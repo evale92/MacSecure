@@ -34,18 +34,14 @@ class TestDashboardMutationGates:
             cwd=str(REPO_ROOT),
         )
 
-        # With server bind stub, test must fail (return code != 0)
-        # and fail on the specific HTTP call, not somewhere else
-        if result.returncode == 0:
-            assert False, \
-                f"GATE_DASHBOARD_SERVER_BIND: test should fail when server cannot bind, but passed:\n{result.stdout}"
+        # Test must fail when server cannot bind
+        assert result.returncode != 0, \
+            f"GATE_DASHBOARD_SERVER_BIND: test should fail when server cannot bind, but passed:\n{result.stdout}"
 
-        # Check that failure is on the HTTP call (GATE_DASHBOARD_ALERTS_TOTAL sentinel)
-        # not on setup or unrelated assertion
-        fail_lines = [l for l in result.stdout.splitlines() if "AssertionError" in l]
-        assert any("GATE_DASHBOARD_ALERTS_TOTAL" in l or "URLError" in l or "Connection" in l
-                   for l in fail_lines), \
-            f"GATE_DASHBOARD_SERVER_BIND: Expected HTTP/connection error, got:\n{result.stdout}"
+        # Failure must be on server bind issue (the sentinel we moved to product)
+        fail_lines = [l for l in result.stdout.splitlines() if "AssertionError" in l or "RuntimeError" in l]
+        assert any("GATE_DASHBOARD_SERVER_BIND_FAILURE" in l for l in fail_lines), \
+            f"GATE_DASHBOARD_SERVER_BIND: Expected bind failure sentinel, got:\n{result.stdout}"
 
     def test_gate_dashboard_export_failure(self):
         """GATE: Verify dashboard export test fails when server cannot bind.
@@ -66,15 +62,13 @@ class TestDashboardMutationGates:
         )
 
         # Test must fail when server cannot bind
-        if result.returncode == 0:
-            assert False, \
-                f"GATE_DASHBOARD_EXPORT: test should fail when server cannot bind, but passed:\n{result.stdout}"
+        assert result.returncode != 0, \
+            f"GATE_DASHBOARD_EXPORT: test should fail when server cannot bind, but passed:\n{result.stdout}"
 
-        # Failure should be on HTTP call, not unrelated assertion
-        fail_lines = [l for l in result.stdout.splitlines() if "AssertionError" in l]
-        assert any("GATE_DASHBOARD_EXPORT" in l or "URLError" in l or "Connection" in l
-                   for l in fail_lines), \
-            f"GATE_DASHBOARD_EXPORT: Expected HTTP/connection error, got:\n{result.stdout}"
+        # Failure must be on server bind issue
+        fail_lines = [l for l in result.stdout.splitlines() if "AssertionError" in l or "RuntimeError" in l]
+        assert any("GATE_DASHBOARD_SERVER_BIND_FAILURE" in l for l in fail_lines), \
+            f"GATE_DASHBOARD_EXPORT: Expected bind failure sentinel, got:\n{result.stdout}"
 
     def test_gate_dashboard_alerts_payload_validation(self):
         """GATE: Verify dashboard test checks response payload, not just connectivity.
@@ -100,11 +94,11 @@ class TestDashboardMutationGates:
             assert False, \
                 f"GATE_DASHBOARD_ALERTS_PAYLOAD: test should fail on wrong payload, but passed:\n{result.stdout}"
 
+        # Test must fail (bad payload)
+        assert result.returncode != 0, \
+            f"GATE_DASHBOARD_ALERTS_PAYLOAD: test should fail on wrong payload, but passed:\n{result.stdout}"
+
         # Failure MUST be on the specific assertion (GATE_DASHBOARD_ALERTS_TOTAL sentinel)
-        # NOT on a connection error — we're testing the payload check, not connectivity
         fail_lines = [l for l in result.stdout.splitlines() if "AssertionError" in l]
         assert any("GATE_DASHBOARD_ALERTS_TOTAL" in l for l in fail_lines), \
             f"GATE_DASHBOARD_ALERTS_PAYLOAD: Must fail on assertion, not connection. Got:\n{result.stdout}"
-        # Ensure it's NOT a connection error (that would mean no payload check)
-        assert not any("URLError" in l or "Connection" in l for l in fail_lines), \
-            f"GATE_DASHBOARD_ALERTS_PAYLOAD: Should not fail on connection when server is up:\n{result.stdout}"

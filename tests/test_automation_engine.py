@@ -194,3 +194,20 @@ def test_auto_approval_policy_low_confidence():
         # Low confidence + low severity = HIGH risk, approval required
         assert policy.risk_level == RiskLevel.HIGH
         assert policy.approval_required is True
+
+
+def test_engine_handles_siem_failure():
+    """Test that automation engine handles SIEM transport failures gracefully."""
+    import os
+    from pathlib import Path
+    from secure.automation.engine import AutomationEngine
+
+    # Set SIEM transport stub to simulate failure
+    os.environ["SECURE_STUB_SIEM_TRANSPORT_BREAK"] = "true"
+    try:
+        engine = AutomationEngine()
+
+        # Engine should initialize even if SIEM transport is broken
+        assert engine is not None, "GATE_AUTOMATION_ENGINE_SIEM: engine failed to initialize with SIEM transport broken"
+    finally:
+        del os.environ["SECURE_STUB_SIEM_TRANSPORT_BREAK"]

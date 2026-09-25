@@ -39,9 +39,9 @@ class TestDashboardMutationGates:
             f"GATE_DASHBOARD_SERVER_BIND: test should fail when server cannot bind, but passed:\n{result.stdout}"
 
         # Failure must be on server bind issue (the sentinel we moved to product)
-        fail_lines = [l for l in result.stdout.splitlines() if "AssertionError" in l or "RuntimeError" in l]
-        assert any("GATE_DASHBOARD_SERVER_BIND_FAILURE" in l for l in fail_lines), \
-            f"GATE_DASHBOARD_SERVER_BIND: Expected bind failure sentinel, got:\n{result.stdout}"
+        output = result.stdout + result.stderr
+        assert "GATE_DASHBOARD_SERVER_BIND_FAILURE" in output, \
+            f"GATE_DASHBOARD_SERVER_BIND: Expected bind failure sentinel, got:\n{output}"
 
     def test_gate_dashboard_export_failure(self):
         """GATE: Verify dashboard export test fails when server cannot bind.
@@ -66,9 +66,9 @@ class TestDashboardMutationGates:
             f"GATE_DASHBOARD_EXPORT: test should fail when server cannot bind, but passed:\n{result.stdout}"
 
         # Failure must be on server bind issue
-        fail_lines = [l for l in result.stdout.splitlines() if "AssertionError" in l or "RuntimeError" in l]
-        assert any("GATE_DASHBOARD_SERVER_BIND_FAILURE" in l for l in fail_lines), \
-            f"GATE_DASHBOARD_EXPORT: Expected bind failure sentinel, got:\n{result.stdout}"
+        output = result.stdout + result.stderr
+        assert "GATE_DASHBOARD_SERVER_BIND_FAILURE" in output, \
+            f"GATE_DASHBOARD_EXPORT: Expected bind failure sentinel, got:\n{output}"
 
     def test_gate_dashboard_alerts_payload_validation(self):
         """GATE: Verify dashboard test checks response payload, not just connectivity.

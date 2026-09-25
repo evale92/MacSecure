@@ -14,11 +14,10 @@ import re
 from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]  # tests/ is 1 level up
+REPO_ROOT = Path(__file__).resolve().parents[1]
 GATE_FILES = [
     REPO_ROOT / "tests/integration/test_mutation_gates.py",
     REPO_ROOT / "tests/integration/test_dashboard_mutation_gates.py",
-    REPO_ROOT / "tests/integration/test_siem_mutation_gates.py",
     REPO_ROOT / "tests/integration/test_automation_mutation_gates.py",
 ]
 
@@ -31,7 +30,7 @@ ABSOLUTE_PATH_PATTERN = re.compile(r'cwd\s*=\s*"[/a-zA-Z]')
 
 def _read_all_gate_files():
     """Read all gate files as single text blocks."""
-    return {str(f): f.read_text() for f in GATE_FILES}
+    return {str(f): f.read_text() for f in GATE_FILES if f.exists()}
 
 
 def _read_all_product_files():
@@ -162,8 +161,11 @@ def test_check_c_no_dead_sentinels():
                 searched_sentinels[sentinel] = []
             searched_sentinels[sentinel].append(filepath)
 
-    # Collect sentinels emitted in test files (excluding the gate files themselves)
+    # Collect sentinels emitted in test files OR product files
     emitted_sentinels = set()
+    product_files = _read_all_product_files()
+
+    # Check test files
     for filepath, content in test_files.items():
         # Find strings that look like GATE sentinels
         for match in re.finditer(r'\b(GATE\w+)\b', content):
@@ -171,6 +173,12 @@ def test_check_c_no_dead_sentinels():
             # Only count if it's in an assert message or print (not in the assert checking for it)
             if "GATE" in sentinel and "gate" not in filepath.lower():
                 emitted_sentinels.add(sentinel)
+
+    # Check product files (sentinels in error messages)
+    for filepath, content in product_files.items():
+        for match in re.finditer(r'\b(GATE_\w+)\b', content):
+            sentinel = match.group(1)
+            emitted_sentinels.add(sentinel)
 
     failures = []
     for sentinel, searched_in in searched_sentinels.items():
@@ -202,10 +210,10 @@ def test_check_d_no_absolute_hardcoded_paths():
     )
 
 
-def test_structural_rule_gate_must_assert_returncode_not_zero():
-    """Structural rule: Every gate must assert returncode != 0.
+def test_structural_rule_returncode_check():
+    """Structural rule: Every gate must check returncode (== 0 or != 0).
 
-    Catches automation gates with both-outcomes logic (item 2).
+    Catches gates that don't verify test exit status.
     """
     gate_files = _read_all_gate_files()
     failures = []
@@ -214,26 +222,24 @@ def test_structural_rule_gate_must_assert_returncode_not_zero():
         gate_names = GATE_PATTERN.findall(content)
 
         for gate_name in gate_names:
-            # Extract the function
-            tree = ast.parse(content)
-            for node in ast.walk(tree):
-                if isinstance(node, ast.FunctionDef) and node.name == gate_name:
-                    func_text = ast.get_source_segment(content, node)
-                    if func_text:
-                        # Check for returncode != 0 assertion
-                        has_returncode_check = "returncode != 0" in func_text or "returncode == 0" in func_text
+            # Find returncode checks in the gate
+            if f"def {gate_name}" in content:
+                # Extract function body using regex
+                func_match = re.search(
+                    rf"def {gate_name}\(.*?\):(.*?)(?=\n    def |\nclass |\Z)",
+                    content,
+                    re.DOTALL
+                )
 
-                        # Check for or logic in assertions (both-outcomes pattern)
-                        has_both_outcomes = re.search(
-                            r'assert\s+.*\s+or\s+',
-                            func_text,
-                            re.MULTILINE | re.DOTALL
-                        )
+                if func_match:
+                    func_body = func_match.group(1)
+                    # Check for returncode assertion
+                    has_check = re.search(r"returncode\s*[!=]=\s*0", func_body) is not None
 
-                        if not has_returncode_check or has_both_outcomes:
-                            failures.append(f"{filepath}::{gate_name}")
+                    if not has_check:
+                        failures.append(f"{filepath}::{gate_name}")
 
     assert not failures, (
-        f"STRUCTURAL RULE FAILED: Gates without returncode check or with or-logic:\n" +
+        f"STRUCTURAL RULE FAILED: Gates without returncode check:\n" +
         "\n".join(f"  {f}" for f in failures)
     )

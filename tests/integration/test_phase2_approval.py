@@ -24,9 +24,6 @@ class TestApprovalFlow:
         This is the core Phase 2 gate: if approval enforcement is bypassed,
         this test should fail.
         """
-        # Check if approval bypass stub is active (for gate to work)
-        bypass = os.environ.get("SECURE_STUB_APPROVAL_BYPASS")
-
         executor = RemediationExecutor()
 
         # Execute MEDIUM-risk action, requiring approval

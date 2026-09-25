@@ -120,3 +120,37 @@ def test_dashboard_export_json():
 
         assert "alerts" in export_data, "GATE_DASHBOARD_EXPORT: missing 'alerts' key in export"
         assert len(export_data["alerts"]) == 1, f"GATE_DASHBOARD_EXPORT_COUNT: expected 1 alert, got {len(export_data['alerts'])}"
+
+
+def test_dashboard_diagnostics_api():
+    """Test GET /api/diagnostics endpoint returns expected structure."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "test.db"
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+
+        init_alerting_schema(conn)
+        init_feedback_schema(conn)
+        conn.close()
+
+        # Start server in background
+        DashboardHandler.db_path = str(db_path)
+        server_thread = threading.Thread(
+            target=lambda: run_server(host="127.0.0.1", port=5003, db_path=str(db_path)),
+            daemon=True
+        )
+        server_thread.start()
+        time.sleep(0.5)
+
+        # Test diagnostics endpoint
+        resp = urlopen("http://127.0.0.1:5003/api/diagnostics")
+        diag = json.loads(resp.read().decode())
+
+        # Must have all required fields
+        required_fields = ["memory_mb", "cpu_seconds", "db_mb", "events", "findings", "check_pass", "check_warning", "check_fail"]
+        for field in required_fields:
+            assert field in diag, f"GATE_DASHBOARD_DIAGNOSTICS_FIELDS: missing field '{field}' in response"
+
+        # Fields should be strings (may contain "—" for unmeasurable values)
+        for field in required_fields:
+            assert isinstance(diag[field], str), f"GATE_DASHBOARD_DIAGNOSTICS_TYPE: field '{field}' should be string, got {type(diag[field])}"

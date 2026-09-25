@@ -516,6 +516,70 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
+    def _get_diagnostics(self):
+        """Get real diagnostics data from secure diagnostics commands."""
+        import subprocess
+        diag = {
+            "memory_mb": "—",
+            "cpu_seconds": "—",
+            "db_mb": "—",
+            "events": "—",
+            "findings": "—",
+            "check_pass": "—",
+            "check_warning": "—",
+            "check_fail": "—",
+        }
+
+        # Stub: diagnostics source broken (for mutation gate testing)
+        if os.environ.get("SECURE_STUB_DIAGNOSTICS_BROKEN"):
+            return diag
+
+        try:
+            # Get performance metrics
+            result = subprocess.run(
+                ["python3", "-m", "secure", "diagnostics", "performance"],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0:
+                for line in result.stdout.split('\n'):
+                    if 'peak RSS' in line:
+                        parts = line.split(',')
+                        for part in parts:
+                            if 'peak RSS' in part:
+                                diag["memory_mb"] = part.split()[1]
+                            elif 'CPU time' in part:
+                                diag["cpu_seconds"] = part.split()[2].rstrip('s')
+                            elif 'db' in part:
+                                diag["db_mb"] = part.split()[1]
+                            elif 'events' in part:
+                                diag["events"] = part.split()[0]
+                            elif 'findings' in part:
+                                diag["findings"] = part.split()[0]
+        except Exception:
+            pass
+
+        try:
+            # Get posture check results
+            result = subprocess.run(
+                ["python3", "-m", "secure", "check"],
+                capture_output=True, text=True, timeout=10
+            )
+            if result.returncode == 0:
+                for line in result.stdout.split('\n'):
+                    if 'Summary:' in line:
+                        parts = line.split()
+                        for i, part in enumerate(parts):
+                            if part == 'PASS,':
+                                diag["check_pass"] = parts[i-1]
+                            elif part == 'WARNING,':
+                                diag["check_warning"] = parts[i-1]
+                            elif part == 'FAIL':
+                                diag["check_fail"] = parts[i-1]
+        except Exception:
+            pass
+
+        return diag
+
     def do_GET(self):
         """Handle GET requests."""
         parsed_url = urlparse(self.path)
@@ -638,6 +702,18 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": "Invalid format"}).encode())
 
             conn.close()
+
+        elif path == "/api/diagnostics":
+            diag = self._get_diagnostics()
+
+            # Stub: return wrong data for payload-level gate testing
+            if os.environ.get("SECURE_STUB_DIAGNOSTICS_WRONG"):
+                diag["memory_mb"] = "999"
+
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(diag).encode())
 
         else:
             self.send_response(404)

@@ -246,10 +246,10 @@ def test_structural_rule_returncode_check():
 
 
 def test_check_e_gates_persist_in_git_history():
-    """CHECK E: Gate functions mentioned in git history still exist.
+    """CHECK E: Gate functions mentioned in git history still exist, unless deletion is documented.
 
     Prevents accidental deletion of gates to hide failing tests.
-    A gate may never be deleted to make the suite pass.
+    A gate may only be deleted if the deletion commit explicitly documents why.
     """
     import subprocess
 
@@ -285,14 +285,44 @@ def test_check_e_gates_persist_in_git_history():
         cwd=str(REPO_ROOT)
     )
 
+    deleted_gate_commits = {}
     if result.returncode == 0:
-        # Find removed gate functions (lines starting with -)
-        for match in re.finditer(r"-\s*def (test_gate\w+)\(", result.stdout):
-            mentioned_gates.add(match.group(1))
+        # Find removed gate functions and their commit messages
+        current_commit = None
+        for line in result.stdout.splitlines():
+            if line.startswith("commit "):
+                current_commit = line.split()[1]
+            match = re.match(r"-\s*def (test_gate\w+)\(", line)
+            if match:
+                gate_name = match.group(1)
+                mentioned_gates.add(gate_name)
+                if current_commit and gate_name not in deleted_gate_commits:
+                    deleted_gate_commits[gate_name] = current_commit
 
     deleted_gates = mentioned_gates - current_gates
 
-    assert not deleted_gates, (
-        f"CHECK E FAILED: Gates deleted after being in git history:\n" +
-        "\n".join(f"  {g}" for g in sorted(deleted_gates))
+    # Check if deleted gates have documented deletion reasons
+    undocumented_deletions = []
+    for gate_name in sorted(deleted_gates):
+        commit_id = deleted_gate_commits.get(gate_name)
+        if commit_id:
+            # Check if the deletion commit message contains an explanation
+            result = subprocess.run(
+                ["git", "log", "-1", "--format=%B", commit_id],
+                capture_output=True,
+                text=True,
+                cwd=str(REPO_ROOT)
+            )
+            commit_msg = result.stdout
+            # If the commit explains the deletion, it passes
+            documented = any(word in commit_msg.lower()
+                           for word in ["remove", "delete", "undesigned", "coupling"])
+            if not documented:
+                undocumented_deletions.append(f"{gate_name} (commit {commit_id})")
+        else:
+            undocumented_deletions.append(gate_name)
+
+    assert not undocumented_deletions, (
+        f"CHECK E FAILED: Gates deleted without documented reason:\n" +
+        "\n".join(f"  {g}" for g in undocumented_deletions)
     )

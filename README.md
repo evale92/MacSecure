@@ -84,6 +84,19 @@ Standard library only, except three deliberate dependencies: bleak + pyobjc-fram
 - **Integration**: Normalizes output from external tools (osquery, YARA-X, Sigma, Suricata, Zeek, Velociraptor).
 - **Read-only**: Never modifies, disables, quarantines, or blocks anything.
 
+## Dashboard
+
+A modern web-based dashboard displays your system's security posture at a glance. Launch it with:
+
+```bash
+python3 dashboard_server.py --port 8765
+# Then open http://127.0.0.1:8765
+```
+
+The dashboard shows key metrics (system health, finding counts, scan times), findings by severity (critical/warning/healthy), sensor status with individual module health, and recent scan activity.
+
+See [docs/DASHBOARD.md](docs/DASHBOARD.md) for design principles and future enhancements.
+
 ## Full Command Reference
 
 ```

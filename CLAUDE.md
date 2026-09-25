@@ -15,7 +15,7 @@ actually read.
   and needs explicit human approval *before* any code is written.
 - **[ARCHITECTURE_RULES.md](docs/ARCHITECTURE_RULES.md)** — the normative subset of
   the structure. `docs/ARCHITECTURE.md` is the descriptive map.
-- **[TESTING_POLICY.md](TESTING_POLICY.md)** — how tests are written, named and
+- **[TESTING_POLICY.md](docs/TESTING_POLICY.md)** — how tests are written, named and
   trusted.
 
 `CLAUDE.md` is **not** in `_POLICY_FILENAMES`, so nothing here reaches a repair
@@ -47,11 +47,11 @@ AGENTS.md as binding on a dispatched session.
 A **defensive** macOS security application, built in phases: configuration and
 storage, then a point-in-time posture check (FileVault, firewall, Gatekeeper,
 SIP, updates, sharing), then continuity snapshots, then local device inventory.
-[PROJECT_NOTES.md](PROJECT_NOTES.md) has the phase-by-phase detail.
+See `docs/PORTFOLIO_SUMMARY.md` for scope and phase coverage.
 
 Everything it does is something you *request*. It is not a background watcher,
-and the distinction is load-bearing rather than a caveat — see "What's
-deliberately NOT here yet" in PROJECT_NOTES.
+and the distinction is load-bearing rather than a caveat — no daemon, no sudo,
+no autonomous changes.
 
 ## The two properties everything else is arranged around
 

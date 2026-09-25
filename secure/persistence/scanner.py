@@ -434,6 +434,14 @@ def _scan_persistence_items(
 
 def scan_persistence(conn: sqlite3.Connection) -> PersistenceScanResult:
     """Run one Process and Persistence Monitor scan and record the results."""
+    import os
+    import time
+
+    # Stub: simulate slow scanner (for mutation gate testing)
+    stub_latency = os.environ.get("SECURE_STUB_PERSISTENCE_LATENCY")
+    if stub_latency:
+        time.sleep(float(stub_latency) / 1000.0)  # Convert ms to seconds
+
     started_at = datetime.now(timezone.utc)
     now = started_at.isoformat()
     run_id = uuid.uuid4().hex[:12]

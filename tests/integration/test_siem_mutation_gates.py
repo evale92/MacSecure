@@ -7,31 +7,13 @@ Uses subprocess-based gates with unique sentinels (a31c573 pattern).
 import subprocess
 import sys
 import os
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class TestSIEMMutationGates:
     """Mutation gates for SIEM forwarder."""
-
-    def test_gate_siem_http_failure_detection(self):
-        """GATE: Verify SIEM tests fail when HTTP transport is broken.
-
-        Real test must FAIL (exit code != 0) when urlopen raises exception.
-        """
-        env = os.environ.copy()
-        env["SECURE_STUB_SIEM_HTTP_BREAK"] = "true"
-
-        result = subprocess.run(
-            [sys.executable, "-m", "pytest",
-             "tests/test_siem_integration.py::test_http_endpoint_construction",
-             "--tb=line", "-q", "-p", "no:cacheprovider"],
-            env=env,
-            capture_output=True,
-            text=True,
-            cwd="/Users/erickvale/Projects/secure-resource",
-        )
-
-        # Control: test should still pass without the stub (HTTP construction doesn't call send_)
-        # So for now, let's test send_alert directly via a pytest test
 
     def test_gate_siem_send_alert_fails_on_http_error(self):
         """GATE: Real send_alert must return False when HTTP fails.

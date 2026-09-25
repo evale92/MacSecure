@@ -7,15 +7,19 @@ Uses a31c573 pattern: subprocess, node id, --tb=line, unique sentinels.
 import subprocess
 import sys
 import os
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class TestAutomationMutationGates:
     """Mutation gates for automation dispatcher and SIEM integration."""
 
     def test_gate_automation_dispatcher_with_siem_stub(self):
-        """GATE: Verify automation dispatcher tests reference or fail on SIEM transport.
+        """GATE: Verify automation dispatcher tests fail when SIEM transport breaks.
 
-        Real tests must run with SIEM stub present without silent failures.
+        Real tests must respond to SIEM transport stub by failing (exit code != 0)
+        with a specific failure sentinel.
         """
         env = os.environ.copy()
         env["SECURE_STUB_SIEM_TRANSPORT_BREAK"] = "true"
@@ -27,19 +31,24 @@ class TestAutomationMutationGates:
             env=env,
             capture_output=True,
             text=True,
-            cwd="/Users/erickvale/Projects/secure-resource",
+            cwd=str(REPO_ROOT),
         )
 
-        # Tests should run - either pass if they don't use SIEM, or fail if they do
-        # The key is that they don't have silent try/except handlers
-        # A failed result here means the test actually tests SIEM integration
-        assert "error" not in result.stdout.lower() or "passed" in result.stdout.lower(), \
-            f"GATE_AUTOMATION_DISPATCHER_SIEM: Tests should not silently crash:\n{result.stdout}"
+        # Test must fail when SIEM transport is broken
+        if result.returncode == 0:
+            assert False, \
+                f"GATE_AUTOMATION_DISPATCHER_SIEM: test should fail when SIEM transport is broken, but passed:\n{result.stdout}"
+
+        # Failure must be on SIEM transport issue, not unrelated
+        fail_lines = [l for l in result.stdout.splitlines() if "AssertionError" in l]
+        assert any("GATE_AUTOMATION_DISPATCHER_SIEM" in l for l in fail_lines), \
+            f"GATE_AUTOMATION_DISPATCHER_SIEM: Expected specific failure sentinel, got:\n{result.stdout}"
 
     def test_gate_automation_engine_with_siem_stub(self):
         """GATE: Verify automation engine tests fail when SIEM fails.
 
-        Real tests must respond to SIEM transport stub by failing (exit code != 0).
+        Real tests must respond to SIEM transport stub by failing (exit code != 0)
+        with a specific failure sentinel.
         """
         env = os.environ.copy()
         env["SECURE_STUB_SIEM_TRANSPORT_BREAK"] = "true"
@@ -51,11 +60,15 @@ class TestAutomationMutationGates:
             env=env,
             capture_output=True,
             text=True,
-            cwd="/Users/erickvale/Projects/secure-resource",
+            cwd=str(REPO_ROOT),
         )
 
-        # If engine uses SIEM, stub should cause failures
-        # If it doesn't, tests should pass even with stub
-        # Either way, no silent failures allowed
-        assert result.returncode == 0 or "GATE_AUTOMATION_ENGINE_SIEM" in result.stdout or "AssertionError" in result.stdout, \
-            f"GATE_AUTOMATION_ENGINE: Tests must not silently fail:\n{result.stdout}"
+        # Test must fail when SIEM transport is broken
+        if result.returncode == 0:
+            assert False, \
+                f"GATE_AUTOMATION_ENGINE_SIEM: test should fail when SIEM transport is broken, but passed:\n{result.stdout}"
+
+        # Failure must be on SIEM transport issue, not unrelated
+        fail_lines = [l for l in result.stdout.splitlines() if "AssertionError" in l]
+        assert any("GATE_AUTOMATION_ENGINE_SIEM" in l for l in fail_lines), \
+            f"GATE_AUTOMATION_ENGINE_SIEM: Expected specific failure sentinel, got:\n{result.stdout}"

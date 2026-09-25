@@ -6,6 +6,9 @@ A real gate invokes the test by node ID and checks non-zero exit code.
 import subprocess
 import sys
 import os
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class TestMutationGates:
@@ -27,7 +30,7 @@ class TestMutationGates:
             env=env,
             capture_output=True,
             text=True,
-            cwd="/Users/erickvale/Projects/secure-resource",
+            cwd=str(REPO_ROOT),
         )
 
         # Real test must FAIL under stub
@@ -52,7 +55,7 @@ class TestMutationGates:
             env=env,
             capture_output=True,
             text=True,
-            cwd="/Users/erickvale/Projects/secure-resource",
+            cwd=str(REPO_ROOT),
         )
 
         # Real test must PASS without stub
@@ -77,7 +80,7 @@ class TestMutationGates:
             env=env,
             capture_output=True,
             text=True,
-            cwd="/Users/erickvale/Projects/secure-resource",
+            cwd=str(REPO_ROOT),
         )
 
         # Real test must FAIL under approval stub
@@ -101,7 +104,7 @@ class TestMutationGates:
             env=env,
             capture_output=True,
             text=True,
-            cwd="/Users/erickvale/Projects/secure-resource",
+            cwd=str(REPO_ROOT),
         )
 
         # Real test must PASS with enforcement

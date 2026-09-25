@@ -7,6 +7,9 @@ Uses a31c573 pattern: subprocess, node id, --tb=line, unique sentinels.
 import subprocess
 import sys
 import os
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class TestDashboardMutationGates:
@@ -28,7 +31,7 @@ class TestDashboardMutationGates:
             env=env,
             capture_output=True,
             text=True,
-            cwd="/Users/erickvale/Projects/secure-resource",
+            cwd=str(REPO_ROOT),
         )
 
         # With server bind stub, test must fail (return code != 0)
@@ -59,7 +62,7 @@ class TestDashboardMutationGates:
             env=env,
             capture_output=True,
             text=True,
-            cwd="/Users/erickvale/Projects/secure-resource",
+            cwd=str(REPO_ROOT),
         )
 
         # Test must fail when server cannot bind
@@ -89,7 +92,7 @@ class TestDashboardMutationGates:
             env=env,
             capture_output=True,
             text=True,
-            cwd="/Users/erickvale/Projects/secure-resource",
+            cwd=str(REPO_ROOT),
         )
 
         # Test must fail (bad payload)

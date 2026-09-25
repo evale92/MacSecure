@@ -385,6 +385,10 @@ def run_server(host: str = "127.0.0.1", port: int = 5000, db_path: str = None):
     if db_path is None:
         db_path = f"{Path.home()}/.secure/secure.db"
 
+    # Stub: server cannot bind (for mutation gate testing)
+    if os.environ.get("SECURE_STUB_DASHBOARD_SERVER_BREAK"):
+        raise RuntimeError("GATE_DASHBOARD_SERVER_BIND_FAILURE: server binding broken by stub")
+
     DashboardHandler.db_path = db_path
     server = HTTPServer((host, port), DashboardHandler)
     print(f"Dashboard: http://{host}:{port}", file=sys.stderr)

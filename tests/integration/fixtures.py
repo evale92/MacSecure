@@ -193,13 +193,6 @@ class GroundTruthInjector:
 
         Supports env var stub: SECURE_STUB_PERSISTENCE_LATENCY (for testing)
         """
-        import os
-
-        # Check for test stub
-        stub_latency = os.environ.get("SECURE_STUB_PERSISTENCE_LATENCY")
-        if stub_latency:
-            return True, float(stub_latency), "stub_test"
-
         start_time = time.time()
         try:
             result = scan_persistence(self.db_conn)

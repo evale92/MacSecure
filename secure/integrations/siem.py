@@ -326,6 +326,12 @@ class SIEMForwarder:
         Returns:
             True if sent successfully
         """
+        import os
+
+        # Stub: transport broken (for mutation gate testing)
+        if os.environ.get("SECURE_STUB_SIEM_TRANSPORT_BREAK"):
+            return False
+
         if not endpoint.enabled:
             return False
 

@@ -17,14 +17,6 @@ from secure.web.app import run_server, DashboardHandler
 
 def test_dashboard_alerts_api():
     """Test GET /api/alerts endpoint."""
-    # Stub: server cannot bind (for mutation gate testing)
-    if os.environ.get("SECURE_STUB_DASHBOARD_SERVER_BREAK"):
-        try:
-            resp = urlopen("http://127.0.0.1:5001/api/alerts")
-            assert False, "GATE_DASHBOARD_ALERTS_TOTAL: server should not respond when stub active"
-        except Exception as e:
-            raise AssertionError(f"GATE_DASHBOARD_ALERTS_TOTAL: server binding failed as expected: {e}")
-
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "test.db"
         conn = sqlite3.connect(db_path)
@@ -93,14 +85,6 @@ def test_dashboard_feedback_submission():
 
 def test_dashboard_export_json():
     """Test GET /api/export?format=json endpoint."""
-    # Stub: server cannot bind (for mutation gate testing)
-    if os.environ.get("SECURE_STUB_DASHBOARD_SERVER_BREAK"):
-        try:
-            resp = urlopen("http://127.0.0.1:5002/api/export?format=json")
-            assert False, "GATE_DASHBOARD_EXPORT: server should not respond when stub active"
-        except Exception as e:
-            raise AssertionError(f"GATE_DASHBOARD_EXPORT: server binding failed as expected: {e}")
-
     with tempfile.TemporaryDirectory() as tmpdir:
         db_path = Path(tmpdir) / "test.db"
         conn = sqlite3.connect(db_path)

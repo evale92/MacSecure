@@ -601,7 +601,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             # Get posture check results: "Summary: 12 PASS, 3 WARNING, 0 FAIL"
             result = subprocess.run(
                 ["python3", "-m", "secure", "check"],
-                capture_output=True, text=True, timeout=10
+                capture_output=True, text=True, timeout=30
             )
             if result.returncode == 0:
                 text = result.stdout

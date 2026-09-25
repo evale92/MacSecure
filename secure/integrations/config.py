@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from pathlib import Path
 from typing import List, Optional
@@ -71,6 +72,7 @@ class SIEMConfigManager:
 
         with open(cls.CONFIG_FILE, "w") as f:
             json.dump(data, f, indent=2)
+        os.chmod(cls.CONFIG_FILE, 0o600)
 
     @classmethod
     def add_endpoint(cls, endpoint: SIEMEndpoint) -> None:

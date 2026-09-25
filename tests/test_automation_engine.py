@@ -45,7 +45,8 @@ def test_confidence_high_severity_low_fp():
             alert_type="anomaly_events",
         )
 
-        assert should_auto is True
+        assert should_auto is True, \
+            f"GATE_AUTOMATION_ENGINE_FEEDBACK: engine should auto-approve high confidence HIGH severity alerts"
         assert "High confidence" in reason
 
 

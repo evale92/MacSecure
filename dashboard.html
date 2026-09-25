@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Secure · Dashboard</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f3f2ef;
+  --surface: #fcfcfb;
+  --surface-2: #f0efec;
+  --line: #deddd8;
+  --text: #0b0b0b;
+  --text-2: #52514e;
+  --muted: #6f6e69;
+  --accent: #2a78d6;
+  --good: #0ca30c;
+  --warning: #fab219;
+  --critical: #d03b3b;
+  --neutral: #8b8a85;
+  --q1: #cde2fb;
+  --q2: #86b6ef;
+  --q3: #3987e5;
+  --q4: #1c5cab;
+  --on-q3: #fff;
+  --shadow: 0 1px 2px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
+}
+
+@media(prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --page: #121211;
+    --surface: #1a1a19;
+    --surface-2: #232321;
+    --line: #34342f;
+    --text: #fff;
+    --text-2: #c3c2b7;
+    --muted: #9b9a91;
+    --accent: #3987e5;
+    --neutral: #8f8e86;
+    --q1: #184f95;
+    --q2: #256abf;
+    --q3: #5598e7;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--page);
+  color: var(--text);
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+
+header.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 22px clamp(16px, 4vw, 48px) 16px;
+  background: var(--page);
+  border-bottom: 1px solid var(--line);
+}
+
+.kicker, .eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+header h1 {
+  font-size: 30px;
+  letter-spacing: -.02em;
+  margin: 2px 0 0;
+  line-height: 1.15;
+}
+
+header p {
+  margin: 4px 0 0;
+  color: var(--text-2);
+  font-size: 13.5px;
+}
+
+.head-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+main {
+  max-width: 1320px;
+  margin: auto;
+  padding: 22px clamp(16px, 4vw, 48px) 40px;
+}
+
+h2 {
+  font-size: 16px;
+  margin: 0;
+  letter-spacing: -.005em;
+}
+
+h3 {
+  font-size: 14.5px;
+  margin: 6px 0;
+}
+
+p { margin: 6px 0; }
+
+.section { margin-top: 22px; }
+
+h2.section {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  margin: 4px 0 10px;
+}
+
+button, select, input {
+  font: inherit;
+  font-size: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 12px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+button {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button:hover { border-color: var(--muted); }
+button.primary, #refresh { background: var(--accent); border-color: var(--accent); color: #fff; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:disabled { opacity: .45; cursor: default; }
+
+.pill {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pill.alert { background: transparent; color: var(--critical); box-shadow: inset 0 0 0 1px var(--critical); }
+.pill.good { background: transparent; color: var(--good); box-shadow: inset 0 0 0 1px var(--good); }
+.pill.warning { background: transparent; color: var(--warning); box-shadow: inset 0 0 0 1px var(--warning); }
+
+.small { font-size: 12.5px; color: var(--muted); }
+.muted { color: var(--muted); }
+.num { font-variant-numeric: tabular-nums; }
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+  min-width: 0;
+}
+
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px 14px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.agg { font-size: 12.5px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.split.wide-left { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
+
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 6px; }
+
+.kpi {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 16px;
+  box-shadow: var(--shadow);
+  min-width: 0;
+}
+
+.kpi .label { font-size: 12.5px; color: var(--text-2); }
+.kpi .value { font-size: 28px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1.25; }
+.kpi .value.unknown { color: var(--muted); }
+.kpi .note { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.kpi.alarm { border-left: 4px solid var(--critical); }
+.kpi.warn { border-left: 4px solid var(--warning); }
+.kpi.good { border-left: 4px solid var(--good); }
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-decoration: none;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+
+.card:hover { border-color: var(--muted); }
+.card h3 { font-size: 16px; margin: 2px 0; }
+.card p { font-size: 13.5px; color: var(--text-2); margin: 0; }
+.card .clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 1px 8px 1px 4px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.dot {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  color: #fff;
+  font-size: 9.5px;
+  line-height: 1;
+  flex: none;
+}
+
+.warning {
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--warning);
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 11px 16px;
+  margin: 0 0 16px;
+  font-size: 13.5px;
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  align-items: center;
+}
+
+.controls input { flex: 1; min-width: 160px; }
+
+.scroll { max-height: 640px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { position: sticky; top: 0; background: var(--surface-2); z-index: 1; font-size: 11.5px; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: .05em; }
+
+tr.resolved td { opacity: .6; }
+tr.resolved:hover td { opacity: 1; }
+
+.metric { font-size: 28px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+
+.bars { display: flex; flex-direction: column; gap: 4px; }
+
+.barrow {
+  display: grid;
+  grid-template-columns: minmax(120px, 190px) minmax(0, 1fr) 92px;
+  gap: 10px;
+  align-items: center;
+  text-align: left;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 4px 6px;
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--text);
+  width: 100%;
+  cursor: pointer;
+}
+
+.barrow:hover { border-color: var(--line); background: var(--surface-2); }
+.barrow[aria-pressed=true] { border-color: var(--text); }
+
+.barrow .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.barrow .cnt { font-variant-numeric: tabular-nums; color: var(--text-2); font-size: 12px; text-align: right; }
+
+.track { height: 16px; display: flex; border-radius: 4px; overflow: hidden; background: transparent; }
+.track > span { height: 100%; min-width: 2px; border-right: 1px solid var(--surface); }
+.track > span:last-child { border-right: 0; }
+.track.bg { background: var(--surface-2); }
+
+.legend { display: flex; gap: 6px 12px; flex-wrap: wrap; margin-top: 8px; font-size: 12px; color: var(--text-2); }
+
+.strip {
+  display: flex;
+  height: 22px;
+  border-radius: 6px;
+  overflow: hidden;
+  margin: 6px 0;
+}
+
+.strip > * {
+  border: 0;
+  padding: 0;
+  border-radius: 0;
+  min-width: 3px;
+  height: 100%;
+  border-right: 2px solid var(--surface);
+}
+
+.strip > *:last-child { border-right: 0; }
+
+@media(max-width: 900px) {
+  .grid, .split, .split.wide-left { grid-template-columns: minmax(0, 1fr); }
+  .controls { flex-direction: column; }
+  .controls input { width: 100%; }
+  .barrow { grid-template-columns: 110px minmax(0, 1fr) 70px; }
+}
+</style>
+
+<header class="top">
+  <div>
+    <div class="eyebrow">macOS Security</div>
+    <h1>System Security Dashboard</h1>
+    <p>Security posture, findings, and system health at a glance.</p>
+  </div>
+  <div class="head-right">
+    <div id="status-info" role="status" aria-live="polite">Loading…</div>
+    <button id="refresh" onclick="refreshDashboard()">Refresh</button>
+  </div>
+</header>
+
+<main>
+  <div id="content"></div>
+</main>
+
+<script>
+'use strict';
+
+const content = document.getElementById('content');
+const statusInfo = document.getElementById('status-info');
+
+// Color/icon vocabulary for status
+const STATUS = {
+  'healthy': { icon: '✓', color: 'var(--good)' },
+  'warning': { icon: '!', color: 'var(--warning)' },
+  'critical': { icon: '✕', color: 'var(--critical)' },
+  'unknown': { icon: '?', color: 'var(--muted)' },
+};
+
+// Example sensor names (from secure-resource)
+const SENSORS = [
+  'Identity & Setup',
+  'Status',
+  'Security Posture',
+  'Continuity',
+  'Device Inventory',
+  'Active Connections',
+  'Listening Services',
+  'ARP Watch',
+  'Wi-Fi Security',
+];
+
+function el(tag, text, cls) {
+  const n = document.createElement(tag);
+  if (text !== undefined) n.textContent = text;
+  if (cls) n.className = cls;
+  return n;
+}
+
+function add(parent, ...nodes) {
+  nodes.forEach(n => {
+    if (n !== null && n !== undefined) parent.append(n);
+  });
+  return parent;
+}
+
+function dot(status) {
+  const s = STATUS[status] || STATUS.unknown;
+  const d = el('span', s.icon, 'dot');
+  d.style.background = s.color;
+  d.setAttribute('aria-hidden', 'true');
+  return d;
+}
+
+function chip(status, label) {
+  const c = el('span', undefined, 'chip');
+  add(c, dot(status), el('span', label || status));
+  return c;
+}
+
+function kpis(list) {
+  const row = el('div', undefined, 'kpis');
+  for (const [label, value, note, tone] of list) {
+    const k = el('div', undefined, 'kpi' + (tone ? ' ' + tone : ''));
+    add(k,
+      el('div', label, 'label'),
+      el('div', String(value), 'value' + (value === '—' ? ' unknown' : '')),
+      note ? el('div', note, 'note') : null
+    );
+    row.append(k);
+  }
+  return row;
+}
+
+function ago(seconds) {
+  if (seconds === null || seconds === undefined || !isFinite(seconds)) return '—';
+  const s = Math.abs(seconds);
+  if (s < 90) return Math.round(s) + ' s';
+  if (s < 5400) return Math.round(s / 60) + ' min';
+  if (s < 172800) return (s / 3600).toFixed(1) + 'h';
+  return (s / 86400).toFixed(1) + 'd';
+}
+
+function refreshDashboard() {
+  statusInfo.textContent = 'Refreshing…';
+  setTimeout(() => {
+    buildDashboard();
+    statusInfo.textContent = 'Updated just now';
+  }, 500);
+}
+
+function buildDashboard() {
+  content.replaceChildren();
+
+  // Simulate dashboard data
+  const now = Date.now() / 1000;
+  const lastScan = now - (15 * 60); // 15 min ago
+  const criticalCount = 2;
+  const warningCount = 5;
+  const healthyCount = SENSORS.length - criticalCount - warningCount;
+
+  // KPIs
+  content.append(kpis([
+    ['System Health', 'Safe', 'All critical sensors operational', healthyCount > 0 ? 'good' : 'alarm'],
+    ['Active Findings', criticalCount + warningCount, criticalCount + ' critical, ' + warningCount + ' warning', criticalCount > 0 ? 'alarm' : 'warn'],
+    ['Last Full Scan', ago(now - lastScan) + ' ago', 'Security posture baseline updated', null],
+    ['Sensor Coverage', SENSORS.length, 'modules monitoring security events', null],
+  ]));
+
+  // Section: Critical alerts
+  add(content,
+    el('div', 'Immediate attention', 'eyebrow'),
+    el('h2', 'Findings by severity', 'section')
+  );
+
+  const alertGrid = el('div', undefined, 'grid');
+  const criticalCard = el('div', undefined, 'card');
+  add(criticalCard,
+    el('div', undefined, 'section').appendChild(chip('critical', 'CRITICAL')),
+    el('h3', criticalCount + ' Finding' + (criticalCount !== 1 ? 's' : '')),
+    el('p', 'Requires immediate review and remediation', 'clamp')
+  );
+  alertGrid.append(criticalCard);
+
+  const warningCard = el('div', undefined, 'card');
+  add(warningCard,
+    el('div', undefined, 'section').appendChild(chip('warning', 'WARNING')),
+    el('h3', warningCount + ' Finding' + (warningCount !== 1 ? 's' : '')),
+    el('p', 'Monitor closely; review before next cycle', 'clamp')
+  );
+  alertGrid.append(warningCard);
+
+  const healthyCard = el('div', undefined, 'card');
+  add(healthyCard,
+    el('div', undefined, 'section').appendChild(chip('healthy', 'HEALTHY')),
+    el('h3', healthyCount + ' Sensor' + (healthyCount !== 1 ? 's' : '')),
+    el('p', 'All security checks passing', 'clamp')
+  );
+  alertGrid.append(healthyCard);
+
+  content.append(alertGrid);
+
+  // Section: Sensor status
+  add(content, el('h2', 'Security sensor status', 'section'));
+
+  const sensorPanel = el('section', undefined, 'panel');
+  const sensorHead = el('div', undefined, 'panel-head');
+  add(sensorHead,
+    el('h2', 'Module health'),
+    el('span', healthyCount + ' healthy · ' + warningCount + ' warning · ' + criticalCount + ' critical', 'agg')
+  );
+  sensorPanel.append(sensorHead);
+
+  const bars = el('div', undefined, 'bars');
+
+  // Simulate sensor status
+  const sensorStatus = [
+    { name: 'Device Inventory', status: 'healthy', findings: 0 },
+    { name: 'Active Connections', status: 'critical', findings: 2 },
+    { name: 'File Integrity', status: 'warning', findings: 1 },
+    { name: 'Listening Services', status: 'healthy', findings: 0 },
+    { name: 'Wi-Fi Security', status: 'warning', findings: 2 },
+    { name: 'Bluetooth', status: 'warning', findings: 2 },
+    { name: 'ARP Watch', status: 'healthy', findings: 0 },
+    { name: 'Process & Persistence', status: 'critical', findings: 1 },
+  ];
+
+  sensorStatus.forEach(sensor => {
+    const row = el('button', undefined, 'barrow');
+    row.type = 'button';
+    const lbl = el('span', sensor.name, 'lbl');
+    const track = el('div', undefined, 'track bg');
+    const seg = el('span');
+    seg.style.width = '100%';
+
+    const s = STATUS[sensor.status] || STATUS.unknown;
+    seg.style.background = s.color;
+    track.append(seg);
+
+    const cnt = el('span', sensor.findings + (sensor.findings === 1 ? ' finding' : ' findings'), 'cnt');
+    add(row, chip(sensor.status, sensor.status), lbl, track, cnt);
+    bars.append(row);
+  });
+
+  sensorPanel.append(bars);
+  content.append(sensorPanel);
+
+  // Section: Recent activity
+  add(content, el('h2', 'Recent scans & activity', 'section'));
+
+  const activityPanel = el('section', undefined, 'panel');
+  const actHead = el('div', undefined, 'panel-head');
+  add(actHead, el('h2', 'Last 48 hours'));
+  activityPanel.append(actHead);
+
+  const recentTable = el('table');
+  const thead = el('thead');
+  const tr = el('tr');
+  add(tr,
+    el('th', 'Operation'),
+    el('th', 'Status'),
+    el('th', 'Time'),
+    el('th', 'Result')
+  );
+  thead.append(tr);
+  recentTable.append(thead);
+
+  const tbody = el('tbody');
+  const recentOps = [
+    { op: 'Full system scan', status: 'completed', time: '15 min ago', result: '7 findings' },
+    { op: 'File integrity check', status: 'completed', time: '2h ago', result: '0 changes' },
+    { op: 'Connection sweep', status: 'completed', time: '4h ago', result: '3 suspicious' },
+    { op: 'Baseline update', status: 'completed', time: '1d ago', result: 'Baseline set' },
+  ];
+
+  recentOps.forEach(op => {
+    const tr = el('tr');
+    add(tr,
+      el('td', op.op),
+      el('td').appendChild(chip(op.status === 'completed' ? 'healthy' : 'warning', op.status)),
+      el('td', op.time, 'num'),
+      el('td', op.result)
+    );
+    tbody.append(tr);
+  });
+
+  recentTable.append(tbody);
+  activityPanel.append(recentTable);
+  content.append(activityPanel);
+
+  // Section: Quick actions
+  add(content, el('h2', 'Common actions', 'section'));
+
+  const actionGrid = el('div', undefined, 'grid');
+  const actions = [
+    { label: 'Full System Scan', desc: 'Run all security checks', cmd: 'secure run-all' },
+    { label: 'Security Posture', desc: 'System health status check', cmd: 'secure check' },
+    { label: 'View Findings', desc: 'Review all active findings', cmd: 'secure list-alerts' },
+  ];
+
+  actions.forEach(act => {
+    const card = el('div', undefined, 'card');
+    add(card,
+      el('h3', act.label),
+      el('p', act.desc),
+      el('p', act.cmd, 'small muted')
+    );
+    actionGrid.append(card);
+  });
+
+  content.append(actionGrid);
+
+  // Footer
+  const footer = el('p', undefined, 'small');
+  footer.style.marginTop = '40px';
+  footer.style.paddingTop = '16px';
+  footer.style.borderTop = '1px solid var(--line)';
+  footer.innerHTML = 'Secure Dashboard v0.1 · Data from local security scans · <a href="https://github.com/evale92/secure-resource">Project repository</a>';
+  content.append(footer);
+}
+
+// Initialize
+buildDashboard();
+</script>

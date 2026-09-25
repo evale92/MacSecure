@@ -1,8 +1,7 @@
 """Meta-test for mutation gate suite integrity.
 
-Checks A–D from GATE-REMEDIATION-WORKORDER.md.
-These are static AST/grep checks (sub-second). They must fail on the current
-broken tree and pass after all 12 items are fixed.
+Checks A–E (Checks A–D are mechanical, Check E verifies gate persistence).
+These are static AST/grep checks (sub-second). They must pass to verify gate integrity.
 
 Rule 3 compliant: module-level test_* functions only, no classes.
 """

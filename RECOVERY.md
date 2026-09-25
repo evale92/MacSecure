@@ -77,7 +77,7 @@ launchctl list | grep com.secure
 # To manually trigger a backup:
 launchctl kickstart user/503/com.secure.backup
 # Then check the logs:
-tail /Users/erickvale/Projects/secure-resource/.monitoring/backup.{out,err}
+tail <repo>/.monitoring/backup.{out,err}
 ```
 
 ## If database backup fails
@@ -87,7 +87,7 @@ backup script cannot read `~/.secure/secure.db`. Causes:
 - macOS privacy permission blocking background jobs (System Preferences → Security & Privacy)
 - Database locked by another process
 
-Check `/Users/erickvale/Projects/secure-resource/.monitoring/backup.err`:
+Check `<repo>/.monitoring/backup.err`:
 ```bash
 tail /Users/erickvale/Projects/secure-resource/.monitoring/backup.err
 ```

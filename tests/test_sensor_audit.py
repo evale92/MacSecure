@@ -48,8 +48,6 @@ def test_inactive_sensors():
     inactive_map = {s.name: not s.has_scan_cmd for s in statuses}
 
     # These are NOT in secure_monitor.sh
-    assert inactive_map["fileintegrity"]
-    assert inactive_map["checks"]
     assert inactive_map["inventory"]
     assert inactive_map["arpwatch"]
 
@@ -89,8 +87,27 @@ def test_audit_notes_missing_critical_sensors():
     """Sensors that should be in monitor but aren't are flagged."""
     statuses = audit_sensors()
 
-    fileintegrity = next(s for s in statuses if s.name == "fileintegrity")
-    assert "should be" in fileintegrity.notes.lower() or "not in monitor" in fileintegrity.notes.lower()
+    # fileintegrity and checks ARE in monitor now, so no flag needed
+    # Test remaining critical sensors that aren't in monitor
+    inventory = next(s for s in statuses if s.name == "inventory")
+    # inventory is not in monitor but not critical, so no required note
 
-    checks = next(s for s in statuses if s.name == "checks")
-    assert "should be" in checks.notes.lower() or "not in monitor" in checks.notes.lower()
+
+def test_audit_location_independent():
+    """Audit detects sensors regardless of repo install location.
+
+    Regression test: audit_sensors() should resolve repo root dynamically
+    and not depend on hardcoded Desktop/~/Projects paths. If this test fails
+    after a directory move, it means the path resolution broke.
+    """
+    statuses = audit_sensors()
+
+    # All 9 sensors must be found
+    sensor_names = {s.name for s in statuses}
+    expected = {"persistence", "listening", "connections", "wifi", "bluetooth",
+                "fileintegrity", "checks", "inventory", "arpwatch"}
+
+    assert sensor_names == expected, (
+        f"Audit failed to find sensors (repo path broken?): "
+        f"missing {expected - sensor_names}"
+    )

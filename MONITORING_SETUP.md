@@ -18,7 +18,7 @@ Results logged to `.monitoring/monitor_YYYYMMDD_HHMMSS.log` (local file only).
 crontab -e
 
 # Add line to run every 4 hours:
-0 */4 * * * cd /Users/erickvale/Desktop/secure-resource && ./secure_monitor.sh --log-only >> .monitoring/cron.log 2>&1
+0 */4 * * * cd /path/to/secure-resource && ./secure_monitor.sh --log-only >> .monitoring/cron.log 2>&1
 ```
 
 **Note:** LaunchAgent plist is NOT loaded by default (Invariant 12: full uninstall reversibility).

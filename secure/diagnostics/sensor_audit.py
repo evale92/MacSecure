@@ -32,7 +32,9 @@ def audit_sensors(repo_root: str | None = None) -> List[SensorStatus]:
         List of SensorStatus for each sensor module
     """
     if repo_root is None:
-        repo_root = str(Path.home() / "Desktop" / "secure-resource")
+        # Infer repo root from this module's location
+        # secure/diagnostics/sensor_audit.py -> walk up 2 levels to repo root
+        repo_root = str(Path(__file__).resolve().parents[2])
 
     repo_path = Path(repo_root)
 

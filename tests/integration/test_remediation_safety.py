@@ -2,7 +2,6 @@
 
 SCAFFOLDING: These tests are currently skipped. They test approval gating and
 audit-trail logic, but do not yet wire to real remediation actions.
-See CATCH-UP.md phase gate rules.
 """
 
 import pytest

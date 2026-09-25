@@ -513,7 +513,6 @@ python3 -m pytest tests/test_alerting_*.py -v
 - **SECURITY_INVARIANTS.md** — Audit trail requirements
 - **docs/PHASE_48.md** — Remediation layer
 - **docs/PHASE_49.md** — Multi-device layer
-- **HANDOFF.md** — Project state and session summary
 
 ---
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import os
 import sqlite3
 import sys
 from datetime import datetime
@@ -268,6 +269,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     for row in rows
                 ],
             }
+
+            # Stub: return wrong data for payload-level gate testing
+            if os.environ.get("SECURE_STUB_DASHBOARD_ALERTS_WRONG"):
+                response_data["total"] = 999
 
             self.send_response(200)
             self.send_header("Content-type", "application/json")

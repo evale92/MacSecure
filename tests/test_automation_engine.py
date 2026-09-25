@@ -199,15 +199,28 @@ def test_auto_approval_policy_low_confidence():
 def test_engine_handles_siem_failure():
     """Test that automation engine handles SIEM transport failures gracefully."""
     import os
+    import sqlite3
+    import tempfile
     from pathlib import Path
     from secure.automation.engine import AutomationEngine
+    from secure.storage.alerting_schema import init_alerting_schema
+    from secure.feedback.schema import init_feedback_schema
 
-    # Set SIEM transport stub to simulate failure
-    os.environ["SECURE_STUB_SIEM_TRANSPORT_BREAK"] = "true"
-    try:
-        engine = AutomationEngine()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "test.db"
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
 
-        # Engine should initialize even if SIEM transport is broken
-        assert engine is not None, "GATE_AUTOMATION_ENGINE_SIEM: engine failed to initialize with SIEM transport broken"
-    finally:
-        del os.environ["SECURE_STUB_SIEM_TRANSPORT_BREAK"]
+        init_alerting_schema(conn)
+        init_feedback_schema(conn)
+
+        # Set SIEM transport stub to simulate failure
+        os.environ["SECURE_STUB_SIEM_TRANSPORT_BREAK"] = "true"
+        try:
+            engine = AutomationEngine(conn)
+
+            # Engine should initialize even if SIEM transport is broken
+            assert engine is not None, "GATE_AUTOMATION_ENGINE_SIEM: engine failed to initialize with SIEM transport broken"
+        finally:
+            del os.environ["SECURE_STUB_SIEM_TRANSPORT_BREAK"]
+            conn.close()

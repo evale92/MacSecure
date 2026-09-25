@@ -243,3 +243,56 @@ def test_structural_rule_returncode_check():
         f"STRUCTURAL RULE FAILED: Gates without returncode check:\n" +
         "\n".join(f"  {f}" for f in failures)
     )
+
+
+def test_check_e_gates_persist_in_git_history():
+    """CHECK E: Gate functions mentioned in git history still exist.
+
+    Prevents accidental deletion of gates to hide failing tests.
+    A gate may never be deleted to make the suite pass.
+    """
+    import subprocess
+
+    gate_files = _read_all_gate_files()
+    current_gates = set()
+
+    for filepath, content in gate_files.items():
+        gate_names = GATE_PATTERN.findall(content)
+        for gate_name in gate_names:
+            current_gates.add(gate_name)
+
+    # Check git log for gate function names
+    result = subprocess.run(
+        ["git", "log", "--pretty=%B", "-S", "test_gate", "--", "tests/integration/"],
+        capture_output=True,
+        text=True,
+        cwd=str(REPO_ROOT)
+    )
+
+    if result.returncode != 0:
+        # If git fails, skip this check gracefully
+        return
+
+    git_log = result.stdout
+    # Find all test_gate* references in commit messages
+    mentioned_gates = set(re.findall(r"(test_gate\w+)", git_log))
+
+    # Also check for gates added/removed in patches
+    result = subprocess.run(
+        ["git", "log", "-p", "--", "tests/integration/test_*_mutation_gates.py"],
+        capture_output=True,
+        text=True,
+        cwd=str(REPO_ROOT)
+    )
+
+    if result.returncode == 0:
+        # Find removed gate functions (lines starting with -)
+        for match in re.finditer(r"-\s*def (test_gate\w+)\(", result.stdout):
+            mentioned_gates.add(match.group(1))
+
+    deleted_gates = mentioned_gates - current_gates
+
+    assert not deleted_gates, (
+        f"CHECK E FAILED: Gates deleted after being in git history:\n" +
+        "\n".join(f"  {g}" for g in sorted(deleted_gates))
+    )

@@ -1,29 +1,38 @@
-# Secure: Local macOS Security Monitoring
+# MacSecure — Local macOS Security Monitoring
 
 A read-only local security monitoring tool for macOS that detects and investigates unusual activity—no daemon, no sudo, nothing blocked.
 
 Collects snapshots of running processes, listening ports, active connections, network devices, Bluetooth/BLE peripherals, Wi-Fi networks, and system persistence mechanisms (LaunchAgents, LaunchDaemons, login items). Flags newly-seen entries and maintains historical inventory for investigation.
 
+## Engineering focus
+
+Python-based local observation, SQLite history, investigation workflows, and failure-path testing. Monitoring observes rather than blocks; the application persists local data, and separately documented forensic or repair actions have their own controls. This is not a claim of production readiness or independently validated detection accuracy.
+
+Formerly named Secure. The Python package and CLI remain `secure`.
+
 ## Install
 
 ```bash
-git clone https://github.com/evale92/secure-resource.git
-cd secure-resource
+git clone https://github.com/evale92/MacSecure.git
+cd MacSecure
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -r requirements.txt
 python3 -m secure init  # Set up ~/.secure config and database
 ```
 
-Requirements: Python 3.9+. Three deliberate dependencies (for BLE scanning, YARA pattern matching, and Sigma rule parsing); everything else is stdlib. Optional integrations: osquery, Suricata, Zeek, Velociraptor.
+Requirements: Python 3.9+ and macOS. See [requirements.txt](requirements.txt) for declared Python packages and optional integrations.
 
 ## Examples
 
 **Check overall status:**
 ```
 $ python3 -m secure status
-Device name:   macmini.lan
+Device name:   example-mac.local
 Device role:   workstation
-App directory: /Users/erickvale/.secure
-Database:      /Users/erickvale/.secure/secure.db
-Log file:      /Users/erickvale/.secure/secure.log
+App directory: /Users/example/.secure
+Database:      /Users/example/.secure/secure.db
+Log file:      /Users/example/.secure/secure.log
 Log level:     INFO
 Total events:  0
 ```
@@ -63,17 +72,9 @@ Scan at 2026-09-25T03:39:06.221561+00:00 (run id: 9d40c14e-5a8c-4abe1d17)
 Active connections: 42 TCP, 3 UDP
 ```
 
-## Footprint
+## Verification scope
 
-Sub-2 second scans, memory-efficient:
-
-| Command | Time | Peak Memory |
-|---------|------|-------------|
-| `persistence scan` | 1.47s | 38.7 MB |
-| `listening scan` | 0.29s | 36.4 MB |
-| `connections scan` | 0.30s | 36.0 MB |
-
-Standard library only, except three deliberate dependencies: bleak + pyobjc-framework-CoreBluetooth (live BLE scanning) and PyYAML (Sigma rule parsing). yara-x is optional. Optional integrations: osquery, Suricata, Zeek, Velociraptor.
+Performance depends on the machine, permissions, integrations, and workload. No benchmark or current passing-test total is asserted here. Review the tests and run them in your own environment.
 
 ## What It Does
 
@@ -152,7 +153,7 @@ secure add-note "text"               Insert a test row (diagnostic)
 
 ## Development
 
-Test suite: stdlib `unittest` + `pytest` (2,966 tests). Code quality: no external linters. Mutation gates verify dependency stubs in product code; assertion sabotage goes red, restore goes green.
+Tests use Python `unittest` and `pytest`, including failure-path and mutation-gate checks. Their presence does not establish a current passing run; no fresh test-suite result is claimed by this documentation update.
 
 ```bash
 python3 -m pytest tests/ -v
@@ -160,4 +161,4 @@ python3 -m pytest tests/ -v
 
 ## License
 
-[Add your license here]
+No license has been selected for this repository. Public visibility alone does not grant an open-source license.
